@@ -1,17 +1,20 @@
-import express from 'express'
+import { sql } from "drizzle-orm";
+import app from "./app.js";
+import { env } from "./config/env.js";
+import { db } from "./db/index.js";
 
-const app = express()
-const port = Number(process.env.PORT || 8080)
+const startServer = async () => {
+  try {
+    await db.execute(sql`SELECT 1`);
+    console.log("Database Connected");
 
-app.use(express.json())
+    app.listen(env.PORT, () => {
+      console.log(`Server is running on ${env.PORT}`);
+    });
+  } catch (err) {
+    console.error("Database Connection Failed", err);
+    process.exit(1);
+  }
+};
 
-app.get('/health', (_req, res) => {
-  res.status(200).json({
-    status: 'ok',
-    service: 'breaktime-bakers-api',
-  })
-})
-
-app.listen(port, () => {
-  console.log(`API listening on port ${port}`)
-})
+startServer();
