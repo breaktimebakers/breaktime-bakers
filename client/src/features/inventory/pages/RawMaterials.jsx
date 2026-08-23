@@ -89,20 +89,35 @@ export default function RawMaterials() {
 
   const { data: materials = [], isLoading, isError } = useRawMaterials(query)
   const deleteRawMaterial = useDeleteRawMaterial()
+  const totalRawMaterialAmount = materials.reduce(
+    (total, material) => total + Number(material.stockQty || 0) * Number(material.nextLotRate || 0),
+    0,
+  )
 
   const handleExportPDF = () => {
     exportPDF({
       title: 'Raw Materials',
       subtitle: 'Break Times Bakery',
-      columns: ['Material', 'Unit', 'Stock', 'Low-stock at', 'Next lot rate'],
-      rows: materials.map((m) => [m.name, m.unit, m.stockQty, m.lowStockAt, formatCurrency(m.nextLotRate || 0)]),
+      columns: ['Material', 'Unit', 'Stock', 'Low-stock at', 'Next lot rate', 'Amount'],
+      rows: materials.map((m) => {
+        const amount = Number(m.stockQty || 0) * Number(m.nextLotRate || 0)
+        return [m.name, m.unit, m.stockQty, m.lowStockAt, formatCurrency(m.nextLotRate || 0), formatCurrency(amount)]
+      }),
+      summaryRows: [{ label: 'Total raw material amount', value: formatCurrency(totalRawMaterialAmount) }],
       filename: 'raw-materials.pdf',
     })
   }
   const handleExportExcel = () => {
     exportExcel({
-      columns: ['Material', 'Unit', 'Stock', 'Low-stock at', 'Next lot rate'],
-      rows: materials.map((m) => [m.name, m.unit, m.stockQty, m.lowStockAt, m.nextLotRate || 0]),
+      title: 'Raw Materials',
+      subtitle: 'Break Times Bakery',
+      columns: ['Material', 'Unit', 'Stock', 'Low-stock at', 'Next lot rate', 'Amount'],
+      rows: materials.map((m) => {
+        const rate = Number(m.nextLotRate || 0)
+        const amount = Number(m.stockQty || 0) * rate
+        return [m.name, m.unit, m.stockQty, m.lowStockAt, rate, amount]
+      }),
+      summaryRows: [{ label: 'Total raw material amount', value: totalRawMaterialAmount }],
       sheetName: 'Raw Materials',
       filename: 'raw-materials.xlsx',
     })
