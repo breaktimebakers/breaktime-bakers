@@ -23,3 +23,7 @@ uploads/
 .vscode/
 .idea/
 .DS_Store
+
+#AI settings
+.claude
+.codex
