@@ -1,5 +1,5 @@
 import { createRoute } from '@tanstack/react-router'
-import { rootRoute } from '@/router/rootRoute'
+import { appLayoutRoute } from '@/router/appLayoutRoute'
 
 import SalesOverview from './pages/SalesOverview'
 import AreasList from './pages/AreasList'
@@ -9,13 +9,13 @@ import OrdersAreaList from './pages/OrdersAreaList'
 import OrderTakersList from './pages/OrderTakersList'
 import OrderTakerDetail from './pages/OrderTakerDetail'
 
-const salesRoute = createRoute({ getParentRoute: () => rootRoute, path: '/sales', component: SalesOverview })
-const areasRoute = createRoute({ getParentRoute: () => rootRoute, path: '/sales/areas', component: AreasList })
-const areaDetailRoute = createRoute({ getParentRoute: () => rootRoute, path: '/sales/areas/$areaId', component: AreaDetail })
-const ordersRoute = createRoute({ getParentRoute: () => rootRoute, path: '/sales/orders', component: OrdersAreaList })
-const ordersAreaRoute = createRoute({ getParentRoute: () => rootRoute, path: '/sales/orders/$areaId', component: OrdersOverview })
-const orderTakersRoute = createRoute({ getParentRoute: () => rootRoute, path: '/sales/orders/order-takers', component: OrderTakersList })
-const orderTakerDetailRoute = createRoute({ getParentRoute: () => rootRoute, path: '/sales/orders/order-takers/$personId', component: OrderTakerDetail })
+const salesRoute = createRoute({ getParentRoute: () => appLayoutRoute, path: '/sales', component: SalesOverview })
+const areasRoute = createRoute({ getParentRoute: () => appLayoutRoute, path: '/sales/areas', component: AreasList })
+const areaDetailRoute = createRoute({ getParentRoute: () => appLayoutRoute, path: '/sales/areas/$areaId', component: AreaDetail })
+const ordersRoute = createRoute({ getParentRoute: () => appLayoutRoute, path: '/sales/orders', component: OrdersAreaList })
+const ordersAreaRoute = createRoute({ getParentRoute: () => appLayoutRoute, path: '/sales/orders/$areaId', component: OrdersOverview })
+const orderTakersRoute = createRoute({ getParentRoute: () => appLayoutRoute, path: '/sales/orders/order-takers', component: OrderTakersList })
+const orderTakerDetailRoute = createRoute({ getParentRoute: () => appLayoutRoute, path: '/sales/orders/order-takers/$personId', component: OrderTakerDetail })
 
 export const salesRoutes = [
   salesRoute,

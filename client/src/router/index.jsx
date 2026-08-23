@@ -1,5 +1,7 @@
 import { createRoute, createRouter, redirect } from '@tanstack/react-router'
 import { rootRoute } from './rootRoute'
+import { fullPageLayoutRoute } from './fullPageLayoutRoute'
+import { appLayoutRoute } from './appLayoutRoute'
 
 import { authRoutes } from '@/features/auth/routes'
 import { inventoryRoutes } from '@/features/inventory/routes'
@@ -17,12 +19,14 @@ const indexRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
-  ...authRoutes,
-  ...inventoryRoutes,
-  ...salesRoutes,
-  ...deliveryRoutes,
-  ...workersRoutes,
-  ...financeRoutes,
+  fullPageLayoutRoute.addChildren([...authRoutes]),
+  appLayoutRoute.addChildren([
+    ...inventoryRoutes,
+    ...salesRoutes,
+    ...deliveryRoutes,
+    ...workersRoutes,
+    ...financeRoutes,
+  ]),
 ])
 
 export const router = createRouter({ routeTree })

@@ -1,25 +1,26 @@
 import { useState } from 'react'
-import { useNavigate } from '@tanstack/react-router'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Eye, EyeOff, LogIn, AlertCircle } from 'lucide-react'
 import { useAuth } from '@/features/auth/hooks'
 import { Button, Field, inputClass } from '@/components/shared'
 
 export default function Login() {
-  const { login } = useAuth()
+  const { login, isLoggingIn } = useAuth()
   const navigate = useNavigate()
-  const [username, setUsername] = useState('')
+  const { sessionExpired } = useSearch({ strict: false })
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
-    const success = login(username, password)
-    if (success) {
+    try {
+      await login({ email, password })
       navigate({ to: '/inventory' })
-    } else {
-      setError('Invalid username or password. Please try again.')
+    } catch (err) {
+      setError(err.message || 'Invalid email or password. Please try again.')
     }
   }
 
@@ -39,15 +40,22 @@ export default function Login() {
             </div>
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-              <Field label="Username" required>
+              {sessionExpired && !error && (
+                <div className="flex items-center gap-2 rounded-lg bg-oven-amber/15 px-3 py-2 text-sm text-espresso">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>Session expired. Please log in again.</span>
+                </div>
+              )}
+
+              <Field label="Email" required>
                 <input
-                  type="text"
+                  type="email"
                   className={inputClass}
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="admin"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="admin@breaktimebakers.com"
                   autoFocus
-                  autoComplete="username"
+                  autoComplete="email"
                 />
               </Field>
 
@@ -79,9 +87,9 @@ export default function Login() {
                 </div>
               )}
 
-              <Button type="submit" size="lg" className="mt-2 w-full">
+              <Button type="submit" size="lg" className="mt-2 w-full" disabled={isLoggingIn}>
                 <LogIn className="h-4 w-4" />
-                Log in
+                {isLoggingIn ? 'Logging in…' : 'Log in'}
               </Button>
             </form>
           </div>
@@ -89,10 +97,6 @@ export default function Login() {
           {/* Ticket-edge torn strip */}
           <div className="ticket-edge-bottom h-2 bg-oven-amber" />
         </div>
-
-        <p className="mt-4 text-center text-xs text-espresso/40">
-          Demo credentials: admin / breaktimes123
-        </p>
       </div>
     </div>
   )

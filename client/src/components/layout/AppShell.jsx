@@ -130,9 +130,15 @@ function SidebarContent({ onNavigate }) {
   const { currentUser, logout } = useAuth()
   const navigate = useNavigate()
 
-  const handleLogout = () => {
-    logout()
-    navigate({ to: '/login' })
+  const handleLogout = async () => {
+    try {
+      await logout()
+    } finally {
+      // Navigate even if the request itself failed (network error, etc.) -
+      // the cache is already cleared optimistically, so the user is
+      // treated as signed out client-side regardless.
+      navigate({ to: '/login' })
+    }
   }
 
   return (
