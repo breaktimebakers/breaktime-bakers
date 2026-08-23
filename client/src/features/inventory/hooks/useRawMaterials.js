@@ -1,0 +1,34 @@
+import { useQuery } from '@tanstack/react-query'
+import { rawMaterialApi } from '../api/rawMaterialApi'
+
+export const rawMaterialKeys = {
+  all: ['raw-materials'],
+  list: (query = {}) => ['raw-materials', 'list', query],
+  lots: (id, range = {}) => ['raw-materials', id, 'lots', range],
+}
+
+export function useRawMaterials(query = {}) {
+  return useQuery({
+    queryKey: rawMaterialKeys.list(query),
+    // apiClient resolves to the response envelope's `data`, which for
+    // this endpoint is { rawMaterials: [...] } - unwrapped here so every
+    // consumer of this hook gets the bare array back, not the wrapper.
+    queryFn: async () => {
+      const { rawMaterials } = await rawMaterialApi.list(query)
+      return rawMaterials
+    },
+  })
+}
+
+// Lazy by design - a material's lot history is only fetched once its row
+// is expanded, not for every row up front on page load.
+export function useRawMaterialLots(materialId, range = {}, { enabled = true } = {}) {
+  return useQuery({
+    queryKey: rawMaterialKeys.lots(materialId, range),
+    queryFn: async () => {
+      const { lots } = await rawMaterialApi.lots(materialId, range)
+      return lots
+    },
+    enabled: enabled && !!materialId,
+  })
+}

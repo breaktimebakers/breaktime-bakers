@@ -5,10 +5,31 @@ import { users } from "../modules/users/user.schema.js";
 import { findUserByEmail } from "../modules/users/user.repository.js";
 
 const admins = [
-  { name: "Admin One", email: "admin1@breaktimebakers.com", password: "changeme1" },
-  { name: "Admin Two", email: "admin2@breaktimebakers.com", password: "changeme2" },
-  { name: "Admin Three", email: "admin3@breaktimebakers.com", password: "changeme3" },
-  { name: "Admin Four", email: "admin4@breaktimebakers.com", password: "changeme4" },
+  {
+    name: "Admin One",
+    email: "admin1@breaktimebakers.com",
+    password: "changeme1",
+  },
+  {
+    name: "Admin Two",
+    email: "admin2@breaktimebakers.com",
+    password: "changeme2",
+  },
+  {
+    name: "Admin Three",
+    email: "admin3@breaktimebakers.com",
+    password: "changeme3",
+  },
+  {
+    name: "Admin Four",
+    email: "admin4@breaktimebakers.com",
+    password: "changeme4",
+  },
+  {
+    name: "Admin Five",
+    email: "admin@admin.com",
+    password: "admin",
+  },
 ];
 
 const run = async () => {
@@ -27,6 +48,7 @@ const run = async () => {
       name: admin.name,
       email: admin.email,
       password: hashedPassword,
+      role: "admin",
     });
 
     console.log(`Created ${admin.email}`);

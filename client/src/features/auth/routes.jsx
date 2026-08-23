@@ -1,7 +1,7 @@
 import { createRoute, redirect } from "@tanstack/react-router";
 import { fullPageLayoutRoute } from "@/router/fullPageLayoutRoute";
 import { queryClient } from "@/lib/queryClient";
-import { authKeys, fetchCurrentUser } from "./hooks/useAuth";
+import { AUTH_ME_STALE_TIME_MS, authKeys, fetchCurrentUser } from "./hooks/useAuth";
 import Login from "./pages/Login";
 
 const redirectIfAuthenticated = async () => {
@@ -11,7 +11,7 @@ const redirectIfAuthenticated = async () => {
     user = await queryClient.query({
       queryKey: authKeys.me,
       queryFn: fetchCurrentUser,
-      staleTime: 0,
+      staleTime: AUTH_ME_STALE_TIME_MS,
     });
   } catch {
     return;

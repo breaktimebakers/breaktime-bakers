@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
 import { Layers, AlertTriangle, PackageCheck, Boxes } from 'lucide-react'
-import { useInventory } from '@/features/inventory/hooks'
+import { useInventory, useRawMaterials } from '@/features/inventory/hooks'
 import { PageHeader } from '@/components/shared'
 
 const inr = (n) => '₹' + Number(n || 0).toLocaleString('en-IN')
@@ -26,7 +26,8 @@ function StatCard({ label, value, icon: Icon, chipColor, detail, danger }) {
 const chartColors = ['#C97A2B', '#E8D5B7', '#8C9A6B', '#7A4A5C', '#D4A24C', '#B5C4A8', '#A83A3A', '#6B8A5C']
 
 export default function InventoryDashboard() {
-  const { rawMaterials, batches, readyStock } = useInventory()
+  const { batches, readyStock } = useInventory()
+  const { data: rawMaterials = [] } = useRawMaterials()
   const [view, setView] = useState('ready')
 
   const lowStock = rawMaterials.filter((m) => m.stockQty < m.lowStockAt)
@@ -37,7 +38,7 @@ export default function InventoryDashboard() {
   })
 
   const readyValue = readyStock.reduce((s, r) => s + r.availableQty * r.pricePerUnit, 0)
-  const rawValue = rawMaterials.reduce((s, m) => s + m.stockQty * (m.lots[0]?.unitCost || 0), 0)
+  const rawValue = rawMaterials.reduce((s, m) => s + m.stockQty * (m.nextLotRate || 0), 0)
 
   const barData = (() => {
     const days = []
@@ -56,7 +57,7 @@ export default function InventoryDashboard() {
 
   const valueRows = view === 'ready'
     ? readyStock.map((r) => ({ name: r.productName, qty: r.availableQty, price: r.pricePerUnit, value: r.availableQty * r.pricePerUnit })).sort((a, b) => b.value - a.value)
-    : rawMaterials.map((m) => ({ name: m.name, qty: m.stockQty, price: m.lots[0]?.unitCost || 0, value: m.stockQty * (m.lots[0]?.unitCost || 0) })).sort((a, b) => b.value - a.value)
+    : rawMaterials.map((m) => ({ name: m.name, qty: m.stockQty, price: m.nextLotRate || 0, value: m.stockQty * (m.nextLotRate || 0) })).sort((a, b) => b.value - a.value)
   const maxValue = Math.max(...valueRows.map((r) => r.value), 1)
 
   return (

@@ -9,4 +9,16 @@ export const ENDPOINTS = {
     refreshToken: '/auth/refresh-token',
     me: '/auth/me',
   },
+  rawMaterials: {
+    list: '/raw-materials',
+    create: '/raw-materials',
+    detail: (id) => `/raw-materials/${id}`,
+    update: (id) => `/raw-materials/${id}`,
+    remove: (id) => `/raw-materials/${id}`,
+    lots: (id) => `/raw-materials/${id}/lots`,
+    createLot: (id) => `/raw-materials/${id}/lots`,
+  },
+  uploads: {
+    receiptUrl: '/uploads/receipt-url',
+  },
 }

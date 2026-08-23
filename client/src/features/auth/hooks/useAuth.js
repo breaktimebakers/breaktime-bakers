@@ -6,6 +6,8 @@ export const authKeys = {
   me: ['auth', 'me'],
 }
 
+export const AUTH_ME_STALE_TIME_MS = 2 * 60 * 1000
+
 // GET /auth/me is expected to 401 for a signed-out visitor - that's a
 // normal "not logged in" result, not a failure, so it resolves to null
 // instead of surfacing as a query error.
@@ -25,6 +27,7 @@ export function useAuth() {
   const meQuery = useQuery({
     queryKey: authKeys.me,
     queryFn: fetchCurrentUser,
+    staleTime: AUTH_ME_STALE_TIME_MS,
     retry: false,
   })
 

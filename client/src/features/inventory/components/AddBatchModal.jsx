@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
-import { useInventory } from '../hooks'
+import { useInventory, useRawMaterials } from '../hooks'
 import { Button, Field, Modal, inputClass } from '@/components/shared'
 
 export function AddBatchModal({ open, onClose }) {
-  const { rawMaterials, addBatch } = useInventory()
+  const { addBatch } = useInventory()
+  const { data: rawMaterials = [] } = useRawMaterials()
   const [form, setForm] = useState({ productName: '', quantityProduced: '', unit: 'pcs', pricePerUnit: '', ingredientsUsed: [] })
 
   const addLine = () => setForm((f) => ({ ...f, ingredientsUsed: [...f.ingredientsUsed, { rawMaterialId: rawMaterials[0]?.id || '', qty: '' }] }))
@@ -55,7 +56,7 @@ export function AddBatchModal({ open, onClose }) {
           {form.ingredientsUsed.length === 0 && <p className="text-xs text-espresso/40">No ingredients added yet.</p>}
         </div>
         <p className="mt-3 rounded-lg bg-oven-amber/8 px-3 py-2 text-xs text-espresso/60">
-          Stock will be deducted from raw materials (oldest lot first) and added to ready stock.
+          Recorded here for tracking only - production isn't wired to raw material stock yet, so this won't deduct from inventory.
         </p>
       </div>
     </Modal>

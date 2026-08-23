@@ -68,6 +68,7 @@ export const registerUser = async (body, meta) => {
       id: user.id,
       name: user.name,
       email: user.email,
+      role: user.role,
     },
     accessToken,
     refreshToken,
@@ -94,6 +95,7 @@ export const loginUser = async (body, meta) => {
       id: existingUser.id,
       name: existingUser.name,
       email: existingUser.email,
+      role: existingUser.role,
     },
     accessToken,
     refreshToken,
@@ -194,5 +196,6 @@ export const getCurrentUser = async (userId) => {
     id: user.id,
     name: user.name,
     email: user.email,
+    role: user.role,
   };
 };

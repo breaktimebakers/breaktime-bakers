@@ -4,6 +4,8 @@ import cookieParser from "cookie-parser";
 
 import { env } from "./config/env.js";
 import authRoutes from "./modules/auth/auth.routes.js";
+import rawMaterialRoutes from "./modules/inventory/rawMaterial.routes.js";
+import uploadRoutes from "./modules/uploads/upload.routes.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
 import { requestLogger } from "./middlewares/requestLogger.js";
 
@@ -26,6 +28,8 @@ app.use(requestLogger);
 app.use(cookieParser());
 
 app.use("/api/auth", authRoutes);
+app.use("/api/raw-materials", rawMaterialRoutes);
+app.use("/api/uploads", uploadRoutes);
 
 app.get("/health", (req, res) => {
   res.status(200).json({

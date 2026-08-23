@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Plus, CookingPot, LayoutGrid, Table as TableIcon } from 'lucide-react'
-import { useInventory } from '@/features/inventory/hooks'
+import { useInventory, useRawMaterials } from '@/features/inventory/hooks'
 import { Button, EmptyState, ExportMenu, PageHeader, Pagination, inputClass } from '@/components/shared'
 import { usePagination } from '@/hooks'
 import { exportPDF, exportExcel } from '@/utils'
@@ -9,7 +9,8 @@ import { AddBatchModal } from '../components/AddBatchModal'
 const PAGE_SIZE = 6
 
 export default function InProcess() {
-  const { batches, rawMaterials } = useInventory()
+  const { batches } = useInventory()
+  const { data: rawMaterials = [] } = useRawMaterials()
   const [filter, setFilter] = useState('week')
   const [addOpen, setAddOpen] = useState(false)
   const [customFrom, setCustomFrom] = useState('')
