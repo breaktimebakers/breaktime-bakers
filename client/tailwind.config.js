@@ -53,6 +53,18 @@ export default {
           from: { transform: 'translateY(100%)' },
           to: { transform: 'translateY(0)' },
         },
+        'toast-in': {
+          from: { transform: 'translateX(115%) scale(0.96)', opacity: '0' },
+          to: { transform: 'translateX(0) scale(1)', opacity: '1' },
+        },
+        'toast-out': {
+          from: { transform: 'translateX(0) scale(1)', opacity: '1', maxHeight: '80px', marginBottom: '10px' },
+          to: { transform: 'translateX(115%) scale(0.96)', opacity: '0', maxHeight: '0px', marginBottom: '0px' },
+        },
+        'toast-progress': {
+          from: { transform: 'scaleX(1)' },
+          to: { transform: 'scaleX(0)' },
+        },
       },
       animation: {
         flash: 'flash 1.4s ease-out',
@@ -61,6 +73,9 @@ export default {
         'fade-in': 'fade-in 0.2s ease-out',
         'scale-in': 'scale-in 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
         'slide-up': 'slide-up 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
+        'toast-in': 'toast-in 0.45s cubic-bezier(0.16, 1, 0.3, 1)',
+        'toast-out': 'toast-out 0.32s cubic-bezier(0.4, 0, 1, 1) forwards',
+        'toast-progress': 'toast-progress 3.2s linear forwards',
       },
     },
   },

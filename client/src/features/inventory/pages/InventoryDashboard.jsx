@@ -1,10 +1,9 @@
 import { useState } from 'react'
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
 import { Layers, AlertTriangle, PackageCheck, Boxes } from 'lucide-react'
-import { useInventory, useRawMaterials } from '@/features/inventory/hooks'
+import { useRawMaterials, useBatches, useReadyStock } from '@/features/inventory/hooks'
 import { PageHeader } from '@/components/shared'
-
-const inr = (n) => '₹' + Number(n || 0).toLocaleString('en-IN')
+import { formatCurrency } from '@/utils'
 
 function StatCard({ label, value, icon: Icon, chipColor, detail, danger }) {
   return (
@@ -26,18 +25,21 @@ function StatCard({ label, value, icon: Icon, chipColor, detail, danger }) {
 const chartColors = ['#C97A2B', '#E8D5B7', '#8C9A6B', '#7A4A5C', '#D4A24C', '#B5C4A8', '#A83A3A', '#6B8A5C']
 
 export default function InventoryDashboard() {
-  const { batches, readyStock } = useInventory()
   const { data: rawMaterials = [] } = useRawMaterials()
+  // Already server-scoped to the last 7 days (matches the "Batches
+  // produced / Last 7 days" chart below) - no client-side date filtering
+  // needed on top of this.
+  const { data: thisWeekBatches = [] } = useBatches({ filter: 'week' })
+  // Unscoped, like the raw-materials side - this panel represents overall
+  // current inventory, not "what moved recently".
+  const { data: readyStock = [] } = useReadyStock({ filter: 'all' })
   const [view, setView] = useState('ready')
 
   const lowStock = rawMaterials.filter((m) => m.stockQty < m.lowStockAt)
-  const thisWeekBatches = batches.filter((b) => {
-    const d = new Date(b.date)
-    const diff = (new Date() - d) / 86400000
-    return diff <= 7
-  })
 
-  const readyValue = readyStock.reduce((s, r) => s + r.availableQty * r.pricePerUnit, 0)
+  // totalValue/nextLotRate are already computed server-side per item, so
+  // these are plain sums, not re-derivations.
+  const readyValue = readyStock.reduce((s, r) => s + r.totalValue, 0)
   const rawValue = rawMaterials.reduce((s, m) => s + m.stockQty * (m.nextLotRate || 0), 0)
 
   const barData = (() => {
@@ -46,17 +48,19 @@ export default function InventoryDashboard() {
       const d = new Date()
       d.setDate(d.getDate() - i)
       const label = d.toLocaleDateString('en-IN', { weekday: 'short' })
-      const total = batches.filter((b) => b.date === d.toISOString().slice(0, 10)).reduce((s, b) => s + b.quantityProduced, 0)
+      const dateStr = d.toISOString().slice(0, 10)
+      const total = thisWeekBatches
+        .filter((b) => b.producedAt.slice(0, 10) === dateStr)
+        .reduce((s, b) => s + b.quantityProduced, 0)
       days.push({ day: label, qty: total })
     }
     return days
   })()
 
-  const pieData = readyStock.map((r) => ({ name: r.productName, value: r.availableQty }))
-  const totalPie = pieData.reduce((s, d) => s + d.value, 0)
+  const pieData = readyStock.map((r) => ({ name: r.name, value: r.availableQty }))
 
   const valueRows = view === 'ready'
-    ? readyStock.map((r) => ({ name: r.productName, qty: r.availableQty, price: r.pricePerUnit, value: r.availableQty * r.pricePerUnit })).sort((a, b) => b.value - a.value)
+    ? readyStock.map((r) => ({ name: r.name, qty: r.availableQty, price: r.pricePerUnit, value: r.totalValue })).sort((a, b) => b.value - a.value)
     : rawMaterials.map((m) => ({ name: m.name, qty: m.stockQty, price: m.nextLotRate || 0, value: m.stockQty * (m.nextLotRate || 0) })).sort((a, b) => b.value - a.value)
   const maxValue = Math.max(...valueRows.map((r) => r.value), 1)
 
@@ -76,7 +80,7 @@ export default function InventoryDashboard() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-wider text-oven-amber">Stock valuation</p>
-            <p className="mt-1 font-mono text-3xl font-bold text-espresso sm:text-4xl">{view === 'ready' ? inr(readyValue) : inr(rawValue)}</p>
+            <p className="mt-1 font-mono text-3xl font-bold text-espresso sm:text-4xl">{view === 'ready' ? formatCurrency(readyValue) : formatCurrency(rawValue)}</p>
           </div>
           <div className="inline-flex rounded-full bg-crust p-1">
             <button onClick={() => setView('ready')} className={`rounded-full px-4 py-1.5 text-xs font-medium transition ${view === 'ready' ? 'bg-oven-amber text-espresso' : 'text-espresso/60'}`}>Ready stock</button>
@@ -87,11 +91,11 @@ export default function InventoryDashboard() {
         <div className="mt-5 grid grid-cols-2 gap-3">
           <div className={`rounded-bakery border p-3 transition ${view === 'ready' ? 'border-oven-amber/40 bg-oven-amber/5' : 'border-espresso/8 bg-crust/30'}`}>
             <p className="text-xs text-espresso/50">Ready stock value</p>
-            <p className="mt-0.5 font-mono text-lg font-bold text-espresso">{inr(readyValue)}</p>
+            <p className="mt-0.5 font-mono text-lg font-bold text-espresso">{formatCurrency(readyValue)}</p>
           </div>
           <div className={`rounded-bakery border p-3 transition ${view === 'raw' ? 'border-oven-amber/40 bg-oven-amber/5' : 'border-espresso/8 bg-crust/30'}`}>
             <p className="text-xs text-espresso/50">Raw materials value</p>
-            <p className="mt-0.5 font-mono text-lg font-bold text-espresso">{inr(rawValue)}</p>
+            <p className="mt-0.5 font-mono text-lg font-bold text-espresso">{formatCurrency(rawValue)}</p>
           </div>
         </div>
 
@@ -106,8 +110,8 @@ export default function InventoryDashboard() {
                   style={{ width: `${(row.value / maxValue) * 100}%`, backgroundColor: chartColors[i % chartColors.length], animationDelay: `${i * 60}ms` }}
                 />
               </div>
-              <span className="hidden shrink-0 font-mono text-xs text-espresso/60 sm:inline">{row.qty} × ₹{row.price}</span>
-              <span className="w-20 shrink-0 text-right font-mono text-xs font-semibold text-espresso">{inr(row.value)}</span>
+              <span className="hidden shrink-0 font-mono text-xs text-espresso/60 sm:inline">{row.qty} × {formatCurrency(row.price)}</span>
+              <span className="w-20 shrink-0 text-right font-mono text-xs font-semibold text-espresso">{formatCurrency(row.value)}</span>
             </div>
           ))}
         </div>

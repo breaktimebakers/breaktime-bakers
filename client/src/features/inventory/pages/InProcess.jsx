@@ -1,50 +1,40 @@
 import { useState, useMemo } from 'react'
 import { Plus, CookingPot, LayoutGrid, Table as TableIcon } from 'lucide-react'
-import { useInventory, useRawMaterials } from '@/features/inventory/hooks'
+import { useBatches } from '@/features/inventory/hooks'
 import { Button, EmptyState, ExportMenu, PageHeader, Pagination, inputClass } from '@/components/shared'
 import { usePagination } from '@/hooks'
-import { exportPDF, exportExcel } from '@/utils'
+import { exportPDF, exportExcel, formatCurrency, formatDate } from '@/utils'
 import { AddBatchModal } from '../components/AddBatchModal'
 
 const PAGE_SIZE = 6
 
 export default function InProcess() {
-  const { batches } = useInventory()
-  const { data: rawMaterials = [] } = useRawMaterials()
-  const [filter, setFilter] = useState('week')
+  const [filter, setFilter] = useState('today')
   const [addOpen, setAddOpen] = useState(false)
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
   const [view, setView] = useState('cards')
 
-  const filtered = useMemo(() => {
-    const now = new Date()
-    return batches.filter((b) => {
-      const d = new Date(b.date)
-      const diff = (now - d) / 86400000
-      if (filter === 'today') return diff < 1
-      if (filter === 'week') return diff <= 7
-      if (filter === 'custom') {
-        if (customFrom && b.date < customFrom) return false
-        if (customTo && b.date > customTo) return false
-        return true
-      }
-      return true
-    })
-  }, [batches, filter, customFrom, customTo])
+  const query = useMemo(() => ({
+    filter,
+    from: filter === 'custom' ? customFrom || undefined : undefined,
+    to: filter === 'custom' ? customTo || undefined : undefined,
+  }), [filter, customFrom, customTo])
 
-  const { page, setPage, totalPages, start, end } = usePagination(filtered.length, PAGE_SIZE)
-  const paged = filtered.slice(start, end)
+  const { data: batches = [], isLoading, isError } = useBatches(query)
+
+  const { page, setPage, totalPages, start, end } = usePagination(batches.length, PAGE_SIZE)
+  const paged = batches.slice(start, end)
 
   const handleExportPDF = () => exportPDF({
     title: 'Production Batches', subtitle: 'Break Times Bakery',
-    columns: ['Batch ID', 'Date', 'Product', 'Quantity', 'Unit'],
-    rows: filtered.map((b) => [b.id, b.date, b.productName, b.quantityProduced, b.unit]),
+    columns: ['Date', 'Product', 'Quantity', 'Unit', 'Raw material cost'],
+    rows: batches.map((b) => [formatDate(b.producedAt), b.productName, b.quantityProduced, b.unit, formatCurrency(b.totalIngredientCost)]),
     filename: 'batches.pdf',
   })
   const handleExportExcel = () => exportExcel({
-    columns: ['Batch ID', 'Date', 'Product', 'Quantity', 'Unit'],
-    rows: filtered.map((b) => [b.id, b.date, b.productName, b.quantityProduced, b.unit]),
+    columns: ['Date', 'Product', 'Quantity', 'Unit', 'Raw material cost'],
+    rows: batches.map((b) => [formatDate(b.producedAt), b.productName, b.quantityProduced, b.unit, b.totalIngredientCost]),
     sheetName: 'Batches', filename: 'batches.xlsx',
   })
 
@@ -74,7 +64,11 @@ export default function InProcess() {
         </div>
       </div>
 
-      {filtered.length === 0 ? (
+      {isLoading ? (
+        <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading batches…</p>
+      ) : isError ? (
+        <EmptyState icon={CookingPot} title="Could not load batches" description="Something went wrong fetching production batches. Try refreshing." />
+      ) : batches.length === 0 ? (
         <EmptyState icon={CookingPot} title="No batches found" description="Add a production batch to see it here." />
       ) : view === 'cards' ? (
         <>
@@ -84,7 +78,7 @@ export default function InProcess() {
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="font-display text-lg font-semibold text-espresso">{b.productName}</h3>
-                    <p className="font-mono text-[10px] uppercase tracking-wider text-espresso/40">{b.id} · {new Date(b.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                    <p className="font-mono text-[10px] uppercase tracking-wider text-espresso/40">{formatDate(b.producedAt)}</p>
                   </div>
                   <span className="stamp text-matcha-glaze">Produced</span>
                 </div>
@@ -93,59 +87,58 @@ export default function InProcess() {
                   <span className="text-sm text-espresso/50">{b.unit}</span>
                 </div>
                 <div className="perforation mt-4 mb-3" />
-                <p className="mb-2 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Ingredients consumed</p>
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="font-mono text-[10px] uppercase tracking-wider text-espresso/50">Ingredients consumed</p>
+                  <p className="font-mono text-[10px] uppercase tracking-wider text-oven-amber">{formatCurrency(b.totalIngredientCost)}</p>
+                </div>
                 <div className="space-y-1">
-                  {b.ingredientsUsed.map((ing, i) => {
-                    const mat = rawMaterials.find((m) => m.id === ing.rawMaterialId)
-                    return (
-                      <div key={i} className="flex justify-between text-xs">
-                        <span className="text-espresso/70">{mat?.name || 'Unknown'}</span>
-                        <span className="font-mono text-espresso/80">{ing.qty} {mat?.unit}</span>
-                      </div>
-                    )
-                  })}
+                  {b.ingredientsUsed.length === 0 ? (
+                    <p className="text-xs text-espresso/40">No raw materials recorded.</p>
+                  ) : b.ingredientsUsed.map((ing) => (
+                    <div key={ing.rawMaterialId} className="flex justify-between text-xs">
+                      <span className="text-espresso/70">{ing.rawMaterialName}</span>
+                      <span className="font-mono text-espresso/80">{ing.qty} {ing.unit}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
           </div>
           <div className="mt-4 rounded-bakery border border-espresso/8 bg-proof-cream shadow-bakery">
-            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={filtered.length} pageSize={PAGE_SIZE} />
+            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={batches.length} pageSize={PAGE_SIZE} />
           </div>
         </>
       ) : (
         <div className="overflow-hidden rounded-bakery border border-espresso/8 bg-proof-cream shadow-bakery">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-sm">
+            <table className="w-full min-w-[680px] text-sm">
               <thead>
                 <tr className="border-b border-espresso/10 bg-crust/30 text-left">
-                  <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Batch ID</th>
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Date</th>
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Product</th>
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Quantity</th>
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Unit</th>
+                  <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Raw material cost</th>
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Ingredients</th>
                 </tr>
               </thead>
               <tbody>
                 {paged.map((b) => (
                   <tr key={b.id} className="border-b border-espresso/8 last:border-0">
-                    <td className="px-4 py-3 font-mono text-xs text-espresso/60">{b.id}</td>
-                    <td className="px-4 py-3 text-espresso/60">{new Date(b.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                    <td className="px-4 py-3 text-espresso/60">{formatDate(b.producedAt)}</td>
                     <td className="px-4 py-3 font-medium text-espresso">{b.productName}</td>
                     <td className="px-4 py-3 font-mono text-espresso">{b.quantityProduced}</td>
                     <td className="px-4 py-3 text-espresso/60">{b.unit}</td>
+                    <td className="px-4 py-3 font-mono text-espresso">{formatCurrency(b.totalIngredientCost)}</td>
                     <td className="px-4 py-3 text-xs text-espresso/60">
-                      {b.ingredientsUsed.map((ing) => {
-                        const mat = rawMaterials.find((m) => m.id === ing.rawMaterialId)
-                        return `${mat?.name || '?'} (${ing.qty})`
-                      }).join(', ')}
+                      {b.ingredientsUsed.length === 0 ? '—' : b.ingredientsUsed.map((ing) => `${ing.rawMaterialName} (${ing.qty})`).join(', ')}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={filtered.length} pageSize={PAGE_SIZE} />
+          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={batches.length} pageSize={PAGE_SIZE} />
         </div>
       )}
 

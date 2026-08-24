@@ -18,6 +18,13 @@ export const ENDPOINTS = {
     lots: (id) => `/raw-materials/${id}/lots`,
     createLot: (id) => `/raw-materials/${id}/lots`,
   },
+  batches: {
+    list: '/batches',
+    create: '/batches',
+  },
+  readyStock: {
+    list: '/ready-stock',
+  },
   uploads: {
     receiptUrl: '/uploads/receipt-url',
   },
