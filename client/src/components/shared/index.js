@@ -1,4 +1,5 @@
 export { Button } from './Button'
+export { ConfirmModal } from './ConfirmModal'
 export { EmptyState } from './EmptyState'
 export { ExportMenu } from './ExportMenu'
 export { Field, inputClass } from './Field'

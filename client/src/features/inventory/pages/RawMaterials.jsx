@@ -5,7 +5,7 @@ import {
   useRawMaterialLots,
   useDeleteRawMaterial,
 } from '@/features/inventory/hooks'
-import { Button, EmptyState, ExportMenu, PageHeader, inputClass } from '@/components/shared'
+import { Button, ConfirmModal, EmptyState, ExportMenu, PageHeader, inputClass } from '@/components/shared'
 import { exportPDF, exportExcel, formatCurrency, formatDate } from '@/utils'
 import { AddMaterialModal } from '../components/AddMaterialModal'
 import { EditMaterialModal } from '../components/EditMaterialModal'
@@ -68,6 +68,7 @@ export default function RawMaterials() {
   const [addOpen, setAddOpen] = useState(false)
   const [editMat, setEditMat] = useState(null)
   const [restockMat, setRestockMat] = useState(null)
+  const [deletingMat, setDeletingMat] = useState(null)
   const [viewingReceipt, setViewingReceipt] = useState(null)
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
@@ -89,6 +90,16 @@ export default function RawMaterials() {
 
   const { data: materials = [], isLoading, isError } = useRawMaterials(query)
   const deleteRawMaterial = useDeleteRawMaterial()
+
+  const confirmDelete = async () => {
+    try {
+      await deleteRawMaterial.mutateAsync(deletingMat.id)
+      setDeletingMat(null)
+    } catch {
+      // Error already surfaced as a toast by useDeleteRawMaterial - leave
+      // the confirmation open so the admin can retry or cancel.
+    }
+  }
   const totalRawMaterialAmount = materials.reduce(
     (total, material) => total + Number(material.stockQty || 0) * Number(material.nextLotRate || 0),
     0,
@@ -197,7 +208,7 @@ export default function RawMaterials() {
                           <div className="flex items-center justify-end gap-1.5">
                             <button onClick={() => setEditMat(m)} className="flex h-8 w-8 items-center justify-center rounded-lg text-espresso/60 hover:bg-espresso/5 hover:text-espresso" title="Edit"><Pencil className="h-4 w-4" /></button>
                             <button onClick={() => setRestockMat(m)} className="flex h-8 w-8 items-center justify-center rounded-lg text-matcha-glaze hover:bg-matcha-glaze/10" title="Restock"><PackagePlus className="h-4 w-4" /></button>
-                            <button onClick={() => deleteRawMaterial.mutate(m.id)} className="flex h-8 w-8 items-center justify-center rounded-lg text-cherry-compote hover:bg-cherry-compote/10" title="Delete"><Trash2 className="h-4 w-4" /></button>
+                            <button onClick={() => setDeletingMat(m)} className="flex h-8 w-8 items-center justify-center rounded-lg text-cherry-compote hover:bg-cherry-compote/10" title="Delete"><Trash2 className="h-4 w-4" /></button>
                           </div>
                         </td>
                       </tr>
@@ -233,7 +244,7 @@ export default function RawMaterials() {
                   <div className="mt-3 flex items-center gap-1.5">
                     <button onClick={() => setEditMat(m)} className="flex items-center gap-1 rounded-lg bg-espresso/5 px-2.5 py-1.5 text-xs text-espresso/70"><Pencil className="h-3.5 w-3.5" /> Edit</button>
                     <button onClick={() => setRestockMat(m)} className="flex items-center gap-1 rounded-lg bg-matcha-glaze/10 px-2.5 py-1.5 text-xs text-matcha-glaze"><PackagePlus className="h-3.5 w-3.5" /> Restock</button>
-                    <button onClick={() => deleteRawMaterial.mutate(m.id)} className="flex items-center gap-1 rounded-lg bg-cherry-compote/10 px-2.5 py-1.5 text-xs text-cherry-compote"><Trash2 className="h-3.5 w-3.5" /> Delete</button>
+                    <button onClick={() => setDeletingMat(m)} className="flex items-center gap-1 rounded-lg bg-cherry-compote/10 px-2.5 py-1.5 text-xs text-cherry-compote"><Trash2 className="h-3.5 w-3.5" /> Delete</button>
                   </div>
                   <button onClick={() => setExpanded(expanded === m.id ? null : m.id)} className="mt-3 flex w-full items-center justify-center gap-1 border-t border-espresso/8 pt-2 text-xs text-espresso/50">
                     <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded === m.id ? 'rotate-180' : ''}`} />
@@ -254,6 +265,15 @@ export default function RawMaterials() {
       <AddMaterialModal open={addOpen} onClose={() => setAddOpen(false)} />
       <EditMaterialModal open={!!editMat} onClose={() => setEditMat(null)} material={editMat} />
       <RestockModal open={!!restockMat} onClose={() => setRestockMat(null)} material={restockMat} />
+      <ConfirmModal
+        open={!!deletingMat}
+        onClose={() => setDeletingMat(null)}
+        onConfirm={confirmDelete}
+        isLoading={deleteRawMaterial.isPending}
+        title="Delete raw material?"
+        description={deletingMat ? `"${deletingMat.name}" and its purchase history will be removed from the active list. This can't be undone from here.` : ''}
+        confirmLabel="Delete"
+      />
       <ReceiptViewerModal
         open={!!viewingReceipt}
         onClose={() => setViewingReceipt(null)}

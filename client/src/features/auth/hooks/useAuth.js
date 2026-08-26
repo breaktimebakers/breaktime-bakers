@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ApiError } from '@/lib/apiClient'
+import { toast } from '@/lib/toast'
 import { authApi } from '../api/authApi'
 
 export const authKeys = {
@@ -46,10 +47,19 @@ export function useAuth() {
       // waiting on the request.
       queryClient.setQueryData(authKeys.me, null)
     },
-    onSuccess: () => {
+    onSettled: (_data, error) => {
       // Wipe every cached query, not just auth/me - the next admin to
       // log in on this device must never see the previous admin's data.
+      // Done whether the request succeeded or failed: the user is
+      // treated as signed out client-side either way (AppShell navigates
+      // to /login regardless - see its handleLogout).
       queryClient.clear()
+
+      if (error) {
+        toast.error('Could not confirm logout with the server', {
+          description: 'You have been signed out on this device, but the session may still be active elsewhere.',
+        })
+      }
     },
   })
 

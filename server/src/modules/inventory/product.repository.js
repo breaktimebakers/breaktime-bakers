@@ -1,8 +1,7 @@
 import { eq } from "drizzle-orm";
 import { v7 as uuidv7 } from "uuid";
+import { isUniqueViolation } from "../../utils/dbErrors.js";
 import { products } from "./product.schema.js";
-
-const UNIQUE_VIOLATION = "23505";
 
 // Finds-or-creates a product by name inside the caller's transaction, same
 // race-safe pattern as upsertVendorByName in rawMaterial.repository.js.
@@ -27,7 +26,7 @@ export const upsertProductByName = async (tx, { name, unit, pricePerUnit }) => {
     return id;
   } catch (err) {
     // Lost a race with another admin creating the same product - use theirs.
-    if (err.code === UNIQUE_VIOLATION) {
+    if (isUniqueViolation(err)) {
       const retry = await tx.select({ id: products.id }).from(products).where(eq(products.name, name));
       if (retry[0]) return retry[0].id;
     }

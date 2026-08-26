@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { rawMaterialApi } from '../api/rawMaterialApi'
 import { rawMaterialKeys } from './useRawMaterials'
+import { toast } from '@/lib/toast'
 
 // Every mutation below invalidates the whole raw-materials branch of the
 // cache (the list query and every material's lots query share the
@@ -31,7 +32,13 @@ export function useDeleteRawMaterial() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id) => rawMaterialApi.remove(id),
-    onSuccess: () => invalidateAll(queryClient),
+    onSuccess: () => {
+      invalidateAll(queryClient)
+      toast.success('Raw material deleted')
+    },
+    onError: (err) => {
+      toast.error('Could not delete raw material', { description: err.message })
+    },
   })
 }
 

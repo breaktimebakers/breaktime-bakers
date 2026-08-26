@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
 import { Store, Phone, MapPin, Plus, Navigation, Pencil } from 'lucide-react'
-import { useSales } from '@/features/sales/hooks'
+import { useArea, useStores, useCreateStore, useUpdateStore, useUpdateStoreStatus } from '@/features/sales/hooks'
 import { Button, EmptyState, Field, Modal, PageHeader, inputClass } from '@/components/shared'
 
 function MapPicker({ lat, lng, onChange }) {
@@ -42,26 +42,64 @@ function MapPicker({ lat, lng, onChange }) {
   )
 }
 
-function StoreFormModal({ open, onClose, areaId, store, onSave }) {
-  const { addStore, updateStore } = useSales()
+// Green/red status dot - whether this dealer is currently taking product
+// from us. Only shown/changeable in the edit form for an existing store;
+// a new store always starts active.
+function StatusDot({ active }) {
+  return (
+    <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${active ? 'text-matcha-glaze' : 'text-cherry-compote'}`}>
+      <span className={`h-2 w-2 rounded-full ${active ? 'bg-matcha-glaze' : 'bg-cherry-compote'}`} />
+      {active ? 'Active' : 'Inactive'}
+    </span>
+  )
+}
+
+function StoreFormModal({ open, onClose, areaId, store }) {
+  const createStore = useCreateStore()
+  const updateStore = useUpdateStore()
+  const updateStoreStatus = useUpdateStoreStatus()
   const isEdit = !!store
   const [form, setForm] = useState(() => store
-    ? { dealerName: store.dealerName || '', shopName: store.shopName || '', dealerPhone: store.dealerPhone || '', storeType: store.storeType || 'Shop', address: store.address || '', lat: store.lat || '', lng: store.lng || '' }
-    : { dealerName: '', shopName: '', dealerPhone: '', storeType: 'Shop', address: '', lat: '', lng: '' }
+    ? { dealerName: store.dealerName || '', shopName: store.shopName || '', dealerPhone: store.dealerPhone || '', storeType: store.storeType || 'Shop', address: store.address || '', lat: store.lat ?? '', lng: store.lng ?? '', isActive: store.isActive }
+    : { dealerName: '', shopName: '', dealerPhone: '', storeType: 'Shop', address: '', lat: '', lng: '', isActive: true }
   )
 
-  const submit = () => {
+  const busy = createStore.isPending || updateStore.isPending || updateStoreStatus.isPending
+
+  const submit = async () => {
     if (!form.dealerName) return
-    if (isEdit) {
-      updateStore(store.id, form)
-    } else {
-      addStore({ ...form, areaId })
+
+    const body = {
+      dealerName: form.dealerName,
+      shopName: form.shopName || undefined,
+      dealerPhone: form.dealerPhone || undefined,
+      storeType: form.storeType,
+      address: form.address || undefined,
+      lat: form.lat === '' ? undefined : form.lat,
+      lng: form.lng === '' ? undefined : form.lng,
     }
-    onClose()
+
+    try {
+      if (isEdit) {
+        await updateStore.mutateAsync({ id: store.id, body })
+        // Status lives on a separate endpoint (see PATCH /stores/:id/status)
+        // - only call it when the toggle actually changed, so editing
+        // other fields never fires a redundant "marked active" toast.
+        if (form.isActive !== store.isActive) {
+          await updateStoreStatus.mutateAsync({ id: store.id, isActive: form.isActive })
+        }
+      } else {
+        await createStore.mutateAsync({ areaId, body })
+      }
+      onClose()
+    } catch {
+      // Errors already surfaced as toasts by the mutation hooks - keep
+      // the form open so the admin can fix and retry.
+    }
   }
 
   return (
-    <Modal open={open} onClose={onClose} eyebrow="Sales / Stores" title={isEdit ? 'Edit store' : 'Add store'} footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={submit}>{isEdit ? 'Save changes' : 'Add store'}</Button></>}>
+    <Modal open={open} onClose={onClose} eyebrow="Sales / Stores" title={isEdit ? 'Edit store' : 'Add store'} footer={<><Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button><Button onClick={submit} disabled={busy}>{busy ? 'Saving…' : isEdit ? 'Save changes' : 'Add store'}</Button></>}>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Dealer name" required><input className={inputClass} value={form.dealerName} onChange={(e) => setForm({ ...form, dealerName: e.target.value })} /></Field>
         <Field label="Shop name"><input className={inputClass} value={form.shopName} onChange={(e) => setForm({ ...form, shopName: e.target.value })} placeholder="e.g. Sunrise Bakery" /></Field>
@@ -77,6 +115,29 @@ function StoreFormModal({ open, onClose, areaId, store, onSave }) {
         </div>
         <Field label="Latitude"><input className={inputClass} value={form.lat} onChange={(e) => setForm({ ...form, lat: e.target.value })} /></Field>
         <Field label="Longitude"><input className={inputClass} value={form.lng} onChange={(e) => setForm({ ...form, lng: e.target.value })} /></Field>
+
+        {isEdit && (
+          <div className="col-span-2">
+            <Field label="Status" hint="Is this dealer currently taking product from us?">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, isActive: true })}
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition ${form.isActive ? 'border-matcha-glaze/40 bg-matcha-glaze/10 text-matcha-glaze' : 'border-espresso/10 bg-crust/30 text-espresso/50 hover:bg-crust/50'}`}
+                >
+                  <span className="h-2 w-2 rounded-full bg-matcha-glaze" /> Active
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, isActive: false })}
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition ${!form.isActive ? 'border-cherry-compote/40 bg-cherry-compote/10 text-cherry-compote' : 'border-espresso/10 bg-crust/30 text-espresso/50 hover:bg-crust/50'}`}
+                >
+                  <span className="h-2 w-2 rounded-full bg-cherry-compote" /> Inactive
+                </button>
+              </div>
+            </Field>
+          </div>
+        )}
       </div>
     </Modal>
   )
@@ -84,13 +145,13 @@ function StoreFormModal({ open, onClose, areaId, store, onSave }) {
 
 export default function AreaDetail() {
   const { areaId } = useParams({ strict: false })
-  const { areas, stores } = useSales()
+  const { data: area, isLoading: areaLoading, isError: areaError } = useArea(areaId)
+  const { data: stores = [], isLoading: storesLoading } = useStores(areaId)
   const [modalOpen, setModalOpen] = useState(false)
   const [editStore, setEditStore] = useState(null)
-  const area = areas.find((a) => a.id === areaId)
-  const areaStores = stores.filter((s) => s.areaId === areaId)
 
-  if (!area) return <EmptyState icon={MapPin} title="Area not found" description="This area does not exist." />
+  if (areaLoading) return <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading area…</p>
+  if (areaError || !area) return <EmptyState icon={MapPin} title="Area not found" description="This area does not exist." />
 
   const openAdd = () => { setEditStore(null); setModalOpen(true) }
   const openEdit = (store) => { setEditStore(store); setModalOpen(true) }
@@ -103,13 +164,15 @@ export default function AreaDetail() {
         <span className="text-espresso">{area.name}</span>
       </div>
 
-      <PageHeader eyebrow="Sales / Areas" title={area.name} description={`${area.city} · ${area.pincode} · ${areaStores.length} ${areaStores.length === 1 ? 'store' : 'stores'}`} actions={<Button onClick={openAdd}><Plus className="h-4 w-4" /> Add store</Button>} />
+      <PageHeader eyebrow="Sales / Areas" title={area.name} description={`${area.city} · ${area.pincode} · ${stores.length} ${stores.length === 1 ? 'store' : 'stores'}`} actions={<Button onClick={openAdd}><Plus className="h-4 w-4" /> Add store</Button>} />
 
-      {areaStores.length === 0 ? (
+      {storesLoading ? (
+        <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading stores…</p>
+      ) : stores.length === 0 ? (
         <EmptyState icon={Store} title="No stores yet" description="Add a store to this area." />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {areaStores.map((s) => (
+          {stores.map((s) => (
             <div key={s.id} className="rounded-bakery border border-espresso/8 bg-proof-cream p-5 shadow-bakery">
               <div className="flex items-start justify-between">
                 <div className="flex h-11 w-11 items-center justify-center rounded-bakery bg-sourdough/40 text-espresso">
@@ -125,17 +188,22 @@ export default function AreaDetail() {
               <h3 className="mt-4 font-display text-lg font-semibold text-espresso">{s.dealerName}</h3>
               {s.shopName && <p className="text-sm font-medium text-oven-amber">{s.shopName}</p>}
               <p className="text-sm text-espresso/55">{s.address}</p>
-              <div className="mt-3 flex items-center gap-1.5 text-sm text-espresso/60">
-                <Phone className="h-3.5 w-3.5" /> {s.dealerPhone}
+              <div className="mt-3 flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-sm text-espresso/60">
+                  <Phone className="h-3.5 w-3.5" /> {s.dealerPhone}
+                </div>
+                <StatusDot active={s.isActive} />
               </div>
-              <a
-                href={`https://www.google.com/maps?q=${s.lat},${s.lng}`}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-oven-amber hover:underline"
-              >
-                <Navigation className="h-3.5 w-3.5" /> View on map
-              </a>
+              {s.lat && s.lng && (
+                <a
+                  href={`https://www.google.com/maps?q=${s.lat},${s.lng}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-oven-amber hover:underline"
+                >
+                  <Navigation className="h-3.5 w-3.5" /> View on map
+                </a>
+              )}
             </div>
           ))}
         </div>

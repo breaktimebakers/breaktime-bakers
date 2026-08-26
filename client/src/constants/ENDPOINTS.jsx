@@ -25,6 +25,18 @@ export const ENDPOINTS = {
   readyStock: {
     list: '/ready-stock',
   },
+  areas: {
+    list: '/areas',
+    detail: (id) => `/areas/${id}`,
+    create: '/areas',
+    update: (id) => `/areas/${id}`,
+    stores: (id) => `/areas/${id}/stores`,
+    createStore: (id) => `/areas/${id}/stores`,
+  },
+  stores: {
+    update: (id) => `/stores/${id}`,
+    updateStatus: (id) => `/stores/${id}/status`,
+  },
   uploads: {
     receiptUrl: '/uploads/receipt-url',
   },

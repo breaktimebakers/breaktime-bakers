@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
-import { CheckCircle2, XCircle, Info, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { subscribeToasts, toast } from '@/lib/toast'
 
+// Same rotated ink-stamp badge used for "Produced" / "Ready" on the
+// batch and ready-stock cards, not a generic status icon - so a toast
+// reads as this app's, not a library default.
 const TONE = {
-  success: { icon: CheckCircle2, ring: 'border-matcha-glaze/25', iconColor: 'text-matcha-glaze', bar: 'bg-matcha-glaze' },
-  error: { icon: XCircle, ring: 'border-cherry-compote/25', iconColor: 'text-cherry-compote', bar: 'bg-cherry-compote' },
-  info: { icon: Info, ring: 'border-oven-amber/25', iconColor: 'text-oven-amber', bar: 'bg-oven-amber' },
+  success: { label: 'Done', ring: 'border-matcha-glaze/25', color: 'text-matcha-glaze', bar: 'bg-matcha-glaze' },
+  error: { label: 'Error', ring: 'border-cherry-compote/25', color: 'text-cherry-compote', bar: 'bg-cherry-compote' },
+  info: { label: 'Note', ring: 'border-oven-amber/25', color: 'text-oven-amber', bar: 'bg-oven-amber' },
 }
 
 export function Toaster() {
@@ -23,7 +26,6 @@ export function Toaster() {
     >
       {toasts.map((t) => {
         const tone = TONE[t.type] || TONE.info
-        const Icon = tone.icon
 
         return (
           <div
@@ -31,8 +33,8 @@ export function Toaster() {
             className={`pointer-events-auto relative mb-2.5 w-full overflow-hidden rounded-bakery border ${tone.ring} bg-proof-cream shadow-bakery-lg ${t.closing ? 'animate-toast-out' : 'animate-toast-in'}`}
           >
             <div className="flex items-start gap-3 px-4 py-3.5">
-              <Icon className={`mt-0.5 h-5 w-5 shrink-0 ${tone.iconColor}`} />
-              <div className="min-w-0 flex-1">
+              <span className={`stamp shrink-0 ${tone.color}`}>{tone.label}</span>
+              <div className="min-w-0 flex-1 pt-0.5">
                 <p className="text-sm font-medium leading-snug text-espresso">{t.message}</p>
                 {t.description && <p className="mt-0.5 text-xs leading-snug text-espresso/60">{t.description}</p>}
               </div>

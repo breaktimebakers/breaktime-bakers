@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useLocalQuery, setLocalData } from '@/lib/localStore'
-import { useInventory, useRawMaterials } from '@/features/inventory/hooks'
+import { useRawMaterials } from '@/features/inventory/hooks'
 import { useWorkers } from '@/features/workers/hooks'
 import { dailySalaryFromMonthly } from '@/features/workers/utils'
 import { seedExpenses, seedCustomerPayments, seedTaxEntries, seedSupplierPaymentStatus } from '../data/seedFinance'
@@ -14,7 +14,6 @@ const KEYS = {
 
 export function useFinance() {
   const queryClient = useQueryClient()
-  const { batches } = useInventory()
   // Raw materials come from the real backend (see useRawMaterials), which
   // - unlike the old mock data - does NOT embed each material's lots in
   // the list response (lots are a separate per-material fetch). Every
@@ -166,24 +165,14 @@ export function useFinance() {
     return rows.reduce((s, r) => s + r.amount, 0)
   }
 
-  // Sum of ingredient cost consumed by batches in that month
-  // Approximate using each material's most recent lot cost
-  const getRawMaterialUsedTotal = (year, month) => {
-    const mStr = `${year}-${String(month + 1).padStart(2, '0')}`
-    const monthBatches = batches.filter((b) => b.date && b.date.startsWith(mStr))
-    let total = 0
-    monthBatches.forEach((batch) => {
-      batch.ingredientsUsed.forEach((iu) => {
-        const rm = rawMaterials.find((r) => r.id === iu.rawMaterialId)
-        if (!rm || !rm.lots || rm.lots.length === 0) return
-        // Most recent lot cost as approximation
-        const sortedLots = [...rm.lots].sort((a, b) => new Date(b.purchaseDate) - new Date(a.purchaseDate))
-        const unitCost = sortedLots[0].unitCost
-        total += iu.qty * unitCost
-      })
-    })
-    return total
-  }
+  // Sum of ingredient cost consumed by batches in that month. Batches are
+  // real now (see useBatches in the inventory feature), but wiring an
+  // arbitrary (year, month) of them into this month-by-month P&L view is
+  // a real feature to build, not a safe thing to improvise as a side
+  // effect of something else - same reasoning as the rawMaterials.lots
+  // gap above. Pinned at 0 until Finance itself gets wired.
+  // eslint-disable-next-line no-unused-vars
+  const getRawMaterialUsedTotal = (year, month) => 0
 
   // Profit & Loss for a month
   const getProfitAndLoss = (year, month) => {

@@ -2,11 +2,10 @@ import { and, asc, eq, gte, ilike, lte, sql } from "drizzle-orm";
 import { v7 as uuidv7 } from "uuid";
 import { db } from "../../db/index.js";
 import { httpError } from "../../utils/httpError.js";
+import { isUniqueViolation } from "../../utils/dbErrors.js";
 import { rawMaterials } from "./rawMaterial.schema.js";
 import { materialLots } from "./materialLot.schema.js";
 import { vendors } from "./vendor.schema.js";
-
-const UNIQUE_VIOLATION = "23505";
 
 // pg returns numeric/aggregate results as strings by default; mapWith
 // decodes the raw driver value with no null-guard of its own, so a
@@ -112,7 +111,7 @@ const upsertVendorByName = async (tx, name) => {
     return id;
   } catch (err) {
     // Lost a race with another admin creating the same vendor - use theirs.
-    if (err.code === UNIQUE_VIOLATION) {
+    if (isUniqueViolation(err)) {
       const retry = await tx.select({ id: vendors.id }).from(vendors).where(eq(vendors.name, trimmed));
       if (retry[0]) return retry[0].id;
     }
@@ -168,7 +167,7 @@ export const updateRawMaterial = async (id, { name, unit, lowStockAt }) => {
 
     if (!result[0]) return undefined;
   } catch (err) {
-    if (err.code === UNIQUE_VIOLATION) {
+    if (isUniqueViolation(err)) {
       throw httpError(409, "A raw material with this name already exists");
     }
     throw err;

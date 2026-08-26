@@ -7,6 +7,8 @@ import authRoutes from "./modules/auth/auth.routes.js";
 import rawMaterialRoutes from "./modules/inventory/rawMaterial.routes.js";
 import batchRoutes from "./modules/inventory/batch.routes.js";
 import readyStockRoutes from "./modules/inventory/readyStock.routes.js";
+import areaRoutes from "./modules/sales/area.routes.js";
+import storeRoutes from "./modules/sales/store.routes.js";
 import uploadRoutes from "./modules/uploads/upload.routes.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
 import { requestLogger } from "./middlewares/requestLogger.js";
@@ -33,6 +35,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/raw-materials", rawMaterialRoutes);
 app.use("/api/batches", batchRoutes);
 app.use("/api/ready-stock", readyStockRoutes);
+app.use("/api/areas", areaRoutes);
+app.use("/api/stores", storeRoutes);
 app.use("/api/uploads", uploadRoutes);
 
 app.get("/health", (req, res) => {
