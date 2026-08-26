@@ -12,7 +12,11 @@ export function AddOrderModal({ open, onClose, areaId }) {
   const { data: areas = [] } = useAreas()
   const { data: stores = [] } = useAllStores()
   const { data: workers = [] } = useWorkers()
-  const { data: products = [] } = useReadyStock()
+  // "all" - not the hook's own "today" default, which is right for the
+  // Ready Stock page itself (what was produced today) but wrong here: an
+  // order's product picker needs every currently-available product,
+  // regardless of when it was last produced.
+  const { data: products = [] } = useReadyStock({ filter: 'all' })
   const [form, setForm] = useState(makeEmptyForm)
   const [error, setError] = useState('')
 

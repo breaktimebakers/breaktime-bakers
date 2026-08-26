@@ -115,7 +115,6 @@ export default function OrderTakerDetail() {
   const anyTableFilter = dateMode !== 'all' || statusFilter !== 'all' || search
 
   const columns = [
-    { key: 'id', label: 'Order ID' },
     { key: 'storeName', label: 'Store' },
     { key: 'areaName', label: 'Area' },
     { key: 'productsLabel', label: 'Products' },
@@ -204,7 +203,7 @@ export default function OrderTakerDetail() {
           <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
             <div className="relative flex-1 lg:min-w-[200px]">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-espresso/30" />
-              <input className={`${inputClass} pl-9`} placeholder="Search store, product, order ID..." value={search} onChange={(e) => setSearch(e.target.value)} />
+              <input className={`${inputClass} pl-9`} placeholder="Search store, product..." value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
             <select className={`${inputClass} lg:w-36`} value={dateMode} onChange={(e) => setDateMode(e.target.value)}>
               <option value="all">All dates</option>
@@ -255,7 +254,6 @@ export default function OrderTakerDetail() {
                       const sc = ORDER_STATUS[o.status]
                       return (
                         <tr key={o.id} className="border-b border-espresso/8 last:border-0 hover:bg-crust/20">
-                          <td className="px-4 py-3 font-mono text-xs text-espresso/60">{o.id}</td>
                           <td className="px-4 py-3 font-medium text-espresso">{o.storeName}</td>
                           <td className="px-4 py-3 text-espresso/60">{o.areaName}</td>
                           <td className="px-4 py-3 text-espresso/80">{o.productsLabel}</td>
@@ -288,8 +286,7 @@ export default function OrderTakerDetail() {
                       <span className="text-espresso/70">{o.productsLabel}</span>
                       <span className="font-mono text-espresso">{o.totalQty} units</span>
                     </div>
-                    <div className="mt-1 flex items-center justify-between text-xs text-espresso/45">
-                      <span className="font-mono">{o.id}</span>
+                    <div className="mt-1 text-xs text-espresso/45">
                       <span>{new Date(o.orderDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
                     </div>
                   </div>

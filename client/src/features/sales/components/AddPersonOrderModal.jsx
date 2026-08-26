@@ -10,7 +10,9 @@ export function AddPersonOrderModal({ open, onClose, person }) {
   const createOrder = useCreateOrder()
   const { data: areas = [] } = useAreas()
   const { data: stores = [] } = useAllStores()
-  const { data: products = [] } = useReadyStock()
+  // "all" - see AddOrderModal.jsx for why this can't use the hook's own
+  // "today" default.
+  const { data: products = [] } = useReadyStock({ filter: 'all' })
   const [form, setForm] = useState(makeEmptyForm)
   const [error, setError] = useState('')
 

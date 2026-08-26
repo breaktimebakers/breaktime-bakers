@@ -82,7 +82,6 @@ export default function OrderTakersList() {
   const anyFilter = otFilter !== 'all' || dateMode !== 'all' || statusFilter !== 'all' || search
 
   const columns = [
-    { key: 'id', label: 'Order ID' },
     { key: 'otName', label: 'Order taker' },
     { key: 'storeName', label: 'Store' },
     { key: 'areaName', label: 'Area' },
@@ -204,7 +203,6 @@ export default function OrderTakersList() {
                       const sc = ORDER_STATUS[o.status]
                       return (
                         <tr key={o.id} className="border-b border-espresso/8 last:border-0 hover:bg-crust/20">
-                          <td className="px-4 py-3 font-mono text-xs text-espresso/60">{o.id}</td>
                           <td className="px-4 py-3 font-medium text-espresso">{o.otName}</td>
                           <td className="px-4 py-3 text-espresso/80">{o.storeName}</td>
                           <td className="px-4 py-3 text-espresso/60">{o.areaName}</td>
@@ -237,8 +235,7 @@ export default function OrderTakersList() {
                       <span className="text-espresso/70">{o.productsLabel}</span>
                       <span className="font-mono text-espresso">{o.totalQty} units</span>
                     </div>
-                    <div className="mt-1 flex items-center justify-between text-xs text-espresso/45">
-                      <span className="font-mono">{o.id}</span>
+                    <div className="mt-1 text-xs text-espresso/45">
                       <span>{new Date(o.orderDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
                     </div>
                   </div>

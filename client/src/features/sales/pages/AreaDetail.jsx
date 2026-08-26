@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
 import { Store, Phone, MapPin, Plus, Navigation, Pencil, LayoutGrid, Table as TableIcon } from 'lucide-react'
 import { useArea, useStores, useCreateStore, useUpdateStore, useUpdateStoreStatus } from '@/features/sales/hooks'
@@ -59,10 +59,18 @@ function StoreFormModal({ open, onClose, areaId, store }) {
   const updateStore = useUpdateStore()
   const updateStoreStatus = useUpdateStoreStatus()
   const isEdit = !!store
-  const [form, setForm] = useState(() => store
-    ? { dealerName: store.dealerName || '', shopName: store.shopName || '', dealerPhone: store.dealerPhone || '', storeType: store.storeType || 'Shop', address: store.address || '', lat: store.lat ?? '', lng: store.lng ?? '', isActive: store.isActive }
-    : { dealerName: '', shopName: '', dealerPhone: '', storeType: 'Shop', address: '', lat: '', lng: '', isActive: true }
-  )
+  const [form, setForm] = useState({ dealerName: '', shopName: '', dealerPhone: '', storeType: 'Shop', address: '', lat: '', lng: '', isActive: true })
+
+  // This modal instance stays mounted across different "Edit" clicks (only
+  // `open`/`store` change), so a plain useState initializer only ever ran
+  // once - re-sync whenever a different store (or a fresh "Add store") is
+  // passed in.
+  useEffect(() => {
+    setForm(store
+      ? { dealerName: store.dealerName || '', shopName: store.shopName || '', dealerPhone: store.dealerPhone || '', storeType: store.storeType || 'Shop', address: store.address || '', lat: store.lat ?? '', lng: store.lng ?? '', isActive: store.isActive }
+      : { dealerName: '', shopName: '', dealerPhone: '', storeType: 'Shop', address: '', lat: '', lng: '', isActive: true }
+    )
+  }, [store])
 
   const busy = createStore.isPending || updateStore.isPending || updateStoreStatus.isPending
 

@@ -20,7 +20,10 @@ export default function OrdersOverview() {
   const { data: areas = [] } = useAreas()
   const { data: stores = [] } = useAllStores()
   const { data: workers = [] } = useWorkers()
-  const { data: products = [] } = useReadyStock()
+  // "all" - see AddOrderModal.jsx for why this can't use the hook's own
+  // "today" default (would silently drop the product filter dropdown
+  // down to only products with a stock movement today).
+  const { data: products = [] } = useReadyStock({ filter: 'all' })
   const area = areas.find((a) => a.id === areaId)
   const [view, setView] = useState('cards')
   const [addOpen, setAddOpen] = useState(false)

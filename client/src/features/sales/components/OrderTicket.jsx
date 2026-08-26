@@ -42,7 +42,6 @@ export function OrderTicket({ order, stores, areas, orderTakers, onFill, onStatu
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
         <div><p className="text-espresso/40">Date</p><p className="text-espresso/80">{formatDate(order.orderDate)}</p></div>
         <div><p className="text-espresso/40">Order taker</p><p className="text-espresso/80">{ot?.name}</p></div>
-        <div className="col-span-2"><p className="text-espresso/40">Order ID</p><p className="font-mono text-espresso/60">{order.id}</p></div>
       </div>
       <div className="perforation mt-4 mb-3" />
       <div className="flex items-center gap-2">
