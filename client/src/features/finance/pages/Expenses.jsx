@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react'
-import { Plus, Trash2, Receipt } from 'lucide-react'
-import { useFinance } from '@/features/finance/hooks'
+import { Plus, Trash2, Receipt, Paperclip, AlertCircle } from 'lucide-react'
+import { useExpenses, useCreateExpense, useDeleteExpense } from '@/features/finance/hooks'
 import { expenseCategories } from '@/features/finance/data/seedFinance'
-import { Button, EmptyState, Field, Modal, PageHeader, inputClass } from '@/components/shared'
+import { uploadExpenseBill } from '@/lib/uploadExpenseBill'
+import { Button, EmptyState, Field, FileViewerModal, Modal, ReceiptDropzone, PageHeader, inputClass } from '@/components/shared'
 import { CategoryPill, getCategoryIcon } from '../components/CategoryPill'
 
 const periodFilters = [
@@ -13,10 +14,14 @@ const periodFilters = [
 ]
 
 export default function Expenses() {
-  const { expenses, addExpense, deleteExpense } = useFinance()
+  const { data: expenses = [], isLoading, isError } = useExpenses()
+  const createExpense = useCreateExpense()
+  const deleteExpense = useDeleteExpense()
   const [modalOpen, setModalOpen] = useState(false)
   const [period, setPeriod] = useState('month')
-  const [form, setForm] = useState({ category: 'Electricity', amount: '', date: new Date().toISOString().slice(0, 10), note: '' })
+  const [form, setForm] = useState({ category: 'Electricity', amount: '', date: new Date().toISOString().slice(0, 10), note: '', bill: null })
+  const [error, setError] = useState('')
+  const [viewingBill, setViewingBill] = useState(null)
 
   const now = new Date()
   const todayStr = now.toISOString().slice(0, 10)
@@ -50,12 +55,22 @@ export default function Expenses() {
 
   const maxCategoryTotal = Math.max(...categoryBreakdown.map((c) => c.total), 1)
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!form.amount || !form.category) return
-    addExpense({ category: form.category, amount: form.amount, date: form.date, note: form.note })
-    setForm({ category: 'Electricity', amount: '', date: new Date().toISOString().slice(0, 10), note: '' })
-    setModalOpen(false)
+    setError('')
+
+    try {
+      const billKey = form.bill instanceof File ? await uploadExpenseBill(form.bill) : undefined
+
+      await createExpense.mutateAsync({ category: form.category, amount: form.amount, date: form.date, note: form.note || undefined, billKey })
+      setForm({ category: 'Electricity', amount: '', date: new Date().toISOString().slice(0, 10), note: '', bill: null })
+      setModalOpen(false)
+    } catch (err) {
+      setError(err.message || 'Could not add expense.')
+    }
   }
+
+  const busy = createExpense.isPending
 
   return (
     <div>
@@ -114,7 +129,11 @@ export default function Expenses() {
       )}
 
       {/* Expense entries list */}
-      {filtered.length === 0 ? (
+      {isLoading ? (
+        <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading expenses...</p>
+      ) : isError ? (
+        <EmptyState icon={Receipt} title="Could not load expenses" description="Something went wrong fetching expenses. Try refreshing." />
+      ) : filtered.length === 0 ? (
         <EmptyState icon={Receipt} title="No expenses found" description="Add an expense to get started." />
       ) : (
         <div className="flex flex-col gap-2">
@@ -128,8 +147,18 @@ export default function Expenses() {
                   <p className="font-mono text-xs text-espresso/40">{new Date(e.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
                 </div>
                 <p className="font-mono font-semibold text-espresso">₹{e.amount.toLocaleString('en-IN')}</p>
+                {e.billUrl && (
+                  <button
+                    onClick={() => setViewingBill({ url: e.billUrl, title: `${e.category} — ${e.date}` })}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-espresso/30 hover:bg-oven-amber/10 hover:text-oven-amber"
+                    aria-label="View bill"
+                    title="View bill"
+                  >
+                    <Paperclip className="h-4 w-4" />
+                  </button>
+                )}
                 <button
-                  onClick={() => deleteExpense(e.id)}
+                  onClick={() => deleteExpense.mutate(e.id)}
                   className="flex h-8 w-8 items-center justify-center rounded-lg text-espresso/30 hover:bg-cherry-compote/10 hover:text-cherry-compote"
                   aria-label="Delete expense"
                 >
@@ -149,8 +178,8 @@ export default function Expenses() {
         title="Add Expense"
         footer={
           <>
-            <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
-            <Button onClick={handleSubmit}>Save</Button>
+            <Button variant="secondary" onClick={() => setModalOpen(false)} disabled={busy}>Cancel</Button>
+            <Button onClick={handleSubmit} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button>
           </>
         }
       >
@@ -169,8 +198,30 @@ export default function Expenses() {
           <Field label="Note">
             <input type="text" className={inputClass} value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="Optional note" />
           </Field>
+          <Field label="Bill">
+            <ReceiptDropzone
+              value={form.bill}
+              onChange={(bill) => setForm({ ...form, bill })}
+              label="Drop bill or click to upload"
+            />
+          </Field>
+          {error && (
+            <div className="flex items-center gap-2 rounded-lg bg-cherry-compote/10 px-3 py-2 text-sm text-cherry-compote">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
         </div>
       </Modal>
+
+      <FileViewerModal
+        open={!!viewingBill}
+        onClose={() => setViewingBill(null)}
+        fileUrl={viewingBill?.url}
+        title={viewingBill?.title}
+        eyebrow="Expense bill"
+        emptyLabel="No bill available for this expense."
+      />
     </div>
   )
 }

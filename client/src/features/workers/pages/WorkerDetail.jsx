@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
 import { Pencil, UserCircle, CalendarDays, Wallet } from 'lucide-react'
-import { useWorkers } from '@/features/workers/hooks'
+import { useWorker, useWorkerAttendance, useUpdateWorker, useMarkWorkerLeft, useReactivateWorker, useMarkAttendance, useClearAttendance } from '@/features/workers/hooks'
 import { Button, EmptyState, PageHeader } from '@/components/shared'
 import { RoleBadge, roleConfig } from '../components/RoleBadge'
 import { AadhaarDisplay } from '../components/AadhaarField'
@@ -13,22 +13,29 @@ import { InlineField } from '../components/InlineField'
 
 export default function WorkerDetail() {
   const { workerId } = useParams({ strict: false })
-  const { workers, attendance, updateWorker, markLeft, reactivate, markAttendance } = useWorkers()
+  const { data: worker, isLoading, isError } = useWorker(workerId)
+  const { data: workerAttendance = [] } = useWorkerAttendance(workerId)
+  const updateWorker = useUpdateWorker()
+  const markLeftMutation = useMarkWorkerLeft()
+  const reactivateMutation = useReactivateWorker()
+  const markAttendance = useMarkAttendance()
+  const clearAttendance = useClearAttendance()
   const [tab, setTab] = useState('profile')
   const [editOpen, setEditOpen] = useState(false)
   const [calView, setCalView] = useState('calendar')
   const [attStatusFilter, setAttStatusFilter] = useState('all')
 
-  const worker = workers.find((w) => w.id === workerId)
-  if (!worker) return <EmptyState icon={UserCircle} title="Worker not found" description="This worker does not exist." />
-
-  const workerAttendance = useMemo(
-    () => attendance.filter((a) => a.workerId === workerId),
-    [attendance, workerId]
-  )
+  // Every hook above and below runs unconditionally on every render -
+  // worker is undefined during the loading state, so each memo below
+  // guards for that rather than the component early-returning before
+  // them (an early return ahead of these would skip them on the first,
+  // loading render and then call them once data arrives, tripping React's
+  // rule that the same hooks run in the same order every render).
 
   // Compute pay estimate for current calendar month
   const payEstimate = useMemo(() => {
+    if (!worker) return { present: 0, half: 0, overtime: 0, total: 0, dailySalary: 0, otRate: 0 }
+
     const now = new Date()
     const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
     const monthEntries = workerAttendance.filter((a) => a.date.startsWith(monthStr))
@@ -36,7 +43,7 @@ export default function WorkerDetail() {
     const half = monthEntries.filter((a) => a.status === 'half_day').length
     const overtime = monthEntries.reduce((s, a) => s + (a.overtimeHours || 0), 0)
     const dailySalary = dailySalaryFromMonthly(worker.monthlySalary, now.getFullYear(), now.getMonth(), worker.weekOffDay)
-    const otRate = worker.overtimeRates || 0
+    const otRate = worker.overtimeRate || 0
     const total = present * dailySalary + half * 0.5 * dailySalary + overtime * otRate
     return { present, half, overtime, total, dailySalary, otRate }
   }, [workerAttendance, worker])
@@ -47,6 +54,38 @@ export default function WorkerDetail() {
     if (attStatusFilter !== 'all') list = list.filter((a) => a.status === attStatusFilter)
     return list
   }, [workerAttendance, attStatusFilter])
+
+  if (isLoading) return <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading worker…</p>
+  if (isError || !worker) return <EmptyState icon={UserCircle} title="Worker not found" description="This worker does not exist." />
+
+  // Sends the full worker back with just the edited field overridden -
+  // the backend does a full-replace PATCH (see worker.validation.js),
+  // same as store updates. photoKey is left out entirely so the photo
+  // stays untouched by these inline edits.
+  const buildUpdateBody = (overrides) => ({
+    name: worker.name,
+    address: worker.address || undefined,
+    phone: worker.phone || undefined,
+    aadhaarNumber: worker.aadhaarNumber || undefined,
+    joiningDate: worker.joiningDate,
+    roles: worker.roles,
+    monthlySalary: worker.monthlySalary,
+    overtimeRate: worker.overtimeRate,
+    shiftStart: worker.shiftStart,
+    shiftEnd: worker.shiftEnd,
+    weekOffDay: worker.weekOffDay,
+    ...overrides,
+  })
+
+  const saveField = (overrides) => updateWorker.mutate({ id: worker.id, body: buildUpdateBody(overrides) })
+
+  const handleMark = (date, data) => {
+    if (data.status === 'clear') {
+      clearAttendance.mutate({ workerId, date })
+    } else {
+      markAttendance.mutate({ workerId, date, status: data.status, overtimeHours: Number(data.overtimeHours) || 0 })
+    }
+  }
 
   return (
     <div>
@@ -63,8 +102,8 @@ export default function WorkerDetail() {
         actions={<>
           <Button variant="secondary" onClick={() => setEditOpen(true)}><Pencil className="h-4 w-4" /> Edit</Button>
           {worker.status === 'active'
-            ? <Button variant="danger" onClick={() => markLeft(worker.id)}>Mark as Left</Button>
-            : <Button onClick={() => reactivate(worker.id)}>Reactivate</Button>
+            ? <Button variant="danger" onClick={() => markLeftMutation.mutate(worker.id)}>Mark as Left</Button>
+            : <Button onClick={() => reactivateMutation.mutate(worker.id)}>Reactivate</Button>
           }
         </>}
       />
@@ -72,7 +111,7 @@ export default function WorkerDetail() {
       {/* Header card */}
       <div className="mb-6 rounded-bakery border border-espresso/8 bg-proof-cream p-5 shadow-bakery">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-          <WorkerAvatar photo={worker.photo} name={worker.name} size="lg" />
+          <WorkerAvatar photo={worker.photoUrl} name={worker.name} size="lg" />
           <div className="flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="font-display text-xl font-semibold text-espresso">{worker.name}</h2>
@@ -106,8 +145,8 @@ export default function WorkerDetail() {
           <div className="rounded-bakery border border-espresso/8 bg-proof-cream p-5 shadow-bakery">
             <h3 className="mb-4 font-display text-lg font-semibold text-espresso">Contact & details</h3>
             <div className="space-y-3">
-              <InlineField label="Phone" value={worker.phone} onSave={(v) => updateWorker(worker.id, { phone: v })} />
-              <InlineField label="Address" value={worker.address} onSave={(v) => updateWorker(worker.id, { address: v })} />
+              <InlineField label="Phone" value={worker.phone} onSave={(v) => saveField({ phone: v })} />
+              <InlineField label="Address" value={worker.address} onSave={(v) => saveField({ address: v })} />
               <div>
                 <p className="text-xs text-espresso/40">Joining date</p>
                 <p className="text-sm font-medium text-espresso">{new Date(worker.joiningDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
@@ -124,15 +163,15 @@ export default function WorkerDetail() {
           <div className="rounded-bakery border border-espresso/8 bg-proof-cream p-5 shadow-bakery">
             <h3 className="mb-4 font-display text-lg font-semibold text-espresso">Pay & shift terms</h3>
             <div className="space-y-3">
-              <InlineField label="Monthly salary" value={worker.monthlySalary} onSave={(v) => updateWorker(worker.id, { monthlySalary: Number(v) || 0 })} type="number" suffix="₹" />
-              <InlineField label="Overtime rate" value={worker.overtimeRates} onSave={(v) => updateWorker(worker.id, { overtimeRates: Number(v) || 0 })} type="number" suffix="₹/hr" />
-              <InlineField label="Shift start" value={worker.shiftStart} onSave={(v) => updateWorker(worker.id, { shiftStart: v })} type="time" />
-              <InlineField label="Shift end" value={worker.shiftEnd} onSave={(v) => updateWorker(worker.id, { shiftEnd: v })} type="time" />
+              <InlineField label="Monthly salary" value={worker.monthlySalary} onSave={(v) => saveField({ monthlySalary: Number(v) || 0 })} type="number" suffix="₹" />
+              <InlineField label="Overtime rate" value={worker.overtimeRate} onSave={(v) => saveField({ overtimeRate: Number(v) || 0 })} type="number" suffix="₹/hr" />
+              <InlineField label="Shift start" value={worker.shiftStart} onSave={(v) => saveField({ shiftStart: v })} type="time" />
+              <InlineField label="Shift end" value={worker.shiftEnd} onSave={(v) => saveField({ shiftEnd: v })} type="time" />
               <div>
                 <p className="text-xs text-espresso/40">Week off</p>
                 <div className="mt-0.5 flex flex-wrap gap-1">
                   {dayNames.map((d) => (
-                    <button key={d} onClick={() => updateWorker(worker.id, { weekOffDay: d })} className={`rounded-lg border px-2 py-1 text-xs font-medium transition ${worker.weekOffDay === d ? 'border-oven-amber/40 bg-oven-amber/15 text-oven-amber' : 'border-espresso/10 bg-crust/20 text-espresso/50 hover:bg-crust/40'}`}>{d.slice(0, 3)}</button>
+                    <button key={d} onClick={() => saveField({ weekOffDay: d })} className={`rounded-lg border px-2 py-1 text-xs font-medium transition ${worker.weekOffDay === d ? 'border-oven-amber/40 bg-oven-amber/15 text-oven-amber' : 'border-espresso/10 bg-crust/20 text-espresso/50 hover:bg-crust/40'}`}>{d.slice(0, 3)}</button>
                   ))}
                 </div>
               </div>
@@ -173,7 +212,7 @@ export default function WorkerDetail() {
 
           {calView === 'calendar' ? (
             <div className="rounded-bakery border border-espresso/8 bg-proof-cream p-5 shadow-bakery">
-              <AttendanceCalendar workerId={workerId} attendance={attendance} onMark={(date, data) => markAttendance(workerId, date, data)} weekOffDay={worker.weekOffDay} />
+              <AttendanceCalendar workerId={workerId} attendance={workerAttendance} onMark={handleMark} weekOffDay={worker.weekOffDay} />
             </div>
           ) : (
             <div className="overflow-hidden rounded-bakery border border-espresso/8 bg-proof-cream shadow-bakery">

@@ -31,6 +31,12 @@ export const listStores = async (req, res) => {
   sendResponse(res, 200, "Stores fetched", { stores });
 };
 
+export const listAllStores = async (req, res) => {
+  const stores = await areaService.listAllStores();
+
+  sendResponse(res, 200, "Stores fetched", { stores });
+};
+
 export const createStore = async (req, res) => {
   const store = await areaService.createStore(req.params.id, req.body);
 

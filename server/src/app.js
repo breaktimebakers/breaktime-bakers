@@ -9,6 +9,11 @@ import batchRoutes from "./modules/inventory/batch.routes.js";
 import readyStockRoutes from "./modules/inventory/readyStock.routes.js";
 import areaRoutes from "./modules/sales/area.routes.js";
 import storeRoutes from "./modules/sales/store.routes.js";
+import orderRoutes from "./modules/sales/order.routes.js";
+import workerRoutes from "./modules/workers/worker.routes.js";
+import attendanceRoutes from "./modules/workers/attendance.routes.js";
+import expenseRoutes from "./modules/finance/expense.routes.js";
+import taxEntryRoutes from "./modules/finance/taxEntry.routes.js";
 import uploadRoutes from "./modules/uploads/upload.routes.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
 import { requestLogger } from "./middlewares/requestLogger.js";
@@ -37,6 +42,11 @@ app.use("/api/batches", batchRoutes);
 app.use("/api/ready-stock", readyStockRoutes);
 app.use("/api/areas", areaRoutes);
 app.use("/api/stores", storeRoutes);
+app.use("/api/orders", orderRoutes);
+app.use("/api/workers", workerRoutes);
+app.use("/api/attendance", attendanceRoutes);
+app.use("/api/expenses", expenseRoutes);
+app.use("/api/tax-entries", taxEntryRoutes);
 app.use("/api/uploads", uploadRoutes);
 
 app.get("/health", (req, res) => {

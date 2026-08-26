@@ -4,25 +4,6 @@ export const daysAgoDate = (n) => { const d = new Date(); d.setDate(d.getDate() 
 
 export const monthStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 
-// Seed expenses — ~15 entries across last 2 months, realistic category mix
-export const seedExpenses = [
-  { id: 'e1', category: 'Electricity', amount: 4200, date: daysAgo(5), note: 'Monthly electricity bill' },
-  { id: 'e2', category: 'Water', amount: 800, date: daysAgo(5), note: 'Water bill' },
-  { id: 'e3', category: 'Gas / Fuel', amount: 3500, date: daysAgo(12), note: 'Cooking gas refill' },
-  { id: 'e4', category: 'Rent / Maintenance', amount: 18000, date: daysAgo(1), note: 'Shop rent — August' },
-  { id: 'e5', category: 'Internet & Phone', amount: 1200, date: daysAgo(7), note: 'Broadband + mobile' },
-  { id: 'e6', category: 'Cleaning & Hygiene', amount: 600, date: daysAgo(3), note: 'Cleaning supplies' },
-  { id: 'e7', category: 'Packaging', amount: 2400, date: daysAgo(9), note: 'Boxes and bags' },
-  { id: 'e8', category: 'Transport / Fuel', amount: 1500, date: daysAgo(4), note: 'Delivery fuel' },
-  { id: 'e9', category: 'Staff Welfare', amount: 1000, date: daysAgo(15), note: 'Tea and snacks' },
-  { id: 'e10', category: 'Worker Tips / Bonus', amount: 2000, date: daysAgo(18), note: 'Festival bonus' },
-  { id: 'e11', category: 'Repairs & Maintenance', amount: 1800, date: daysAgo(22), note: 'Oven repair' },
-  { id: 'e12', category: 'Miscellaneous', amount: 450, date: daysAgo(25), note: 'Misc items' },
-  { id: 'e13', category: 'Electricity', amount: 3900, date: daysAgo(35), note: 'Monthly electricity bill' },
-  { id: 'e14', category: 'Rent / Maintenance', amount: 18000, date: daysAgo(31), note: 'Shop rent — July' },
-  { id: 'e15', category: 'Gas / Fuel', amount: 3200, date: daysAgo(42), note: 'Cooking gas refill' },
-]
-
 // Seed customer payments — storeId/areaId linked to SalesContext stores; individuals have null
 export const seedCustomerPayments = [
   { id: 'cp1', buyerName: 'Sunrise Bakery Store', buyerType: 'store', storeId: 's1', areaId: 'a1', amount: 15600, amountPaid: 15600, paymentHistory: [{ amount: 15600, date: daysAgo(1) }], date: daysAgo(2), status: 'paid', paidDate: daysAgo(1) },
@@ -37,13 +18,6 @@ export const seedCustomerPayments = [
   { id: 'cp10', buyerName: 'Cafe Mocha', buyerType: 'store', storeId: 's2', areaId: 'a1', amount: 9600, amountPaid: 9600, paymentHistory: [{ amount: 9600, date: daysAgo(33) }], date: daysAgo(35), status: 'paid', paidDate: daysAgo(33) },
   { id: 'cp11', buyerName: 'Sunita Aunty Gully Shop', buyerType: 'individual', storeId: null, areaId: null, amount: 2200, amountPaid: 1000, paymentHistory: [{ amount: 1000, date: daysAgo(8) }], date: daysAgo(10), status: 'outstanding', paidDate: null },
   { id: 'cp12', buyerName: 'Andheri Sweets Mart', buyerType: 'store', storeId: 's3', areaId: 'a2', amount: 9500, amountPaid: 9500, paymentHistory: [{ amount: 9500, date: daysAgo(36) }], date: daysAgo(38), status: 'paid', paidDate: daysAgo(36) },
-]
-
-// Seed tax entries — ~3 entries across recent months
-export const seedTaxEntries = [
-  { id: 't1', amount: 8500, date: daysAgo(5), note: 'GST payment for July' },
-  { id: 't2', amount: 7800, date: daysAgo(35), note: 'GST payment for June' },
-  { id: 't3', amount: 9200, date: daysAgo(65), note: 'GST payment for May' },
 ]
 
 // Supplier payment status — keyed by lot id, most outstanding, a few paid

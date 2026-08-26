@@ -1,16 +1,22 @@
-import { useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Upload, Camera, X } from 'lucide-react'
+import { CameraCaptureModal } from '@/components/shared'
 
-export function PhotoCapture({ photo, onChange }) {
+// `value` is null (no photo / cleared), a File just picked this session
+// (not yet uploaded - see uploadWorkerPhoto), or a string URL (the
+// worker's existing signed photoUrl, unmodified this session).
+export function PhotoCapture({ value, onChange }) {
   const uploadRef = useRef(null)
-  const cameraRef = useRef(null)
+  const [cameraOpen, setCameraOpen] = useState(false)
+
+  const objectUrl = useMemo(() => (value instanceof File ? URL.createObjectURL(value) : null), [value])
+  useEffect(() => () => { if (objectUrl) URL.revokeObjectURL(objectUrl) }, [objectUrl])
+
+  const previewUrl = objectUrl || (typeof value === 'string' ? value : null)
 
   const handleFile = (e) => {
     const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => onChange(reader.result)
-    reader.readAsDataURL(file)
+    if (file) onChange(file)
   }
 
   return (
@@ -18,8 +24,8 @@ export function PhotoCapture({ photo, onChange }) {
       <span className="mb-1.5 block text-xs font-medium text-espresso/70">Photo</span>
       <div className="flex items-center gap-3">
         <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-bakery border border-espresso/15 bg-crust/40">
-          {photo ? (
-            <img src={photo} alt="Worker" className="h-full w-full object-cover" />
+          {previewUrl ? (
+            <img src={previewUrl} alt="Worker" className="h-full w-full object-cover" />
           ) : (
             <span className="text-xs text-espresso/30">No photo</span>
           )}
@@ -34,16 +40,16 @@ export function PhotoCapture({ photo, onChange }) {
           </button>
           <button
             type="button"
-            onClick={() => cameraRef.current?.click()}
+            onClick={() => setCameraOpen(true)}
             className="inline-flex items-center gap-1.5 rounded-lg border border-espresso/15 bg-crust/40 px-3 py-1.5 text-xs font-medium text-espresso hover:bg-sourdough/30"
           >
             <Camera className="h-3.5 w-3.5" /> Take photo
           </button>
         </div>
-        {photo && (
+        {previewUrl && (
           <button
             type="button"
-            onClick={() => onChange('')}
+            onClick={() => onChange(null)}
             className="ml-auto flex h-8 w-8 items-center justify-center rounded-lg text-cherry-compote hover:bg-cherry-compote/10"
           >
             <X className="h-4 w-4" />
@@ -51,7 +57,7 @@ export function PhotoCapture({ photo, onChange }) {
         )}
       </div>
       <input ref={uploadRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
-      <input ref={cameraRef} type="file" accept="image/*" capture="user" className="hidden" onChange={handleFile} />
+      <CameraCaptureModal open={cameraOpen} onClose={() => setCameraOpen(false)} onCapture={onChange} facingMode="environment" />
     </div>
   )
 }

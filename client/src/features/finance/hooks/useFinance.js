@@ -1,14 +1,14 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useLocalQuery, setLocalData } from '@/lib/localStore'
 import { useRawMaterials } from '@/features/inventory/hooks'
-import { useWorkers } from '@/features/workers/hooks'
+import { useWorkers, useAllAttendance } from '@/features/workers/hooks'
 import { dailySalaryFromMonthly } from '@/features/workers/utils'
-import { seedExpenses, seedCustomerPayments, seedTaxEntries, seedSupplierPaymentStatus } from '../data/seedFinance'
+import { useExpenses } from './useExpenses'
+import { useTaxEntries } from './useTaxEntries'
+import { seedCustomerPayments, seedSupplierPaymentStatus } from '../data/seedFinance'
 
 const KEYS = {
-  expenses: ['local', 'finance', 'expenses'],
   customerPayments: ['local', 'finance', 'customerPayments'],
-  taxEntries: ['local', 'finance', 'taxEntries'],
   supplierPaymentStatus: ['local', 'finance', 'supplierPaymentStatus'],
 }
 
@@ -26,21 +26,20 @@ export function useFinance() {
   // has selected, which is a real feature to build, not a safe thing to
   // improvise as a side effect of something else.
   const { data: rawMaterials = [] } = useRawMaterials()
-  const { workers, attendance } = useWorkers()
+  const { data: workers = [] } = useWorkers()
+  // getSalaryForMonth/getProfitAndLoss below take an arbitrary (year,
+  // month) per call - FinanceOverview's trend chart calls getProfitAndLoss
+  // for 6 different months in one render - so there's no single date to
+  // scope a fetch to. useAllAttendance fetches the whole table once
+  // (same unscoped-list precedent as useWorkers/useAreas at this app's
+  // scale) and the month filtering below happens client-side, same as
+  // the original mock data did.
+  const { data: attendance = [] } = useAllAttendance()
+  const { data: expenses = [] } = useExpenses()
+  const { data: taxEntries = [] } = useTaxEntries()
 
-  const { data: expenses = [] } = useLocalQuery(KEYS.expenses, seedExpenses)
   const { data: customerPayments = [] } = useLocalQuery(KEYS.customerPayments, seedCustomerPayments)
-  const { data: taxEntries = [] } = useLocalQuery(KEYS.taxEntries, seedTaxEntries)
   const { data: supplierPaymentStatus = {} } = useLocalQuery(KEYS.supplierPaymentStatus, seedSupplierPaymentStatus)
-
-  const addExpense = (data) => {
-    const id = 'e' + Date.now()
-    setLocalData(queryClient, KEYS.expenses, (p) => [{ id, category: data.category, amount: Number(data.amount) || 0, date: data.date, note: data.note || '' }, ...p])
-  }
-
-  const deleteExpense = (id) => {
-    setLocalData(queryClient, KEYS.expenses, (p) => p.filter((e) => e.id !== id))
-  }
 
   const addCustomerPayment = (data) => {
     const id = 'cp' + Date.now()
@@ -78,15 +77,6 @@ export function useFinance() {
     }))
   }
 
-  const addTaxEntry = (data) => {
-    const id = 't' + Date.now()
-    setLocalData(queryClient, KEYS.taxEntries, (p) => [{ id, amount: Number(data.amount) || 0, date: data.date, note: data.note || '' }, ...p])
-  }
-
-  const deleteTaxEntry = (id) => {
-    setLocalData(queryClient, KEYS.taxEntries, (p) => p.filter((t) => t.id !== id))
-  }
-
   const markLotPaid = (lotId) => {
     setLocalData(queryClient, KEYS.supplierPaymentStatus, (p) => ({ ...p, [lotId]: { status: 'paid', paidDate: new Date().toISOString().slice(0, 10) } }))
   }
@@ -102,7 +92,7 @@ export function useFinance() {
     const absent = monthEntries.filter((a) => a.status === 'absent').length
     const overtime = monthEntries.reduce((s, a) => s + (a.overtimeHours || 0), 0)
     const dailySalary = dailySalaryFromMonthly(worker.monthlySalary, year, month, worker.weekOffDay)
-    const otRate = worker.overtimeRates || 0
+    const otRate = worker.overtimeRate || 0
     const total = present * dailySalary + half * 0.5 * dailySalary + overtime * otRate
     return { total, present, half, absent, overtime, dailySalary, otRate }
   }
@@ -253,9 +243,7 @@ export function useFinance() {
 
   return {
     expenses, customerPayments, taxEntries, supplierPaymentStatus,
-    addExpense, deleteExpense,
     addCustomerPayment, addPartialPayment, markCustomerPaymentPaid,
-    addTaxEntry, deleteTaxEntry,
     markLotPaid,
     getSalaryForMonth,
     getSupplierPaymentRows,

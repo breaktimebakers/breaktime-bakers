@@ -5,12 +5,11 @@ import {
   useRawMaterialLots,
   useDeleteRawMaterial,
 } from '@/features/inventory/hooks'
-import { Button, ConfirmModal, EmptyState, ExportMenu, PageHeader, inputClass } from '@/components/shared'
+import { Button, ConfirmModal, EmptyState, ExportMenu, FileViewerModal, PageHeader, inputClass } from '@/components/shared'
 import { exportPDF, exportExcel, formatCurrency, formatDate } from '@/utils'
 import { AddMaterialModal } from '../components/AddMaterialModal'
 import { EditMaterialModal } from '../components/EditMaterialModal'
 import { RestockModal } from '../components/RestockModal'
-import { ReceiptViewerModal } from '../components/ReceiptViewerModal'
 
 // A material's lot history is fetched lazily (see LotHistory below), so a
 // row that's never been expanded never issues that request.
@@ -274,11 +273,13 @@ export default function RawMaterials() {
         description={deletingMat ? `"${deletingMat.name}" and its purchase history will be removed from the active list. This can't be undone from here.` : ''}
         confirmLabel="Delete"
       />
-      <ReceiptViewerModal
+      <FileViewerModal
         open={!!viewingReceipt}
         onClose={() => setViewingReceipt(null)}
-        receiptUrl={viewingReceipt?.url}
+        fileUrl={viewingReceipt?.url}
         title={viewingReceipt?.title}
+        eyebrow="Purchase receipt"
+        emptyLabel="No receipt available for this lot."
       />
     </div>
   )

@@ -1,1 +1,5 @@
 export { useFinance } from './useFinance'
+export { useExpenses, expenseKeys } from './useExpenses'
+export { useCreateExpense, useDeleteExpense } from './useExpenseMutations'
+export { useTaxEntries, taxEntryKeys } from './useTaxEntries'
+export { useCreateTaxEntry, useDeleteTaxEntry } from './useTaxEntryMutations'

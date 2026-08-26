@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Link, useLocation, useNavigate } from '@tanstack/react-router'
-import { Warehouse, Wheat, CookingPot, PackageCheck, Receipt, MapPin, ClipboardList, Users, Truck, UserRound, Route, Wallet, X, Menu, CalendarCheck, LogOut, HandCoins, Landmark, TrendingUp } from 'lucide-react'
+import { Warehouse, Wheat, CookingPot, PackageCheck, Receipt, MapPin, ClipboardList, Users, Truck, UserRound, Route, Wallet, X, Menu, CalendarCheck, LogOut, HandCoins, Landmark, TrendingUp, Search } from 'lucide-react'
+import { ConfirmModal } from '@/components/shared'
 import { useAuth } from '@/features/auth/hooks'
 
 const navConfig = [
@@ -33,7 +34,7 @@ const navConfig = [
   {
     label: 'Workers', icon: Users, path: '/workers',
     children: [
-      { label: 'All Workers', path: '/workers' },
+      { label: 'All Workers', path: '/workers', icon: Users },
       { label: 'Attendance', path: '/workers/attendance', icon: CalendarCheck },
     ],
   },
@@ -51,15 +52,140 @@ const navConfig = [
   },
 ]
 
+const getActiveTopPath = (pathname) => {
+  const matched = navConfig.find((item) => (
+    pathname === item.path || item.children?.some((child) => child.path === pathname)
+  ))
+  return matched?.path
+}
+
+const moduleSearchItems = navConfig.flatMap((item) => {
+  const parentItem = {
+    label: item.label,
+    path: item.path,
+    section: 'Module',
+    icon: item.icon,
+  }
+
+  const childItems = item.children?.map((child) => ({
+    label: child.label,
+    path: child.path,
+    section: item.label,
+    icon: child.icon ?? item.icon,
+  })) ?? []
+
+  return [parentItem, ...childItems]
+})
+
+function ModuleSearch({ inputRef, onNavigate }) {
+  const navigate = useNavigate()
+  const [query, setQuery] = useState('')
+  const [activeIndex, setActiveIndex] = useState(0)
+  const normalizedQuery = query.trim().toLowerCase()
+  const matches = useMemo(() => {
+    if (!normalizedQuery) return []
+    return moduleSearchItems
+      .filter((item) => `${item.label} ${item.section}`.toLowerCase().includes(normalizedQuery))
+      .slice(0, 8)
+  }, [normalizedQuery])
+
+  useEffect(() => {
+    setActiveIndex(0)
+  }, [query])
+
+  const openResult = (item) => {
+    if (!item) return
+    setQuery('')
+    navigate({ to: item.path })
+    onNavigate?.()
+  }
+
+  const handleKeyDown = (event) => {
+    if (!matches.length) return
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setActiveIndex((current) => (current + 1) % matches.length)
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setActiveIndex((current) => (current - 1 + matches.length) % matches.length)
+    }
+
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      openResult(matches[activeIndex])
+    }
+  }
+
+  return (
+    <div className="px-3 pb-2">
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-crust/40" />
+        <input
+          ref={inputRef}
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={handleKeyDown}
+          type="search"
+          placeholder='Press "/" to search'
+          className="h-10 w-full rounded-lg border border-crust/10 bg-crust/10 pl-9 pr-3 text-sm text-crust outline-none transition placeholder:text-crust/35 focus:border-oven-amber/60 focus:bg-crust/15 focus:ring-2 focus:ring-oven-amber/20"
+        />
+      </div>
+
+      {normalizedQuery && (
+        <div className="mt-2 overflow-hidden rounded-lg border border-crust/10 bg-crust/10 p-1 shadow-bakery">
+          {matches.length ? (
+            matches.map((item, index) => {
+              const Icon = item.icon
+              return (
+                <button
+                  key={`${item.section}-${item.path}`}
+                  type="button"
+                  onClick={() => openResult(item)}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors ${
+                    index === activeIndex
+                      ? 'bg-oven-amber text-espresso'
+                      : 'text-crust/75 hover:bg-crust/10 hover:text-crust'
+                  }`}
+                >
+                  {Icon && <Icon className="h-4 w-4 shrink-0" />}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{item.label}</span>
+                    <span className={`block truncate text-[11px] ${index === activeIndex ? 'text-espresso/65' : 'text-crust/40'}`}>
+                      {item.section}
+                    </span>
+                  </span>
+                </button>
+              )
+            })
+          ) : (
+            <p className="px-2.5 py-2 text-sm text-crust/50">No module found</p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function NavLinks({ onNavigate }) {
   const location = useLocation()
   const pathname = location.pathname
   const [expanded, setExpanded] = useState(() => {
-    const top = '/' + pathname.split('/')[1]
-    return { '/inventory': true, '/sales': true, '/delivery': true, [top]: true }
+    const activeTop = getActiveTopPath(pathname)
+    return activeTop ? { [activeTop]: true } : {}
   })
 
   const toggle = (path) => setExpanded((p) => ({ ...p, [path]: !p[path] }))
+
+  useEffect(() => {
+    const activeTop = getActiveTopPath(pathname)
+    if (activeTop) {
+      setExpanded((current) => ({ ...current, [activeTop]: true }))
+    }
+  }, [pathname])
 
   return (
     <nav className="flex flex-col gap-1 px-3">
@@ -100,7 +226,7 @@ function NavLinks({ onNavigate }) {
               <div className="ml-4 mt-0.5 flex flex-col gap-0.5 border-l border-crust/15 pl-3">
                 {item.children.map((child) => {
                   const ChildIcon = child.icon
-                  const childActive = pathname === child.path && !(child.path === '/inventory' || child.path === '/sales' || child.path === '/delivery')
+                  const childActive = pathname === child.path
                   return (
                     <Link
                       key={child.path}
@@ -127,8 +253,26 @@ function NavLinks({ onNavigate }) {
 }
 
 function SidebarContent({ onNavigate }) {
-  const { currentUser, logout } = useAuth()
+  const { currentUser, logout, isLoggingOut } = useAuth()
   const navigate = useNavigate()
+  const searchInputRef = useRef(null)
+  const [logoutModalOpen, setLogoutModalOpen] = useState(false)
+
+  useEffect(() => {
+    const handleShortcut = (event) => {
+      const target = event.target
+      const isTyping = target instanceof HTMLElement
+        && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
+
+      if (event.key === '/' && !isTyping && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        event.preventDefault()
+        searchInputRef.current?.focus()
+      }
+    }
+
+    window.addEventListener('keydown', handleShortcut)
+    return () => window.removeEventListener('keydown', handleShortcut)
+  }, [])
 
   const handleLogout = async () => {
     try {
@@ -147,10 +291,11 @@ function SidebarContent({ onNavigate }) {
         <img src="/breakTimeLogo.png" alt="Break Times" className="h-10 w-10 rounded-bakery object-cover" />
         <div>
           <h1 className="font-display text-lg font-semibold leading-tight">Break Times</h1>
-          <p className="font-mono text-[10px] uppercase tracking-wider text-crust/50">Bakery admin</p>
+          <p className="text-center font-mono text-[10px] uppercase tracking-wider text-crust/50">Bakers</p>
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto pb-4">
+      <ModuleSearch inputRef={searchInputRef} onNavigate={onNavigate} />
+      <div className="sidebar-nav-scroll flex-1 overflow-y-auto pb-4">
         <NavLinks onNavigate={onNavigate} />
       </div>
       <div className="border-t border-crust/10 p-4">
@@ -163,7 +308,7 @@ function SidebarContent({ onNavigate }) {
             <p className="truncate text-xs text-crust/50">{currentUser?.role || 'Admin'}</p>
           </div>
           <button
-            onClick={handleLogout}
+            onClick={() => setLogoutModalOpen(true)}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-crust/50 hover:bg-crust/10 hover:text-crust"
             aria-label="Log out"
             title="Log out"
@@ -172,6 +317,16 @@ function SidebarContent({ onNavigate }) {
           </button>
         </div>
       </div>
+      <ConfirmModal
+        open={logoutModalOpen}
+        onClose={() => setLogoutModalOpen(false)}
+        onConfirm={handleLogout}
+        title="Log out?"
+        description="You will be signed out of the bakery admin dashboard on this device."
+        confirmLabel="Log out"
+        tone="danger"
+        isLoading={isLoggingOut}
+      />
     </div>
   )
 }

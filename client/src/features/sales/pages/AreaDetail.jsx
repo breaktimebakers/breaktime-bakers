@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
-import { Store, Phone, MapPin, Plus, Navigation, Pencil } from 'lucide-react'
+import { Store, Phone, MapPin, Plus, Navigation, Pencil, LayoutGrid, Table as TableIcon } from 'lucide-react'
 import { useArea, useStores, useCreateStore, useUpdateStore, useUpdateStoreStatus } from '@/features/sales/hooks'
 import { Button, EmptyState, Field, Modal, PageHeader, inputClass } from '@/components/shared'
 
@@ -149,6 +149,7 @@ export default function AreaDetail() {
   const { data: stores = [], isLoading: storesLoading } = useStores(areaId)
   const [modalOpen, setModalOpen] = useState(false)
   const [editStore, setEditStore] = useState(null)
+  const [view, setView] = useState('cards')
 
   if (areaLoading) return <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading area…</p>
   if (areaError || !area) return <EmptyState icon={MapPin} title="Area not found" description="This area does not exist." />
@@ -171,42 +172,127 @@ export default function AreaDetail() {
       ) : stores.length === 0 ? (
         <EmptyState icon={Store} title="No stores yet" description="Add a store to this area." />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {stores.map((s) => (
-            <div key={s.id} className="rounded-bakery border border-espresso/8 bg-proof-cream p-5 shadow-bakery">
-              <div className="flex items-start justify-between">
-                <div className="flex h-11 w-11 items-center justify-center rounded-bakery bg-sourdough/40 text-espresso">
-                  <Store className="h-5 w-5" />
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-espresso/5 px-2.5 py-1 text-xs font-medium text-espresso/70">{s.storeType}</span>
-                  <button onClick={() => openEdit(s)} className="flex h-8 w-8 items-center justify-center rounded-lg text-espresso/50 hover:bg-espresso/5 hover:text-espresso" title="Edit store">
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-              <h3 className="mt-4 font-display text-lg font-semibold text-espresso">{s.dealerName}</h3>
-              {s.shopName && <p className="text-sm font-medium text-oven-amber">{s.shopName}</p>}
-              <p className="text-sm text-espresso/55">{s.address}</p>
-              <div className="mt-3 flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-sm text-espresso/60">
-                  <Phone className="h-3.5 w-3.5" /> {s.dealerPhone}
-                </div>
-                <StatusDot active={s.isActive} />
-              </div>
-              {s.lat && s.lng && (
-                <a
-                  href={`https://www.google.com/maps?q=${s.lat},${s.lng}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-oven-amber hover:underline"
-                >
-                  <Navigation className="h-3.5 w-3.5" /> View on map
-                </a>
-              )}
+        <>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-bakery border border-espresso/8 bg-proof-cream px-4 py-3 shadow-bakery">
+            <p className="text-sm font-medium text-espresso/60">
+              {stores.length} {stores.length === 1 ? 'store' : 'stores'}
+            </p>
+            <div className="inline-flex rounded-full bg-crust p-0.5">
+              <button
+                onClick={() => setView('cards')}
+                className={`rounded-full p-1.5 ${view === 'cards' ? 'bg-espresso text-crust' : 'text-espresso/60'}`}
+                aria-label="Show stores as cards"
+                title="Cards"
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setView('table')}
+                className={`rounded-full p-1.5 ${view === 'table' ? 'bg-espresso text-crust' : 'text-espresso/60'}`}
+                aria-label="Show stores as table"
+                title="Table"
+              >
+                <TableIcon className="h-4 w-4" />
+              </button>
             </div>
-          ))}
-        </div>
+          </div>
+
+          {view === 'cards' ? (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {stores.map((s) => (
+                <div key={s.id} className="rounded-bakery border border-espresso/8 bg-proof-cream p-5 shadow-bakery">
+                  <div className="flex items-start justify-between">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-bakery bg-sourdough/40 text-espresso">
+                      <Store className="h-5 w-5" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full bg-espresso/5 px-2.5 py-1 text-xs font-medium text-espresso/70">{s.storeType}</span>
+                      <button onClick={() => openEdit(s)} className="flex h-8 w-8 items-center justify-center rounded-lg text-espresso/50 hover:bg-espresso/5 hover:text-espresso" title="Edit store">
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <h3 className="mt-4 font-display text-lg font-semibold text-espresso">{s.dealerName}</h3>
+                  {s.shopName && <p className="text-sm font-medium text-oven-amber">{s.shopName}</p>}
+                  <p className="text-sm text-espresso/55">{s.address}</p>
+                  <div className="mt-3 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-sm text-espresso/60">
+                      <Phone className="h-3.5 w-3.5" /> {s.dealerPhone}
+                    </div>
+                    <StatusDot active={s.isActive} />
+                  </div>
+                  {s.lat && s.lng && (
+                    <a
+                      href={`https://www.google.com/maps?q=${s.lat},${s.lng}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-oven-amber hover:underline"
+                    >
+                      <Navigation className="h-3.5 w-3.5" /> View on map
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-bakery border border-espresso/8 bg-proof-cream shadow-bakery">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[860px] text-sm">
+                  <thead>
+                    <tr className="border-b border-espresso/10 bg-crust/30 text-left">
+                      <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Dealer</th>
+                      <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Shop</th>
+                      <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Type</th>
+                      <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Phone</th>
+                      <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Status</th>
+                      <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Address</th>
+                      <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-espresso/50">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stores.map((s) => (
+                      <tr key={s.id} className="border-b border-espresso/8 last:border-0 hover:bg-crust/20">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-bakery bg-sourdough/40 text-espresso">
+                              <Store className="h-4 w-4" />
+                            </div>
+                            <p className="font-medium text-espresso">{s.dealerName}</p>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-espresso/70">{s.shopName || '-'}</td>
+                        <td className="px-4 py-3">
+                          <span className="rounded-full bg-espresso/5 px-2.5 py-1 text-xs font-medium text-espresso/70">{s.storeType}</span>
+                        </td>
+                        <td className="px-4 py-3 text-espresso/70">{s.dealerPhone || '-'}</td>
+                        <td className="px-4 py-3"><StatusDot active={s.isActive} /></td>
+                        <td className="max-w-[260px] truncate px-4 py-3 text-espresso/55">{s.address || '-'}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {s.lat && s.lng && (
+                              <a
+                                href={`https://www.google.com/maps?q=${s.lat},${s.lng}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex h-8 w-8 items-center justify-center rounded-lg text-oven-amber hover:bg-oven-amber/10"
+                                title="View on map"
+                              >
+                                <Navigation className="h-4 w-4" />
+                              </a>
+                            )}
+                            <button onClick={() => openEdit(s)} className="flex h-8 w-8 items-center justify-center rounded-lg text-espresso/50 hover:bg-espresso/5 hover:text-espresso" title="Edit store">
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       <StoreFormModal open={modalOpen} onClose={() => setModalOpen(false)} areaId={areaId} store={editStore} />

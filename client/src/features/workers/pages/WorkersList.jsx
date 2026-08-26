@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Plus, Search, Pencil, Trash2, Eye, Users, LayoutGrid, Table as TableIcon } from 'lucide-react'
-import { useWorkers } from '@/features/workers/hooks'
+import { useWorkers, useDeleteWorker } from '@/features/workers/hooks'
 import { Button, EmptyState, Modal, PageHeader, Pagination, inputClass } from '@/components/shared'
 import { usePagination } from '@/hooks'
 import { RoleBadge, roleConfig } from '../components/RoleBadge'
@@ -14,7 +14,8 @@ const PAGE_SIZE = 8
 const allRoles = ['chef', 'labour', 'delivery', 'marketer']
 
 export default function WorkersList() {
-  const { workers, deleteWorker } = useWorkers()
+  const { data: workers = [], isLoading, isError } = useWorkers()
+  const deleteWorker = useDeleteWorker()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [roleFilter, setRoleFilter] = useState([])
@@ -26,7 +27,7 @@ export default function WorkersList() {
     let list = workers
     if (search) {
       const q = search.toLowerCase()
-      list = list.filter((w) => w.name.toLowerCase().includes(q) || w.phone.includes(q))
+      list = list.filter((w) => w.name.toLowerCase().includes(q) || (w.phone || '').includes(q))
     }
     if (statusFilter !== 'all') list = list.filter((w) => w.status === statusFilter)
     if (roleFilter.length > 0) list = list.filter((w) => roleFilter.some((r) => w.roles.includes(r)))
@@ -39,7 +40,7 @@ export default function WorkersList() {
   const toggleRoleFilter = (r) => setRoleFilter((p) => p.includes(r) ? p.filter((x) => x !== r) : [...p, r])
 
   const confirmDelete = () => {
-    if (deleteTarget) deleteWorker(deleteTarget.id)
+    if (deleteTarget) deleteWorker.mutate(deleteTarget.id)
     setDeleteTarget(null)
   }
 
@@ -78,7 +79,11 @@ export default function WorkersList() {
         <p className="mt-3 text-xs text-espresso/50">{filtered.length} {filtered.length === 1 ? 'worker' : 'workers'}</p>
       </div>
 
-      {filtered.length === 0 ? (
+      {isLoading ? (
+        <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading workers...</p>
+      ) : isError ? (
+        <EmptyState icon={Users} title="Could not load workers" description="Something went wrong fetching workers. Try refreshing." />
+      ) : filtered.length === 0 ? (
         <EmptyState icon={Users} title="No workers found" description="Add a worker or adjust your filters." />
       ) : view === 'cards' ? (
         <>
@@ -108,7 +113,7 @@ export default function WorkersList() {
                   <tr key={w.id} className="border-b border-espresso/8 last:border-0 hover:bg-crust/20">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
-                        <WorkerAvatar photo={w.photo} name={w.name} size="sm" />
+                        <WorkerAvatar photo={w.photoUrl} name={w.name} size="sm" />
                         <div>
                           <p className="font-medium text-espresso">{w.name}</p>
                           <p className="font-mono text-[10px] text-espresso/40">₹{w.monthlySalary.toLocaleString('en-IN')}/mo</p>

@@ -97,6 +97,13 @@ export const listStoresForArea = async (areaId) => {
     .orderBy(asc(stores.dealerName));
 };
 
+// Every store, across every area - the Add Order picker needs a store
+// list regardless of which area (or none) the modal was opened from,
+// unlike the per-area list above which is lazy-loaded per Area Detail.
+export const listAllStores = async () => {
+  return db.select(storeSelection).from(stores).orderBy(asc(stores.dealerName));
+};
+
 export const findStoreById = async (id) => {
   const rows = await db.select(storeSelection).from(stores).where(eq(stores.id, id));
 

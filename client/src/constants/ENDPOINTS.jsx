@@ -34,8 +34,40 @@ export const ENDPOINTS = {
     createStore: (id) => `/areas/${id}/stores`,
   },
   stores: {
+    list: '/stores',
     update: (id) => `/stores/${id}`,
     updateStatus: (id) => `/stores/${id}/status`,
+  },
+  orders: {
+    list: '/orders',
+    create: '/orders',
+    updateStatus: (id) => `/orders/${id}/status`,
+    fulfill: (id) => `/orders/${id}/fulfill`,
+  },
+  workers: {
+    list: '/workers',
+    detail: (id) => `/workers/${id}`,
+    create: '/workers',
+    update: (id) => `/workers/${id}`,
+    remove: (id) => `/workers/${id}`,
+    leave: (id) => `/workers/${id}/leave`,
+    reactivate: (id) => `/workers/${id}/reactivate`,
+    updateAreas: (id) => `/workers/${id}/areas`,
+  },
+  attendance: {
+    list: '/attendance',
+    mark: '/attendance',
+    clear: (workerId, date) => `/attendance/${workerId}/${date}`,
+  },
+  expenses: {
+    list: '/expenses',
+    create: '/expenses',
+    remove: (id) => `/expenses/${id}`,
+  },
+  taxEntries: {
+    list: '/tax-entries',
+    create: '/tax-entries',
+    remove: (id) => `/tax-entries/${id}`,
   },
   uploads: {
     receiptUrl: '/uploads/receipt-url',

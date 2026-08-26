@@ -7,7 +7,7 @@ export function WorkerCard({ worker, onDelete }) {
   return (
     <div className="rounded-bakery border border-espresso/8 bg-proof-cream p-5 shadow-bakery">
       <div className="flex items-start gap-3">
-        <WorkerAvatar photo={worker.photo} name={worker.name} />
+        <WorkerAvatar photo={worker.photoUrl} name={worker.name} />
         <div className="min-w-0 flex-1">
           <h3 className="font-display text-lg font-semibold text-espresso">{worker.name}</h3>
           <p className="text-xs text-espresso/50">{worker.phone}</p>

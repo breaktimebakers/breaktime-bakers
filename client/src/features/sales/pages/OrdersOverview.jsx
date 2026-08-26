@@ -1,7 +1,9 @@
 import { useState, useMemo } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
 import { Plus, Filter, LayoutGrid, Table as TableIcon, Truck, PackageCheck, CircleCheck, CheckSquare, Square, ClipboardList } from 'lucide-react'
-import { useSales } from '@/features/sales/hooks'
+import { useOrders, useAllStores, useAreas, useUpdateOrderStatus } from '@/features/sales/hooks'
+import { useWorkers } from '@/features/workers/hooks'
+import { useReadyStock } from '@/features/inventory/hooks'
 import { Button, EmptyState, PageHeader, Pagination, inputClass } from '@/components/shared'
 import { usePagination } from '@/hooks'
 import { ORDER_STATUS } from '@/constants/orderStatus'
@@ -12,16 +14,22 @@ import { FillOrderModal } from '../components/FillOrderModal'
 import { OrderTicket } from '../components/OrderTicket'
 
 const PAGE_SIZE = 8
+
 export default function OrdersOverview() {
   const { areaId } = useParams({ strict: false })
-  const { orders, stores, areas, orderTakers, updateOrderStatus } = useSales()
+  const { data: areas = [] } = useAreas()
+  const { data: stores = [] } = useAllStores()
+  const { data: workers = [] } = useWorkers()
+  const { data: products = [] } = useReadyStock()
   const area = areas.find((a) => a.id === areaId)
   const [view, setView] = useState('cards')
   const [addOpen, setAddOpen] = useState(false)
   const [fillOrder, setFillOrder] = useState(null)
   const [selected, setSelected] = useState(new Set())
 
-  const [dateMode, setDateMode] = useState('all')
+  // Defaults to "today" - matches the backend's own default and the
+  // requirement that Orders shows only today's orders unless asked for more.
+  const [dateMode, setDateMode] = useState('today')
   const [specificDate, setSpecificDate] = useState('')
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
@@ -32,33 +40,34 @@ export default function OrdersOverview() {
   const [otFilter, setOtFilter] = useState('all')
 
   const moreActive = storeFilter !== 'all' || otFilter !== 'all'
+  const orderTakers = useMemo(() => workers.filter((w) => w.roles.includes('marketer')), [workers])
 
-  const filtered = useMemo(() => {
-    return orders.filter((o) => {
-      if (areaId) {
-        const store = stores.find((s) => s.id === o.storeId)
-        if (store?.areaId !== areaId) return false
-      }
-      if (dateMode === 'today' && o.date !== new Date().toISOString().slice(0, 10)) return false
-      if (dateMode === 'specific' && o.date !== specificDate) return false
-      if (dateMode === 'custom') {
-        if (customFrom && o.date < customFrom) return false
-        if (customTo && o.date > customTo) return false
-      }
-      if (statusFilter === 'undelivered' && o.status === 'delivered') return false
-      if (statusFilter === 'delivered' && o.status !== 'delivered') return false
-      if (productFilter !== 'all' && o.product !== productFilter) return false
-      if (storeFilter !== 'all' && o.storeId !== storeFilter) return false
-      if (otFilter !== 'all' && o.orderTakerId !== otFilter) return false
-      return true
-    })
-  }, [orders, areaId, dateMode, specificDate, customFrom, customTo, statusFilter, productFilter, storeFilter, otFilter, stores])
+  // Filtering happens server-side now (see order.validation.js) rather
+  // than fetching everything and filtering client-side - this is what
+  // makes the "today by default" behavior actually cheap as orders
+  // accumulate over time.
+  const query = useMemo(() => {
+    const q = {}
+    if (dateMode === 'today') q.filter = 'today'
+    else if (dateMode === 'specific') { q.filter = 'custom'; q.from = specificDate; q.to = specificDate }
+    else if (dateMode === 'custom') { q.filter = 'custom'; if (customFrom) q.from = customFrom; if (customTo) q.to = customTo }
+    else q.filter = 'all'
+    if (areaId) q.areaId = areaId
+    if (statusFilter !== 'all') q.status = statusFilter
+    if (productFilter !== 'all') q.productId = productFilter
+    if (storeFilter !== 'all') q.storeId = storeFilter
+    if (otFilter !== 'all') q.orderTakerId = otFilter
+    return q
+  }, [dateMode, specificDate, customFrom, customTo, areaId, statusFilter, productFilter, storeFilter, otFilter])
 
-  const { page, setPage, totalPages, start, end } = usePagination(filtered.length, PAGE_SIZE)
-  const paged = filtered.slice(start, end)
+  const { data: orders = [], isLoading, isError } = useOrders(query)
+  const updateOrderStatus = useUpdateOrderStatus()
+
+  const { page, setPage, totalPages, start, end } = usePagination(orders.length, PAGE_SIZE)
+  const paged = orders.slice(start, end)
 
   const clearFilters = () => {
-    setDateMode('all'); setSpecificDate(''); setCustomFrom(''); setCustomTo(''); setStatusFilter('all'); setProductFilter('all'); setStoreFilter('all'); setOtFilter('all')
+    setDateMode('today'); setSpecificDate(''); setCustomFrom(''); setCustomTo(''); setStatusFilter('all'); setProductFilter('all'); setStoreFilter('all'); setOtFilter('all')
   }
 
   const toggleSelect = (id) => {
@@ -74,14 +83,14 @@ export default function OrdersOverview() {
     })
   }
   const bulkUpdateStatus = (status) => {
-    selected.forEach((id) => updateOrderStatus(id, status))
+    selected.forEach((id) => updateOrderStatus.mutate({ id, status }))
     setSelected(new Set())
   }
 
   const summaryParts = []
   if (dateMode !== 'all') summaryParts.push(dateMode === 'today' ? 'Today' : dateMode === 'specific' ? specificDate : `${customFrom}–${customTo}`)
   if (statusFilter !== 'all') summaryParts.push(statusFilter)
-  if (productFilter !== 'all') summaryParts.push(productFilter)
+  if (productFilter !== 'all') summaryParts.push(products.find((p) => p.id === productFilter)?.name)
   if (storeFilter !== 'all') summaryParts.push(stores.find((s) => s.id === storeFilter)?.dealerName)
   if (otFilter !== 'all') summaryParts.push(orderTakers.find((o) => o.id === otFilter)?.name)
 
@@ -102,7 +111,7 @@ export default function OrdersOverview() {
       <div className="mb-4 rounded-bakery border border-espresso/8 bg-proof-cream p-4 shadow-bakery">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:flex-wrap">
           <select className={`${inputClass} lg:w-36`} value={dateMode} onChange={(e) => setDateMode(e.target.value)}>
-            <option value="all">All dates</option><option value="today">Today</option><option value="specific">Specific date</option><option value="custom">Custom range</option>
+            <option value="today">Today</option><option value="all">All dates</option><option value="specific">Specific date</option><option value="custom">Custom range</option>
           </select>
           {dateMode === 'specific' && <input type="date" className={`${inputClass} lg:w-36`} value={specificDate} onChange={(e) => setSpecificDate(e.target.value)} />}
           {dateMode === 'custom' && <>
@@ -116,7 +125,7 @@ export default function OrdersOverview() {
           </div>
           <select className={`${inputClass} lg:w-40`} value={productFilter} onChange={(e) => setProductFilter(e.target.value)}>
             <option value="all">All products</option>
-            <option>Butter Croissants</option><option>Milk Bread</option><option>Cocoa Cookies</option><option>Dinner Buns</option><option>Tea Cakes</option>
+            {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
           <button onClick={() => setMoreOpen((o) => !o)} className="relative inline-flex items-center gap-1.5 rounded-lg border border-espresso/15 bg-crust/30 px-3 py-2 text-xs font-medium text-espresso hover:bg-crust/50">
             <Filter className="h-3.5 w-3.5" /> More filters
@@ -160,7 +169,7 @@ export default function OrdersOverview() {
 
       {/* Summary */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <h2 className="font-display text-lg font-semibold text-espresso">{filtered.length} {filtered.length === 1 ? 'order' : 'orders'}</h2>
+        <h2 className="font-display text-lg font-semibold text-espresso">{orders.length} {orders.length === 1 ? 'order' : 'orders'}</h2>
         {summaryParts.length > 0 && (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-oven-amber/10 px-3 py-1 text-xs text-espresso/70">
             Showing: {summaryParts.join(' · ')}
@@ -169,7 +178,11 @@ export default function OrdersOverview() {
         )}
       </div>
 
-      {filtered.length === 0 ? (
+      {isLoading ? (
+        <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading orders...</p>
+      ) : isError ? (
+        <EmptyState icon={ClipboardList} title="Could not load orders" description="Something went wrong fetching orders. Try refreshing." />
+      ) : orders.length === 0 ? (
         <EmptyState icon={ClipboardList} title="No orders found" description="Try adjusting your filters." />
       ) : view === 'cards' ? (
         <>
@@ -180,10 +193,10 @@ export default function OrdersOverview() {
             </button>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {paged.map((o) => <OrderTicket key={o.id} order={o} stores={stores} areas={areas} orderTakers={orderTakers} onFill={() => setFillOrder(o)} onStatus={(s) => updateOrderStatus(o.id, s)} selected={selected.has(o.id)} onToggleSelect={() => toggleSelect(o.id)} />)}
+            {paged.map((o) => <OrderTicket key={o.id} order={o} stores={stores} areas={areas} orderTakers={workers} onFill={() => setFillOrder(o)} onStatus={(s) => updateOrderStatus.mutate({ id: o.id, status: s })} selected={selected.has(o.id)} onToggleSelect={() => toggleSelect(o.id)} />)}
           </div>
           <div className="mt-4 rounded-bakery border border-espresso/8 bg-proof-cream shadow-bakery">
-            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={filtered.length} pageSize={PAGE_SIZE} />
+            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={orders.length} pageSize={PAGE_SIZE} />
           </div>
         </>
       ) : (
@@ -199,7 +212,7 @@ export default function OrdersOverview() {
                   </th>
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Store</th>
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Area</th>
-                  <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Product</th>
+                  <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Products</th>
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Qty</th>
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Status</th>
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Date</th>
@@ -211,6 +224,8 @@ export default function OrdersOverview() {
                   const store = stores.find((s) => s.id === o.storeId)
                   const area = areas.find((a) => a.id === store?.areaId)
                   const cfg = ORDER_STATUS[o.status]
+                  const items = o.items || []
+                  const totalQty = items.reduce((s, it) => s + it.quantity, 0)
                   return (
                     <tr key={o.id} className={`border-b border-espresso/8 last:border-0 ${selected.has(o.id) ? 'bg-oven-amber/5' : ''}`}>
                       <td className="px-4 py-3">
@@ -220,14 +235,16 @@ export default function OrdersOverview() {
                       </td>
                       <td className="px-4 py-3 font-medium text-espresso">{store?.dealerName}</td>
                       <td className="px-4 py-3 text-espresso/60">{area?.name}</td>
-                      <td className="px-4 py-3 text-espresso/80">{o.product}</td>
-                      <td className="px-4 py-3 font-mono text-espresso">{o.quantity}</td>
+                      <td className="px-4 py-3 text-espresso/80">
+                        {items.length === 0 ? '—' : items.length === 1 ? items[0].productName : `${items[0].productName} +${items.length - 1} more`}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-espresso">{totalQty}</td>
                       <td className="px-4 py-3"><span className={`inline-flex items-center gap-1 text-xs ${cfg.color}`}><cfg.icon className="h-3.5 w-3.5" />{cfg.label}</span></td>
-                      <td className="px-4 py-3 text-espresso/60">{formatDateShort(o.date)}</td>
+                      <td className="px-4 py-3 text-espresso/60">{formatDateShort(o.orderDate)}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-2">
                           <Button size="sm" variant="secondary" onClick={() => setFillOrder(o)}>Fill</Button>
-                          <StatusDropdown order={o} onUpdate={(s) => updateOrderStatus(o.id, s)} />
+                          <StatusDropdown order={o} onUpdate={(s) => updateOrderStatus.mutate({ id: o.id, status: s })} />
                         </div>
                       </td>
                     </tr>
@@ -236,7 +253,7 @@ export default function OrdersOverview() {
               </tbody>
             </table>
           </div>
-          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={filtered.length} pageSize={PAGE_SIZE} />
+          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={orders.length} pageSize={PAGE_SIZE} />
         </div>
       )}
 

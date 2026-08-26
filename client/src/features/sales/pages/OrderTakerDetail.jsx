@@ -2,7 +2,8 @@ import { useState, useMemo } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { MapPin, Plus, ClipboardList, Calendar, ShoppingBag, Search } from 'lucide-react'
-import { useSales } from '@/features/sales/hooks'
+import { useAreas, useAllStores, useOrders } from '@/features/sales/hooks'
+import { useWorker } from '@/features/workers/hooks'
 import { ORDER_STATUS } from '@/constants/orderStatus'
 import { AddPersonOrderModal } from '../components/AddPersonOrderModal'
 import { Button, EmptyState, PageHeader, Pagination, SortIcon, StatCard, inputClass } from '@/components/shared'
@@ -13,7 +14,12 @@ const PAGE_SIZE = 8
 
 export default function OrderTakerDetail() {
   const { personId } = useParams({ strict: false })
-  const { orderTakers, areas, stores, orders } = useSales()
+  const { data: person, isLoading: personLoading, isError: personError } = useWorker(personId)
+  const { data: areas = [] } = useAreas()
+  const { data: stores = [] } = useAllStores()
+  // Scoped server-side to this order taker - not the full order history
+  // filtered client-side.
+  const { data: personOrders = [] } = useOrders({ filter: 'all', orderTakerId: personId })
   const [range, setRange] = useState('7')
   const [addOpen, setAddOpen] = useState(false)
 
@@ -24,7 +30,7 @@ export default function OrderTakerDetail() {
   const [customTo, setCustomTo] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [search, setSearch] = useState('')
-  const [sortKey, setSortKey] = useState('date')
+  const [sortKey, setSortKey] = useState('orderDate')
   const [sortDir, setSortDir] = useState('desc')
 
   const toggleSort = (key) => {
@@ -32,17 +38,19 @@ export default function OrderTakerDetail() {
     else { setSortKey(key); setSortDir('asc') }
   }
 
-  const person = orderTakers.find((o) => o.id === personId)
-  if (!person) return <EmptyState icon={ClipboardList} title="Order taker not found" description="This person does not exist." />
+  // Every hook below runs unconditionally on every render - person is
+  // undefined during the loading state, so each memo guards for that
+  // rather than the component early-returning before them (see
+  // WorkerDetail.jsx for the same reasoning).
+  const assignedAreas = useMemo(() => areas.filter((a) => (person?.assignedAreaIds || []).includes(a.id)), [areas, person])
 
-  const personOrders = orders.filter((o) => o.orderTakerId === personId)
-  const assignedAreas = areas.filter((a) => person.assignedAreaIds.includes(a.id))
+  const weekOrders = useMemo(() => personOrders.filter((o) => { const d = new Date(o.orderDate); return (new Date() - d) / 86400000 <= 7 }), [personOrders])
 
-  const weekOrders = personOrders.filter((o) => { const d = new Date(o.date); return (new Date() - d) / 86400000 <= 7 })
-
-  const productCounts = {}
-  personOrders.forEach((o) => { productCounts[o.product] = (productCounts[o.product] || 0) + o.quantity })
-  const topProduct = Object.entries(productCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || '—'
+  const topProduct = useMemo(() => {
+    const counts = {}
+    personOrders.forEach((o) => (o.items || []).forEach((it) => { counts[it.productName] = (counts[it.productName] || 0) + it.quantity }))
+    return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || '—'
+  }, [personOrders])
 
   const barData = useMemo(() => {
     const days = parseInt(range)
@@ -50,19 +58,22 @@ export default function OrderTakerDetail() {
     for (let i = days - 1; i >= 0; i--) {
       const d = new Date(); d.setDate(d.getDate() - i)
       const label = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
-      const count = personOrders.filter((o) => o.date === d.toISOString().slice(0, 10)).length
+      const dateStr = d.toISOString().slice(0, 10)
+      const count = personOrders.filter((o) => o.orderDate === dateStr).length
       out.push({ day: label, orders: count })
     }
     return out
   }, [personOrders, range])
 
-  const storeCounts = {}
-  personOrders.forEach((o) => {
-    const store = stores.find((s) => s.id === o.storeId)
-    const name = store?.dealerName || 'Unknown'
-    storeCounts[name] = (storeCounts[name] || 0) + 1
-  })
-  const pieData = Object.entries(storeCounts).map(([name, value]) => ({ name, value }))
+  const pieData = useMemo(() => {
+    const counts = {}
+    personOrders.forEach((o) => {
+      const store = stores.find((s) => s.id === o.storeId)
+      const name = store?.dealerName || 'Unknown'
+      counts[name] = (counts[name] || 0) + 1
+    })
+    return Object.entries(counts).map(([name, value]) => ({ name, value }))
+  }, [personOrders, stores])
   const totalPie = pieData.reduce((s, d) => s + d.value, 0) || 1
 
   // Table data with filters + sort
@@ -70,23 +81,26 @@ export default function OrderTakerDetail() {
     let list = personOrders.map((o) => {
       const store = stores.find((s) => s.id === o.storeId)
       const area = areas.find((a) => a.id === store?.areaId)
-      return { ...o, storeName: store?.dealerName || '—', areaName: area?.name || '—' }
+      const items = o.items || []
+      const productsLabel = items.length === 0 ? '—' : items.length === 1 ? items[0].productName : `${items[0].productName} +${items.length - 1} more`
+      const totalQty = items.reduce((s, it) => s + it.quantity, 0)
+      return { ...o, storeName: store?.dealerName || '—', areaName: area?.name || '—', productsLabel, totalQty }
     })
     if (search) {
       const q = search.toLowerCase()
-      list = list.filter((o) => o.storeName.toLowerCase().includes(q) || o.product.toLowerCase().includes(q) || o.id.toLowerCase().includes(q))
+      list = list.filter((o) => o.storeName.toLowerCase().includes(q) || o.productsLabel.toLowerCase().includes(q) || o.id.toLowerCase().includes(q))
     }
     if (statusFilter !== 'all') list = list.filter((o) => o.status === statusFilter)
-    if (dateMode === 'today') list = list.filter((o) => o.date === new Date().toISOString().slice(0, 10))
-    if (dateMode === 'week') list = list.filter((o) => { const d = new Date(o.date); return (new Date() - d) / 86400000 <= 7 })
-    if (dateMode === 'specific' && specificDate) list = list.filter((o) => o.date === specificDate)
+    if (dateMode === 'today') list = list.filter((o) => o.orderDate === new Date().toISOString().slice(0, 10))
+    if (dateMode === 'week') list = list.filter((o) => { const d = new Date(o.orderDate); return (new Date() - d) / 86400000 <= 7 })
+    if (dateMode === 'specific' && specificDate) list = list.filter((o) => o.orderDate === specificDate)
     if (dateMode === 'custom') {
-      if (customFrom) list = list.filter((o) => o.date >= customFrom)
-      if (customTo) list = list.filter((o) => o.date <= customTo)
+      if (customFrom) list = list.filter((o) => o.orderDate >= customFrom)
+      if (customTo) list = list.filter((o) => o.orderDate <= customTo)
     }
     list.sort((a, b) => {
       let av = a[sortKey], bv = b[sortKey]
-      if (sortKey === 'quantity' || sortKey === 'fulfilledQty') { av = Number(av) || 0; bv = Number(bv) || 0 }
+      if (sortKey === 'totalQty') { av = Number(av) || 0; bv = Number(bv) || 0 }
       if (av < bv) return sortDir === 'asc' ? -1 : 1
       if (av > bv) return sortDir === 'asc' ? 1 : -1
       return 0
@@ -104,11 +118,14 @@ export default function OrderTakerDetail() {
     { key: 'id', label: 'Order ID' },
     { key: 'storeName', label: 'Store' },
     { key: 'areaName', label: 'Area' },
-    { key: 'product', label: 'Product' },
-    { key: 'quantity', label: 'Qty' },
+    { key: 'productsLabel', label: 'Products' },
+    { key: 'totalQty', label: 'Qty' },
     { key: 'status', label: 'Status' },
-    { key: 'date', label: 'Date' },
+    { key: 'orderDate', label: 'Date' },
   ]
+
+  if (personLoading) return <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading order taker…</p>
+  if (personError || !person) return <EmptyState icon={ClipboardList} title="Order taker not found" description="This person does not exist." />
 
   return (
     <div>
@@ -241,10 +258,10 @@ export default function OrderTakerDetail() {
                           <td className="px-4 py-3 font-mono text-xs text-espresso/60">{o.id}</td>
                           <td className="px-4 py-3 font-medium text-espresso">{o.storeName}</td>
                           <td className="px-4 py-3 text-espresso/60">{o.areaName}</td>
-                          <td className="px-4 py-3 text-espresso/80">{o.product}</td>
-                          <td className="px-4 py-3 font-mono text-espresso">{o.quantity}</td>
+                          <td className="px-4 py-3 text-espresso/80">{o.productsLabel}</td>
+                          <td className="px-4 py-3 font-mono text-espresso">{o.totalQty}</td>
                           <td className="px-4 py-3"><span className={`text-xs font-medium ${sc.color}`}>{sc.label}</span></td>
-                          <td className="px-4 py-3 text-espresso/60">{new Date(o.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                          <td className="px-4 py-3 text-espresso/60">{new Date(o.orderDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
                         </tr>
                       )
                     })}
@@ -268,12 +285,12 @@ export default function OrderTakerDetail() {
                       <span className={`text-xs font-medium ${sc.color}`}>{sc.label}</span>
                     </div>
                     <div className="mt-2 flex items-center justify-between text-xs">
-                      <span className="text-espresso/70">{o.product}</span>
-                      <span className="font-mono text-espresso">{o.quantity} units</span>
+                      <span className="text-espresso/70">{o.productsLabel}</span>
+                      <span className="font-mono text-espresso">{o.totalQty} units</span>
                     </div>
                     <div className="mt-1 flex items-center justify-between text-xs text-espresso/45">
                       <span className="font-mono">{o.id}</span>
-                      <span>{new Date(o.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                      <span>{new Date(o.orderDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
                     </div>
                   </div>
                 )

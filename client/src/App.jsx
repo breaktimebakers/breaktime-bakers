@@ -11,10 +11,10 @@ export default function App() {
   useEffect(() => {
     const leaveTimer = window.setTimeout(() => {
       setIsSplashLeaving(true)
-    }, 1800)
+    }, 7000)
     const removeTimer = window.setTimeout(() => {
       setShowSplash(false)
-    }, 2300)
+    }, 7900)
 
     return () => {
       window.clearTimeout(leaveTimer)

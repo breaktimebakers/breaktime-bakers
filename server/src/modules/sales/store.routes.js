@@ -10,6 +10,8 @@ const router = Router();
 
 router.use(requireAuth, requireRole("admin"));
 
+router.get("/", asyncHandler(areaController.listAllStores));
+
 router.patch(
   "/:id",
   validate(storeIdParamSchema, "params"),

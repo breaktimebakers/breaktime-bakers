@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Link } from '@tanstack/react-router'
 import { CalendarCheck, Search, Check, X, Clock } from 'lucide-react'
-import { useWorkers } from '@/features/workers/hooks'
+import { useWorkers, useAttendanceByDate, useMarkAttendance, useClearAttendance } from '@/features/workers/hooks'
 import { dayNames } from '@/features/workers/utils'
 import { Button, EmptyState, Field, PageHeader, inputClass } from '@/components/shared'
 import { RoleBadge } from '../components/RoleBadge'
@@ -14,26 +14,30 @@ const statusConfig = {
 }
 
 export default function WorkerAttendance() {
-  const { workers, attendance, markAttendance } = useWorkers()
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const { data: workers = [] } = useWorkers()
+  const { data: attendance = [] } = useAttendanceByDate(todayStr)
+  const markAttendanceMutation = useMarkAttendance()
+  const clearAttendanceMutation = useClearAttendance()
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [overtimeModal, setOvertimeModal] = useState(null)
 
-  const todayStr = new Date().toISOString().slice(0, 10)
   const todayDow = dayNames[new Date().getDay()]
 
   const filtered = useMemo(() => {
     let list = workers.filter((w) => w.status === 'active')
     if (search) {
       const q = search.toLowerCase()
-      list = list.filter((w) => w.name.toLowerCase().includes(q) || w.phone.includes(q))
+      list = list.filter((w) => w.name.toLowerCase().includes(q) || (w.phone || '').includes(q))
     }
     if (roleFilter !== 'all') list = list.filter((w) => w.roles.includes(roleFilter))
     return list
   }, [workers, search, roleFilter])
 
-  const getTodayEntry = (workerId) => attendance.find((a) => a.workerId === workerId && a.date === todayStr)
+  // attendance is already scoped to today by useAttendanceByDate.
+  const getTodayEntry = (workerId) => attendance.find((a) => a.workerId === workerId)
 
   const filteredWithStatus = useMemo(() => {
     if (statusFilter === 'all') return filtered
@@ -42,18 +46,18 @@ export default function WorkerAttendance() {
       if (statusFilter === 'unmarked') return !entry
       return entry?.status === statusFilter
     })
-  }, [filtered, statusFilter, attendance, todayStr])
+  }, [filtered, statusFilter, attendance])
 
   const markPresent = (workerId) => {
-    markAttendance(workerId, todayStr, { status: 'present', overtimeHours: 0 })
+    markAttendanceMutation.mutate({ workerId, date: todayStr, status: 'present', overtimeHours: 0 })
   }
 
   const markAbsent = (workerId) => {
-    markAttendance(workerId, todayStr, { status: 'absent', overtimeHours: 0 })
+    markAttendanceMutation.mutate({ workerId, date: todayStr, status: 'absent', overtimeHours: 0 })
   }
 
   const clearAttendance = (workerId) => {
-    markAttendance(workerId, todayStr, { status: 'clear' })
+    clearAttendanceMutation.mutate({ workerId, date: todayStr })
   }
 
   const openOvertime = (worker) => {
@@ -63,7 +67,7 @@ export default function WorkerAttendance() {
 
   const saveOvertime = () => {
     if (!overtimeModal) return
-    markAttendance(overtimeModal.worker.id, todayStr, { status: 'present', overtimeHours: Number(overtimeModal.overtimeHours) || 0 })
+    markAttendanceMutation.mutate({ workerId: overtimeModal.worker.id, date: todayStr, status: 'present', overtimeHours: Number(overtimeModal.overtimeHours) || 0 })
     setOvertimeModal(null)
   }
 
@@ -120,7 +124,9 @@ export default function WorkerAttendance() {
         </div>
       </div>
 
-      {filteredWithStatus.length === 0 ? (
+      {filteredWithStatus.length === 0 && workers.length === 0 ? (
+        <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading workers...</p>
+      ) : filteredWithStatus.length === 0 ? (
         <EmptyState icon={CalendarCheck} title="No workers found" description="Adjust your filters to see workers." />
       ) : (
         <div className="overflow-hidden rounded-bakery border border-espresso/8 bg-proof-cream shadow-bakery">
@@ -144,7 +150,7 @@ export default function WorkerAttendance() {
                     <tr key={w.id} className="border-b border-espresso/8 last:border-0 hover:bg-crust/20">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2.5">
-                          <WorkerAvatar photo={w.photo} name={w.name} size="sm" />
+                          <WorkerAvatar photo={w.photoUrl} name={w.name} size="sm" />
                           <Link to="/workers/$workerId" params={{ workerId: w.id }} className="font-medium text-espresso hover:text-oven-amber">{w.name}</Link>
                         </div>
                       </td>

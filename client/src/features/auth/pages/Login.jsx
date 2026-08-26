@@ -36,7 +36,7 @@ export default function Login() {
             <div className="mb-6 flex flex-col items-center text-center">
               <img src="/breakTimeLogo.png" alt="Break Times" className="h-14 w-14 rounded-bakery object-cover" />
               <h1 className="mt-3 font-display text-2xl font-semibold text-espresso">Break Times</h1>
-              <p className="font-mono text-[10px] uppercase tracking-wider text-espresso/50">Bakery admin</p>
+              <p className="text-center font-mono text-[10px] uppercase tracking-wider text-espresso/50">Bakers</p>
             </div>
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">

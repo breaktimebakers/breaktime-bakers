@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { Link } from '@tanstack/react-router'
 import { MapPin, ArrowRight, ClipboardList } from 'lucide-react'
-import { useSales } from '@/features/sales/hooks'
+import { useAreas, useAllStores, useOrders } from '@/features/sales/hooks'
 import { EmptyState, PageHeader } from '@/components/shared'
 
 function StatCard({ label, value, icon: Icon, chipColor }) {
@@ -21,16 +21,21 @@ function StatCard({ label, value, icon: Icon, chipColor }) {
 }
 
 export default function OrdersAreaList() {
-  const { orders, areas, stores } = useSales()
+  const { data: areas = [] } = useAreas()
+  const { data: stores = [] } = useAllStores()
+  // Unscoped by date - "today" and "pending" are both computed here from
+  // the same full order history, unlike OrdersOverview's list which
+  // defaults to (and mostly stays on) just today's orders.
+  const { data: orders = [], isLoading, isError } = useOrders({ filter: 'all' })
   const todayStr = new Date().toISOString().slice(0, 10)
 
-  const todaysOrders = useMemo(() => orders.filter((o) => o.date === todayStr), [orders, todayStr])
+  const todaysOrders = useMemo(() => orders.filter((o) => o.orderDate === todayStr), [orders, todayStr])
 
   const areaStats = useMemo(() => {
     return areas.map((a) => {
       const areaStoreIds = new Set(stores.filter((s) => s.areaId === a.id).map((s) => s.id))
       const areaOrders = orders.filter((o) => areaStoreIds.has(o.storeId))
-      const todayCount = areaOrders.filter((o) => o.date === todayStr).length
+      const todayCount = areaOrders.filter((o) => o.orderDate === todayStr).length
       const pendingCount = areaOrders.filter((o) => o.status !== 'delivered').length
       return { area: a, todayCount, pendingCount }
     })
@@ -50,7 +55,11 @@ export default function OrdersAreaList() {
       </div>
 
       <h2 className="mb-3 font-display text-lg font-semibold text-espresso">Areas</h2>
-      {areaStats.length === 0 ? (
+      {isLoading ? (
+        <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading orders...</p>
+      ) : isError ? (
+        <EmptyState icon={MapPin} title="Could not load orders" description="Something went wrong fetching orders. Try refreshing." />
+      ) : areaStats.length === 0 ? (
         <EmptyState icon={MapPin} title="No areas" description="Add areas to see order breakdowns." />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

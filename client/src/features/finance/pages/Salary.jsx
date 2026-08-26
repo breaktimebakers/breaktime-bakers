@@ -8,7 +8,7 @@ import { RoleBadge } from '@/features/workers/components/RoleBadge'
 
 export default function Salary() {
   const { getSalaryForMonth } = useFinance()
-  const { workers } = useWorkers()
+  const { data: workers = [] } = useWorkers()
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth())

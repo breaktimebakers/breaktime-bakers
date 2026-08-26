@@ -9,6 +9,8 @@ export function OrderTicket({ order, stores, areas, orderTakers, onFill, onStatu
   const area = areas.find((a) => a.id === store?.areaId)
   const ot = orderTakers.find((o) => o.id === order.orderTakerId)
   const cfg = ORDER_STATUS[order.status]
+  const items = order.items || []
+
   return (
     <div className={`ticket-edge ticket-edge-bottom relative overflow-hidden rounded-bakery border bg-proof-cream p-5 pt-6 shadow-bakery ${selected ? 'border-oven-amber/50 ring-1 ring-oven-amber/30' : 'border-espresso/10'}`}>
       <div className="flex items-start justify-between gap-2">
@@ -23,13 +25,24 @@ export function OrderTicket({ order, stores, areas, orderTakers, onFill, onStatu
         </div>
         <span className={`stamp ${cfg.stampClass}`}><cfg.icon className="h-3 w-3" />{cfg.label}</span>
       </div>
+
+      <div className="mt-3 space-y-1">
+        {items.length === 0 ? (
+          <p className="text-xs text-espresso/40">No products</p>
+        ) : (
+          items.map((it) => (
+            <div key={it.id} className="flex items-center justify-between text-xs">
+              <span className="truncate text-espresso/80">{it.productName}</span>
+              <span className="shrink-0 pl-2 font-mono text-espresso/70">{it.fulfilledQty || 0}/{it.quantity} {it.unit}</span>
+            </div>
+          ))
+        )}
+      </div>
+
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-        <div><p className="text-espresso/40">Product</p><p className="font-medium text-espresso">{order.product}</p></div>
-        <div><p className="text-espresso/40">Ordered</p><p className="font-mono font-semibold text-espresso">{order.quantity}</p></div>
-        <div><p className="text-espresso/40">Fulfilled</p><p className="font-mono text-espresso/80">{order.fulfilledQty || '—'}</p></div>
-        <div><p className="text-espresso/40">Date</p><p className="text-espresso/80">{formatDate(order.date)}</p></div>
+        <div><p className="text-espresso/40">Date</p><p className="text-espresso/80">{formatDate(order.orderDate)}</p></div>
         <div><p className="text-espresso/40">Order taker</p><p className="text-espresso/80">{ot?.name}</p></div>
-        <div><p className="text-espresso/40">Order ID</p><p className="font-mono text-espresso/60">{order.id}</p></div>
+        <div className="col-span-2"><p className="text-espresso/40">Order ID</p><p className="font-mono text-espresso/60">{order.id}</p></div>
       </div>
       <div className="perforation mt-4 mb-3" />
       <div className="flex items-center gap-2">

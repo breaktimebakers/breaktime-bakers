@@ -2,8 +2,7 @@ import { useState } from 'react'
 import { AlertCircle } from 'lucide-react'
 import { useCreateRawMaterial } from '@/features/inventory/hooks'
 import { uploadReceipt } from '@/lib/uploadReceipt'
-import { Button, Field, Modal, inputClass } from '@/components/shared'
-import { ReceiptDropzone } from './ReceiptDropzone'
+import { Button, Field, Modal, ReceiptDropzone, inputClass } from '@/components/shared'
 import { todayISO } from '@/utils'
 
 const makeEmptyForm = () => ({

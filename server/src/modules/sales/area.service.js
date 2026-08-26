@@ -39,6 +39,8 @@ export const listStores = async (areaId) => {
   return areaRepo.listStoresForArea(areaId);
 };
 
+export const listAllStores = () => areaRepo.listAllStores();
+
 export const createStore = async (areaId, body) => {
   await requireArea(areaId);
 

@@ -1,16 +1,38 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Check, MapPin } from 'lucide-react'
-import { useSales } from '../hooks'
+import { useAreas } from '../hooks'
+import { useUpdateWorkerAreas } from '@/features/workers/hooks'
 import { Button, Modal } from '@/components/shared'
 
 export function AssignAreasModal({ open, onClose, person }) {
-  const { areas, assignAreas } = useSales()
-  const [selected, setSelected] = useState(person?.assignedAreaIds || [])
+  const { data: areas = [] } = useAreas()
+  const updateWorkerAreas = useUpdateWorkerAreas()
+  const [selected, setSelected] = useState([])
+
+  // Re-sync whenever a different person is passed in - the modal instance
+  // doesn't unmount between "Assign areas" clicks for different people.
+  useEffect(() => {
+    setSelected(person?.assignedAreaIds || [])
+  }, [person])
+
   const toggle = (id) => setSelected((p) => p.includes(id) ? p.filter((a) => a !== id) : [...p, id])
-  const submit = () => { if (person) assignAreas(person.id, selected); onClose() }
+
+  const submit = async () => {
+    if (!person) return
+    try {
+      await updateWorkerAreas.mutateAsync({ id: person.id, areaIds: selected })
+      onClose()
+    } catch {
+      // Error already surfaced as a toast by useUpdateWorkerAreas.
+    }
+  }
+
   if (!person) return null
+
+  const busy = updateWorkerAreas.isPending
+
   return (
-    <Modal open={open} onClose={onClose} eyebrow="Order takers" title={`Assign areas — ${person.name}`} footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={submit}>Save</Button></>}>
+    <Modal open={open} onClose={onClose} eyebrow="Order takers" title={`Assign areas — ${person.name}`} footer={<><Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button><Button onClick={submit} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button></>}>
       <div className="space-y-2">
         {areas.map((a) => (
           <button key={a.id} onClick={() => toggle(a.id)} className={`flex w-full items-center justify-between rounded-lg border px-4 py-3 text-left transition ${selected.includes(a.id) ? 'border-oven-amber/40 bg-oven-amber/8' : 'border-espresso/10 bg-crust/30 hover:bg-crust/50'}`}>

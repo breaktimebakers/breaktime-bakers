@@ -1,16 +1,21 @@
 import { useState, useMemo } from 'react'
-import { Plus, Trash2, Landmark } from 'lucide-react'
-import { useFinance } from '@/features/finance/hooks'
-import { Button, EmptyState, Field, Modal, PageHeader, inputClass } from '@/components/shared'
+import { Plus, Trash2, Landmark, Paperclip, AlertCircle } from 'lucide-react'
+import { useTaxEntries, useCreateTaxEntry, useDeleteTaxEntry } from '@/features/finance/hooks'
+import { uploadTaxBill } from '@/lib/uploadTaxBill'
+import { Button, EmptyState, Field, FileViewerModal, Modal, ReceiptDropzone, PageHeader, inputClass } from '@/components/shared'
 import { MonthFilterBar } from '../components/MonthFilterBar'
 
 export default function Taxes() {
-  const { taxEntries, addTaxEntry, deleteTaxEntry } = useFinance()
+  const { data: taxEntries = [], isLoading, isError } = useTaxEntries()
+  const createTaxEntry = useCreateTaxEntry()
+  const deleteTaxEntry = useDeleteTaxEntry()
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth())
   const [modalOpen, setModalOpen] = useState(false)
-  const [form, setForm] = useState({ amount: '', date: new Date().toISOString().slice(0, 10), note: '' })
+  const [form, setForm] = useState({ amount: '', date: new Date().toISOString().slice(0, 10), note: '', bill: null })
+  const [error, setError] = useState('')
+  const [viewingBill, setViewingBill] = useState(null)
 
   const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`
   const filtered = useMemo(() => {
@@ -21,12 +26,22 @@ export default function Taxes() {
 
   const totalAmount = filtered.reduce((s, t) => s + t.amount, 0)
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!form.amount) return
-    addTaxEntry({ amount: form.amount, date: form.date, note: form.note })
-    setForm({ amount: '', date: new Date().toISOString().slice(0, 10), note: '' })
-    setModalOpen(false)
+    setError('')
+
+    try {
+      const billKey = form.bill instanceof File ? await uploadTaxBill(form.bill) : undefined
+
+      await createTaxEntry.mutateAsync({ amount: form.amount, date: form.date, note: form.note || undefined, billKey })
+      setForm({ amount: '', date: new Date().toISOString().slice(0, 10), note: '', bill: null })
+      setModalOpen(false)
+    } catch (err) {
+      setError(err.message || 'Could not add tax entry.')
+    }
   }
+
+  const busy = createTaxEntry.isPending
 
   return (
     <div>
@@ -45,7 +60,11 @@ export default function Taxes() {
         <p className="mt-1 font-mono text-3xl font-bold text-espresso">₹{totalAmount.toLocaleString('en-IN')}</p>
       </div>
 
-      {filtered.length === 0 ? (
+      {isLoading ? (
+        <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading tax entries...</p>
+      ) : isError ? (
+        <EmptyState icon={Landmark} title="Could not load tax entries" description="Something went wrong fetching tax entries. Try refreshing." />
+      ) : filtered.length === 0 ? (
         <EmptyState icon={Landmark} title="No tax entries this month" description="Add a tax entry to get started." />
       ) : (
         <div className="flex flex-col gap-2">
@@ -59,8 +78,18 @@ export default function Taxes() {
                 <p className="font-mono text-xs text-espresso/40">{new Date(t.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
               </div>
               <p className="font-mono font-semibold text-espresso">₹{t.amount.toLocaleString('en-IN')}</p>
+              {t.billUrl && (
+                <button
+                  onClick={() => setViewingBill({ url: t.billUrl, title: `Tax entry — ${t.date}` })}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-espresso/30 hover:bg-oven-amber/10 hover:text-oven-amber"
+                  aria-label="View bill"
+                  title="View bill"
+                >
+                  <Paperclip className="h-4 w-4" />
+                </button>
+              )}
               <button
-                onClick={() => deleteTaxEntry(t.id)}
+                onClick={() => deleteTaxEntry.mutate(t.id)}
                 className="flex h-8 w-8 items-center justify-center rounded-lg text-espresso/30 hover:bg-cherry-compote/10 hover:text-cherry-compote"
                 aria-label="Delete tax entry"
               >
@@ -79,8 +108,8 @@ export default function Taxes() {
         title="Add Tax Entry"
         footer={
           <>
-            <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
-            <Button onClick={handleSubmit}>Save</Button>
+            <Button variant="secondary" onClick={() => setModalOpen(false)} disabled={busy}>Cancel</Button>
+            <Button onClick={handleSubmit} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button>
           </>
         }
       >
@@ -94,8 +123,30 @@ export default function Taxes() {
           <Field label="Note">
             <input type="text" className={inputClass} value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="e.g. GST payment for July" />
           </Field>
+          <Field label="Bill">
+            <ReceiptDropzone
+              value={form.bill}
+              onChange={(bill) => setForm({ ...form, bill })}
+              label="Drop bill or click to upload"
+            />
+          </Field>
+          {error && (
+            <div className="flex items-center gap-2 rounded-lg bg-cherry-compote/10 px-3 py-2 text-sm text-cherry-compote">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
         </div>
       </Modal>
+
+      <FileViewerModal
+        open={!!viewingBill}
+        onClose={() => setViewingBill(null)}
+        fileUrl={viewingBill?.url}
+        title={viewingBill?.title}
+        eyebrow="Tax entry bill"
+        emptyLabel="No bill available for this tax entry."
+      />
     </div>
   )
 }

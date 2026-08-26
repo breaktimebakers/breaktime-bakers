@@ -12,6 +12,7 @@ export const areaApi = {
 };
 
 export const storeApi = {
+  list: () => apiClient.get(ENDPOINTS.stores.list),
   update: (id, body) => apiClient.patch(ENDPOINTS.stores.update(id), body),
   updateStatus: (id, isActive) =>
     apiClient.patch(ENDPOINTS.stores.updateStatus(id), { isActive }),

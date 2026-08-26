@@ -1,13 +1,18 @@
 import { useState, useMemo } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ArrowLeft, MapPin, Search } from 'lucide-react'
-import { useSales } from '@/features/sales/hooks'
+import { useAreas, useAllStores, useOrders } from '@/features/sales/hooks'
+import { useWorkers } from '@/features/workers/hooks'
 import { ORDER_STATUS } from '@/constants/orderStatus'
 import { AssignAreasModal } from '../components/AssignAreasModal'
 import { Button, EmptyState, PageHeader, SortIcon, inputClass } from '@/components/shared'
 
 export default function OrderTakersList() {
-  const { orderTakers, areas, orders, stores } = useSales()
+  const { data: workers = [] } = useWorkers()
+  const { data: areas = [] } = useAreas()
+  const { data: stores = [] } = useAllStores()
+  const { data: orders = [], isLoading, isError } = useOrders({ filter: 'all' })
+  const orderTakers = useMemo(() => workers.filter((w) => w.roles.includes('marketer')), [workers])
   const [assignPerson, setAssignPerson] = useState(null)
 
   // Table filter state
@@ -18,7 +23,7 @@ export default function OrderTakersList() {
   const [customTo, setCustomTo] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [search, setSearch] = useState('')
-  const [sortKey, setSortKey] = useState('date')
+  const [sortKey, setSortKey] = useState('orderDate')
   const [sortDir, setSortDir] = useState('desc')
 
   const toggleSort = (key) => {
@@ -35,7 +40,10 @@ export default function OrderTakersList() {
       const store = stores.find((s) => s.id === o.storeId)
       const area = areas.find((a) => a.id === store?.areaId)
       const ot = orderTakers.find((t) => t.id === o.orderTakerId)
-      return { ...o, storeName: store?.dealerName || '—', areaName: area?.name || '—', otName: ot?.name || '—' }
+      const items = o.items || []
+      const productsLabel = items.length === 0 ? '—' : items.length === 1 ? items[0].productName : `${items[0].productName} +${items.length - 1} more`
+      const totalQty = items.reduce((s, it) => s + it.quantity, 0)
+      return { ...o, storeName: store?.dealerName || '—', areaName: area?.name || '—', otName: ot?.name || '—', productsLabel, totalQty }
     })
 
     if (otFilter !== 'all') list = list.filter((o) => o.orderTakerId === otFilter)
@@ -44,22 +52,22 @@ export default function OrderTakersList() {
       const q = search.toLowerCase()
       list = list.filter((o) =>
         o.storeName.toLowerCase().includes(q) ||
-        o.product.toLowerCase().includes(q) ||
+        o.productsLabel.toLowerCase().includes(q) ||
         o.otName.toLowerCase().includes(q) ||
         o.id.toLowerCase().includes(q)
       )
     }
-    if (dateMode === 'today') list = list.filter((o) => o.date === new Date().toISOString().slice(0, 10))
-    if (dateMode === 'week') list = list.filter((o) => { const d = new Date(o.date); return (new Date() - d) / 86400000 <= 7 })
-    if (dateMode === 'specific' && specificDate) list = list.filter((o) => o.date === specificDate)
+    if (dateMode === 'today') list = list.filter((o) => o.orderDate === new Date().toISOString().slice(0, 10))
+    if (dateMode === 'week') list = list.filter((o) => { const d = new Date(o.orderDate); return (new Date() - d) / 86400000 <= 7 })
+    if (dateMode === 'specific' && specificDate) list = list.filter((o) => o.orderDate === specificDate)
     if (dateMode === 'custom') {
-      if (customFrom) list = list.filter((o) => o.date >= customFrom)
-      if (customTo) list = list.filter((o) => o.date <= customTo)
+      if (customFrom) list = list.filter((o) => o.orderDate >= customFrom)
+      if (customTo) list = list.filter((o) => o.orderDate <= customTo)
     }
 
     list.sort((a, b) => {
       let av = a[sortKey], bv = b[sortKey]
-      if (sortKey === 'quantity' || sortKey === 'fulfilledQty') { av = Number(av) || 0; bv = Number(bv) || 0 }
+      if (sortKey === 'totalQty') { av = Number(av) || 0; bv = Number(bv) || 0 }
       if (av < bv) return sortDir === 'asc' ? -1 : 1
       if (av > bv) return sortDir === 'asc' ? 1 : -1
       return 0
@@ -78,10 +86,10 @@ export default function OrderTakersList() {
     { key: 'otName', label: 'Order taker' },
     { key: 'storeName', label: 'Store' },
     { key: 'areaName', label: 'Area' },
-    { key: 'product', label: 'Product' },
-    { key: 'quantity', label: 'Qty' },
+    { key: 'productsLabel', label: 'Products' },
+    { key: 'totalQty', label: 'Qty' },
     { key: 'status', label: 'Status' },
-    { key: 'date', label: 'Date' },
+    { key: 'orderDate', label: 'Date' },
   ]
 
   return (
@@ -92,37 +100,41 @@ export default function OrderTakersList() {
       <PageHeader eyebrow="Sales / Order takers" title="Order Takers" description="Field sales reps, their assigned territories, and a full breakdown of their orders." />
 
       {/* Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {orderTakers.map((ot) => {
-          const count = orders.filter((o) => o.orderTakerId === ot.id).length
-          const assignedAreas = areas.filter((a) => ot.assignedAreaIds.includes(a.id))
-          return (
-            <div key={ot.id} className="rounded-bakery border border-espresso/8 bg-proof-cream p-5 shadow-bakery">
-              <div className="flex items-start gap-3">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-oven-amber/15 font-mono text-sm font-semibold text-oven-amber">
-                  {ot.name.split(' ').map((n) => n[0]).join('')}
+      {orderTakers.length === 0 ? (
+        <EmptyState icon={Search} title="No order takers yet" description="Give a worker the marketer role to see them here." />
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {orderTakers.map((ot) => {
+            const count = orders.filter((o) => o.orderTakerId === ot.id).length
+            const assignedAreas = areas.filter((a) => (ot.assignedAreaIds || []).includes(a.id))
+            return (
+              <div key={ot.id} className="rounded-bakery border border-espresso/8 bg-proof-cream p-5 shadow-bakery">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-oven-amber/15 font-mono text-sm font-semibold text-oven-amber">
+                    {ot.name.split(' ').map((n) => n[0]).join('')}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-display text-lg font-semibold text-espresso">{ot.name}</h3>
+                    <p className="text-xs text-espresso/50">{count} total {count === 1 ? 'order' : 'orders'}</p>
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <h3 className="font-display text-lg font-semibold text-espresso">{ot.name}</h3>
-                  <p className="text-xs text-espresso/50">{count} total {count === 1 ? 'order' : 'orders'}</p>
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {assignedAreas.map((a) => (
+                    <span key={a.id} className="inline-flex items-center gap-1 rounded-full bg-espresso/5 px-2.5 py-1 text-xs text-espresso/70"><MapPin className="h-3 w-3" />{a.name}</span>
+                  ))}
+                  {assignedAreas.length === 0 && <span className="text-xs text-espresso/40">No areas assigned</span>}
+                </div>
+                <div className="mt-4 flex items-center gap-2">
+                  <Link to="/sales/orders/order-takers/$personId" params={{ personId: ot.id }}>
+                    <Button size="sm" variant="secondary">View detail</Button>
+                  </Link>
+                  <Button size="sm" variant="ghost" onClick={() => setAssignPerson(ot)}>Assign areas</Button>
                 </div>
               </div>
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {assignedAreas.map((a) => (
-                  <span key={a.id} className="inline-flex items-center gap-1 rounded-full bg-espresso/5 px-2.5 py-1 text-xs text-espresso/70"><MapPin className="h-3 w-3" />{a.name}</span>
-                ))}
-                {assignedAreas.length === 0 && <span className="text-xs text-espresso/40">No areas assigned</span>}
-              </div>
-              <div className="mt-4 flex items-center gap-2">
-                <Link to="/sales/orders/order-takers/$personId" params={{ personId: ot.id }}>
-                  <Button size="sm" variant="secondary">View detail</Button>
-                </Link>
-                <Button size="sm" variant="ghost" onClick={() => setAssignPerson(ot)}>Assign areas</Button>
-              </div>
-            </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
+      )}
 
       {/* Orders table */}
       <div className="mt-8">
@@ -163,7 +175,11 @@ export default function OrderTakersList() {
           </div>
         </div>
 
-        {filteredOrders.length === 0 ? (
+        {isLoading ? (
+          <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading orders...</p>
+        ) : isError ? (
+          <EmptyState icon={Search} title="Could not load orders" description="Something went wrong fetching orders. Try refreshing." />
+        ) : filteredOrders.length === 0 ? (
           <EmptyState icon={Search} title="No orders found" description="Try adjusting your filters." />
         ) : (
           <>
@@ -192,10 +208,10 @@ export default function OrderTakersList() {
                           <td className="px-4 py-3 font-medium text-espresso">{o.otName}</td>
                           <td className="px-4 py-3 text-espresso/80">{o.storeName}</td>
                           <td className="px-4 py-3 text-espresso/60">{o.areaName}</td>
-                          <td className="px-4 py-3 text-espresso/80">{o.product}</td>
-                          <td className="px-4 py-3 font-mono text-espresso">{o.quantity}</td>
+                          <td className="px-4 py-3 text-espresso/80">{o.productsLabel}</td>
+                          <td className="px-4 py-3 font-mono text-espresso">{o.totalQty}</td>
                           <td className="px-4 py-3"><span className={`text-xs font-medium capitalize ${sc.color}`}>{sc.label}</span></td>
-                          <td className="px-4 py-3 text-espresso/60">{new Date(o.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                          <td className="px-4 py-3 text-espresso/60">{new Date(o.orderDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
                         </tr>
                       )
                     })}
@@ -218,12 +234,12 @@ export default function OrderTakersList() {
                       <span className={`text-xs font-medium capitalize ${sc.color}`}>{sc.label}</span>
                     </div>
                     <div className="mt-2 flex items-center justify-between text-xs">
-                      <span className="text-espresso/70">{o.product}</span>
-                      <span className="font-mono text-espresso">{o.quantity} units</span>
+                      <span className="text-espresso/70">{o.productsLabel}</span>
+                      <span className="font-mono text-espresso">{o.totalQty} units</span>
                     </div>
                     <div className="mt-1 flex items-center justify-between text-xs text-espresso/45">
                       <span className="font-mono">{o.id}</span>
-                      <span>{new Date(o.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                      <span>{new Date(o.orderDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
                     </div>
                   </div>
                 )
