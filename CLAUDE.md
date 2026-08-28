@@ -22,9 +22,11 @@ for file storage via `@aws-sdk/client-s3`.
 
 ```
 # server
-cd server && npm run dev          # node --watch src/server.js, port from .env
+cd server && npm run dev          # nodemon src/server.js, port from .env
 cd server && npm run db:push      # drizzle-kit push (no migration files, direct push)
 cd server && npm run db:studio    # drizzle-kit studio
+cd server && npm run db:seed-raw-materials  # idempotent, run before db:seed-demo (batches need real stock)
+cd server && npm run db:seed-demo # idempotent - areas, stores, workers, batches, orders, expenses, tax entries
 
 # client
 cd client && npm run dev          # vite, http://localhost:5173
@@ -57,13 +59,34 @@ consistently split into:
 Almost every route requires `requireAuth` + `requireRole("admin")` — this is
 currently an admin-only tool, not multi-role.
 
+**Attendance & week-off swaps**: each worker has one default `weekOffDay`
+(e.g. "Sunday") on their profile - the calendar/payroll assume every
+occurrence of that weekday is unpaid, unless told otherwise. To give a
+worker a different day off for one specific week (e.g. Thursday instead of
+Sunday), mark *that date's* attendance with status `"week_off"` - no
+separate table for this. `AttendanceCalendar.jsx` groups a worker's
+attendance by Sunday-start week (`weekStartOf`); a `week_off` entry
+anywhere in a week suppresses the default day for the rest of that same
+week, turning it into an ordinary day that needs its own present/absent
+mark. Payroll (`dailySalaryFromMonthly` in `salary.js`, and the mirrored
+calc in `useFinance.js`) never needed to change for this - it already only
+pays for entries explicitly marked `present`/`half_day`, so it's naturally
+agnostic to which specific day was off.
+
 **Auth**: JWT access token (15m) + refresh token (7d), both httpOnly cookies.
 Refresh tokens are rotated on use and hashed in the `sessions` table; reusing
 an already-rotated refresh token is treated as theft and revokes *all*
 sessions for that user (`auth.service.js: rotateRefreshToken`). Client-side,
-`apiClient.js` catches a 401 with `code: ACCESS_TOKEN_EXPIRED`, calls
-`/auth/refresh-token` once (de-duped across concurrent requests via a shared
-promise), and retries. A `REFRESH_TOKEN_REUSED` or failed refresh dispatches
+`apiClient.js` catches a 401 with `code: ACCESS_TOKEN_EXPIRED` **or**
+`ACCESS_TOKEN_MISSING`, calls `/auth/refresh-token` once (de-duped across
+concurrent requests via a shared promise), and retries. Both codes matter:
+the accessToken cookie's maxAge (15m) matches the JWT's own `expiresIn`, so
+once that elapses the browser deletes the cookie itself before the next
+request even goes out - the server then sees no cookie at all
+(`ACCESS_TOKEN_MISSING` from `requireAuth.js`), not an expired one. Treat
+that as a routine expiry needing a refresh, not an auth failure to raise -
+this was a real bug (silent logout every ~15 minutes) until both codes were
+handled the same way. A `REFRESH_TOKEN_REUSED` or failed refresh dispatches
 `window` event `auth:session-expired` for the app shell to react to.
 
 **File uploads**: never stored/served directly — `utils/objectStorage.js`

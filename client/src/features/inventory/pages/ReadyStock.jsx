@@ -46,9 +46,9 @@ export default function ReadyStock() {
       } />
 
       <div className="mb-5 flex flex-wrap items-center gap-2">
-        {['today', 'week', 'custom'].map((f) => (
+        {['today', 'week', 'all', 'custom'].map((f) => (
           <button key={f} onClick={() => setFilter(f)} className={`rounded-full px-3.5 py-1.5 text-xs font-medium capitalize transition ${filter === f ? 'bg-espresso text-crust' : 'bg-proof-cream text-espresso/60 hover:bg-sourdough/40'}`}>
-            {f === 'today' ? 'Today' : f === 'week' ? 'This Week' : 'Custom Range'}
+            {f === 'today' ? 'Today' : f === 'week' ? 'This Week' : f === 'all' ? 'All Stock' : 'Custom Range'}
           </button>
         ))}
         {filter === 'custom' && (

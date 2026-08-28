@@ -1,11 +1,13 @@
 import { useState, useMemo } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button, Field, inputClass } from '@/components/shared'
+import { weekStartOf } from '@/features/workers/utils'
 
 const statusConfig = {
   present: { label: 'Present', dot: 'bg-matcha-glaze', fill: 'bg-matcha-glaze/20 text-matcha-glaze', border: 'border-matcha-glaze/40' },
   absent: { label: 'Absent', dot: 'bg-cherry-compote', fill: 'bg-cherry-compote/15 text-cherry-compote', border: 'border-cherry-compote/40' },
   half_day: { label: 'Half-day', dot: 'bg-toasted-sesame', fill: 'bg-toasted-sesame/15 text-toasted-sesame', border: 'border-toasted-sesame/40' },
+  week_off: { label: 'Week off (swapped)', dot: 'bg-espresso/40', fill: 'bg-espresso/10 text-espresso/60', border: 'border-espresso/30' },
 }
 
 const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
@@ -25,6 +27,19 @@ export function AttendanceCalendar({ workerId, attendance, onMark, weekOffDay = 
   )
 
   const getEntry = (dateStr) => workerAttendance.find((a) => a.date === dateStr)
+
+  // weekStart -> the date that's this week's swapped-in off day. A week
+  // with an entry here no longer treats the default weekOffDay as off -
+  // that day just becomes a normal (unmarked until marked) working day.
+  const weekOffOverrides = useMemo(() => {
+    const map = {}
+    workerAttendance.forEach((a) => {
+      if (a.status !== 'week_off') return
+      const ws = weekStartOf(a.date)
+      if (!map[ws] || a.date < map[ws]) map[ws] = a.date
+    })
+    return map
+  }, [workerAttendance])
 
   const daysInMonth = new Date(viewMonth.year, viewMonth.month + 1, 0).getDate()
   const firstDayOfWeek = new Date(viewMonth.year, viewMonth.month, 1).getDay()
@@ -89,7 +104,8 @@ const fullDayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'F
           const entry = getEntry(dateStr)
           const cfg = entry ? statusConfig[entry.status] : null
           const dateObj = new Date(viewMonth.year, viewMonth.month, dayNum)
-          const isWeekOff = fullDayNames[dateObj.getDay()] === weekOffDay
+          const overrideDate = weekOffOverrides[weekStartOf(dateStr)]
+          const isWeekOff = overrideDate ? dateStr === overrideDate : fullDayNames[dateObj.getDay()] === weekOffDay
           return (
             <button
               key={dayNum}
@@ -115,7 +131,7 @@ const fullDayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'F
         ))}
         <div className="flex items-center gap-1.5">
           <span className="text-[8px] font-mono text-espresso/30">OFF</span>
-          <span className="text-xs text-espresso/50">Week off ({weekOffDay})</span>
+          <span className="text-xs text-espresso/50">Default week off ({weekOffDay})</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="font-mono text-[8px] text-espresso/50">+Nh</span>
@@ -136,6 +152,7 @@ const fullDayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'F
                 <option value="present">Present</option>
                 <option value="absent">Absent</option>
                 <option value="half_day">Half-day</option>
+                <option value="week_off">Week off (swap from {weekOffDay})</option>
               </select>
             </Field>
             {(editForm.status === 'present' || editForm.status === 'half_day') && (

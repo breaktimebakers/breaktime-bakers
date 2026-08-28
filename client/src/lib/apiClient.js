@@ -6,9 +6,11 @@
 //   (sent as-is, so multipart uploads with images work) - Content-Type
 //   is only ever set for the JSON case, letting the browser set the
 //   multipart boundary itself.
-// - On a 401 with code ACCESS_TOKEN_EXPIRED, transparently calls
-//   /auth/refresh-token and retries the original request once. Concurrent
-//   requests that expire at the same time share a single refresh call.
+// - On a 401 with code ACCESS_TOKEN_EXPIRED or ACCESS_TOKEN_MISSING (the
+//   accessToken cookie's own maxAge lapsed and the browser dropped it
+//   before this request), transparently calls /auth/refresh-token and
+//   retries the original request once. Concurrent requests that hit this
+//   at the same time share a single refresh call.
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
 
@@ -104,7 +106,17 @@ async function request(path, options = {}) {
 
   let { res, payload } = await performRequest(path, options);
 
-  if (!res.ok && res.status === 401 && payload?.code === "ACCESS_TOKEN_EXPIRED" && !isAuthExempt) {
+  // ACCESS_TOKEN_MISSING happens whenever the accessToken cookie's own
+  // maxAge (15m, matching the JWT's expiresIn) lapses and the browser
+  // deletes it before the next request goes out - the server then never
+  // even sees a token to call "expired". That's a routine, expected
+  // occurrence for any session older than 15 minutes, not a real auth
+  // failure, so it gets the same silent-refresh treatment as
+  // ACCESS_TOKEN_EXPIRED rather than failing the request outright.
+  const isRecoverableAuthFailure =
+    payload?.code === "ACCESS_TOKEN_EXPIRED" || payload?.code === "ACCESS_TOKEN_MISSING";
+
+  if (!res.ok && res.status === 401 && isRecoverableAuthFailure && !isAuthExempt) {
     try {
       await refreshAccessToken();
     } catch {

@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react'
 import { Link } from '@tanstack/react-router'
 import { CalendarCheck, Search, Check, X, Clock } from 'lucide-react'
-import { useWorkers, useAttendanceByDate, useMarkAttendance, useClearAttendance } from '@/features/workers/hooks'
-import { dayNames } from '@/features/workers/utils'
+import { useWorkers, useAttendanceByDate, useAllAttendance, useMarkAttendance, useClearAttendance } from '@/features/workers/hooks'
+import { dayNames, weekStartOf } from '@/features/workers/utils'
 import { Button, EmptyState, Field, PageHeader, inputClass } from '@/components/shared'
 import { RoleBadge } from '../components/RoleBadge'
 import { WorkerAvatar } from '../components/PhotoCapture'
@@ -11,12 +11,16 @@ const statusConfig = {
   present: { label: 'Present', dot: 'bg-matcha-glaze', text: 'text-matcha-glaze', bg: 'bg-matcha-glaze/15' },
   absent: { label: 'Absent', dot: 'bg-cherry-compote', text: 'text-cherry-compote', bg: 'bg-cherry-compote/15' },
   half_day: { label: 'Half-day', dot: 'bg-toasted-sesame', text: 'text-toasted-sesame', bg: 'bg-toasted-sesame/15' },
+  // A worker's week-off swapped onto today (set from their attendance
+  // calendar - see AttendanceCalendar.jsx, where the actual swap is made).
+  week_off: { label: 'Week off', dot: 'bg-espresso/40', text: 'text-espresso/60', bg: 'bg-espresso/10' },
 }
 
 export default function WorkerAttendance() {
   const todayStr = new Date().toISOString().slice(0, 10)
   const { data: workers = [] } = useWorkers()
   const { data: attendance = [] } = useAttendanceByDate(todayStr)
+  const { data: allAttendance = [] } = useAllAttendance()
   const markAttendanceMutation = useMarkAttendance()
   const clearAttendanceMutation = useClearAttendance()
   const [search, setSearch] = useState('')
@@ -39,14 +43,42 @@ export default function WorkerAttendance() {
   // attendance is already scoped to today by useAttendanceByDate.
   const getTodayEntry = (workerId) => attendance.find((a) => a.workerId === workerId)
 
+  // Whether today is this worker's day off - respects a "week_off" swap
+  // for the week today falls in (see AttendanceCalendar.jsx), not just
+  // their default weekOffDay. Needs allAttendance (not just today's
+  // snapshot) since a swap is only visible by looking at the rest of the
+  // week.
+  const isOffToday = (worker) => {
+    const overrideEntry = allAttendance.find(
+      (a) => a.workerId === worker.id && a.status === 'week_off' && weekStartOf(a.date) === weekStartOf(todayStr),
+    )
+    return overrideEntry ? overrideEntry.date === todayStr : worker.weekOffDay === todayDow
+  }
+
+  // Workers who actually need marking today - off-today workers are
+  // dropped from the list entirely. An explicit "week_off" entry for
+  // today always hides them; any other recorded entry (present/absent/
+  // half_day - e.g. called in on their day off) always keeps them
+  // visible/editable rather than hiding a real record; with no entry yet,
+  // fall back to isOffToday's default-or-swap computation.
+  const workingToday = useMemo(
+    () =>
+      filtered.filter((w) => {
+        const entry = getTodayEntry(w.id)
+        if (entry) return entry.status !== 'week_off'
+        return !isOffToday(w)
+      }),
+    [filtered, allAttendance, attendance, todayStr, todayDow],
+  )
+
   const filteredWithStatus = useMemo(() => {
-    if (statusFilter === 'all') return filtered
-    return filtered.filter((w) => {
+    if (statusFilter === 'all') return workingToday
+    return workingToday.filter((w) => {
       const entry = getTodayEntry(w.id)
       if (statusFilter === 'unmarked') return !entry
       return entry?.status === statusFilter
     })
-  }, [filtered, statusFilter, attendance])
+  }, [workingToday, statusFilter, attendance])
 
   const markPresent = (workerId) => {
     markAttendanceMutation.mutate({ workerId, date: todayStr, status: 'present', overtimeHours: 0 })
@@ -71,10 +103,10 @@ export default function WorkerAttendance() {
     setOvertimeModal(null)
   }
 
-  const presentCount = filtered.filter((w) => getTodayEntry(w.id)?.status === 'present').length
-  const absentCount = filtered.filter((w) => getTodayEntry(w.id)?.status === 'absent').length
-  const halfCount = filtered.filter((w) => getTodayEntry(w.id)?.status === 'half_day').length
-  const unmarkedCount = filtered.filter((w) => !getTodayEntry(w.id)).length
+  const presentCount = workingToday.filter((w) => getTodayEntry(w.id)?.status === 'present').length
+  const absentCount = workingToday.filter((w) => getTodayEntry(w.id)?.status === 'absent').length
+  const halfCount = workingToday.filter((w) => getTodayEntry(w.id)?.status === 'half_day').length
+  const unmarkedCount = workingToday.filter((w) => !getTodayEntry(w.id)).length
 
   return (
     <div>
@@ -145,7 +177,7 @@ export default function WorkerAttendance() {
                 {filteredWithStatus.map((w) => {
                   const entry = getTodayEntry(w.id)
                   const cfg = entry ? statusConfig[entry.status] : null
-                  const isWeekOff = w.weekOffDay === todayDow
+                  const isWeekOff = isOffToday(w)
                   return (
                     <tr key={w.id} className="border-b border-espresso/8 last:border-0 hover:bg-crust/20">
                       <td className="px-4 py-3">

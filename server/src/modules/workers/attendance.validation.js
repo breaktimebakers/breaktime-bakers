@@ -10,7 +10,10 @@ export const listAttendanceQuerySchema = z.object({
 export const markAttendanceSchema = z.object({
   workerId: z.string().min(1),
   date: isoDate,
-  status: z.enum(["present", "absent", "half_day"]),
+  // "week_off" swaps this worker's off day for the week this date falls
+  // in - see AttendanceCalendar.jsx (client) for how that suppresses the
+  // default weekOffDay for the rest of that week.
+  status: z.enum(["present", "absent", "half_day", "week_off"]),
   overtimeHours: z.coerce.number().nonnegative().default(0),
 });
 
