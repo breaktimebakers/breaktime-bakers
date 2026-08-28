@@ -17,14 +17,14 @@ export function AddBatchModal({ open, onClose }) {
   const updateLine = (i, field, val) => setForm((f) => ({ ...f, ingredientsUsed: f.ingredientsUsed.map((ln, idx) => idx === i ? { ...ln, [field]: val } : ln) }))
 
   const submit = async () => {
-    if (!form.productName || !form.quantityProduced) return
+    if (!form.productName || !form.quantityProduced || !form.pricePerUnit) return
 
     try {
       await createBatch.mutateAsync({
         productName: form.productName,
         quantityProduced: form.quantityProduced,
         unit: form.unit,
-        pricePerUnit: form.pricePerUnit ? Number(form.pricePerUnit) : undefined,
+        pricePerUnit: Number(form.pricePerUnit),
         ingredients: form.ingredientsUsed
           .filter((ln) => ln.rawMaterialId && ln.qty)
           .map((ln) => ({ rawMaterialId: ln.rawMaterialId, qty: Number(ln.qty) })),
@@ -54,7 +54,7 @@ export function AddBatchModal({ open, onClose }) {
           </select>
         </Field>
         <div className="col-span-2">
-          <Field label="Selling price per unit (₹)"><input type="number" className={inputClass} value={form.pricePerUnit} onChange={(e) => setForm({ ...form, pricePerUnit: e.target.value })} /></Field>
+          <Field label="Selling price per unit (₹)" required><input type="number" className={inputClass} value={form.pricePerUnit} onChange={(e) => setForm({ ...form, pricePerUnit: e.target.value })} /></Field>
         </div>
       </div>
 

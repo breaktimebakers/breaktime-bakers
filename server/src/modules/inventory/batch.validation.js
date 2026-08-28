@@ -25,7 +25,7 @@ export const createBatchSchema = z.object({
   productName: z.string().trim().min(1, "Product name is required").max(150),
   quantityProduced: z.coerce.number().positive("Quantity produced must be greater than 0"),
   unit: z.string().trim().min(1, "Unit is required").max(20),
-  pricePerUnit: z.coerce.number().nonnegative().optional(),
+  pricePerUnit: z.coerce.number().positive("Selling price per unit is required"),
   producedAt: isoDate.optional(),
   ingredients: z
     .array(ingredientLineSchema)
