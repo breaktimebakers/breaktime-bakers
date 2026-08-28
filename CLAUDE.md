@@ -120,6 +120,15 @@ instead of silently substituting today's price. If you touch either query,
 keep that asymmetry (qty unscoped, price scoped) intentional and don't
 "fix" one to match the other.
 
+Ready Stock also has a per-product drill-down: `GET /ready-stock/:id/history`
+(`readyStock.service.js: getStockHistory`) lists every production batch
+that added to that product's stock, defaulting to the current calendar
+month when no range is given (`resolveMonthRange` in `utils/dateRange.js`
+— shared with Raw Materials' lot history, same UX: click a row to lazily
+expand its history). Scoped to `reason = "production"` so a future
+sale/adjustment/wastage movement type doesn't show up as stock being
+*added*.
+
 ## Client architecture
 
 Feature-sliced under `client/src/features/<domain>/`:

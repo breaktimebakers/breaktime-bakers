@@ -93,11 +93,33 @@ function drawPDFFooter(doc) {
   }
 }
 
-export function exportPDF({ title, subtitle, columns, rows, summaryRows, filename, orientation = 'portrait' }) {
+// extraTable renders as its own titled section, always starting on a
+// fresh page - simpler and more robust than computing whether it fits in
+// whatever space is left under the main table (rows count is unbounded
+// and unpredictable - a Ready Stock export's stock history section, say).
+export function exportPDF({ title, subtitle, columns, rows, summaryRows, extraTable, filename, orientation = 'portrait' }) {
   const doc = new jsPDF({ orientation })
   const generatedAt = formatGeneratedAt()
   const normalizedRows = normalizeRows(rows, { forPDF: true })
   const normalizedSummaryRows = buildSummaryRows(summaryRows, columns.length, { forPDF: true })
+  const header = () => drawPDFHeader(doc, { title, subtitle, generatedAt })
+
+  const bodyTableStyles = {
+    font: 'helvetica',
+    fontSize: 9,
+    cellPadding: { top: 3.2, right: 3, bottom: 3.2, left: 3 },
+    textColor: COLORS.espresso,
+    lineColor: COLORS.line,
+    lineWidth: 0.15,
+    overflow: 'linebreak',
+    valign: 'middle',
+  }
+  const headTableStyles = {
+    fillColor: COLORS.espresso,
+    textColor: COLORS.proofCream,
+    fontStyle: 'bold',
+    fontSize: 8.5,
+  }
 
   autoTable(doc, {
     head: [columns],
@@ -105,22 +127,8 @@ export function exportPDF({ title, subtitle, columns, rows, summaryRows, filenam
     startY: 50,
     margin: { top: 50, left: 14, right: 14, bottom: 20 },
     theme: 'grid',
-    styles: {
-      font: 'helvetica',
-      fontSize: 9,
-      cellPadding: { top: 3.2, right: 3, bottom: 3.2, left: 3 },
-      textColor: COLORS.espresso,
-      lineColor: COLORS.line,
-      lineWidth: 0.15,
-      overflow: 'linebreak',
-      valign: 'middle',
-    },
-    headStyles: {
-      fillColor: COLORS.espresso,
-      textColor: COLORS.proofCream,
-      fontStyle: 'bold',
-      fontSize: 8.5,
-    },
+    styles: bodyTableStyles,
+    headStyles: headTableStyles,
     alternateRowStyles: { fillColor: COLORS.crust },
     bodyStyles: { fillColor: [255, 255, 255] },
     didParseCell: (data) => {
@@ -131,14 +139,37 @@ export function exportPDF({ title, subtitle, columns, rows, summaryRows, filenam
       data.cell.styles.textColor = COLORS.espresso
       data.cell.styles.lineWidth = 0.25
     },
-    willDrawPage: () => drawPDFHeader(doc, { title, subtitle, generatedAt }),
+    willDrawPage: header,
   })
+
+  if (extraTable?.rows?.length) {
+    const normalizedExtraRows = normalizeRows(extraTable.rows, { forPDF: true })
+
+    doc.addPage()
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(12)
+    doc.setTextColor(...COLORS.espresso)
+    doc.text(extraTable.title, 14, 58)
+
+    autoTable(doc, {
+      head: [extraTable.columns],
+      body: normalizedExtraRows,
+      startY: 64,
+      margin: { top: 50, left: 14, right: 14, bottom: 20 },
+      theme: 'grid',
+      styles: bodyTableStyles,
+      headStyles: headTableStyles,
+      alternateRowStyles: { fillColor: COLORS.crust },
+      bodyStyles: { fillColor: [255, 255, 255] },
+      willDrawPage: header,
+    })
+  }
 
   drawPDFFooter(doc)
   doc.save(filename || `${toTitleSlug(title)}.pdf`)
 }
 
-export function exportExcel({ title, subtitle, columns, rows, summaryRows, sheetName, filename }) {
+export function exportExcel({ title, subtitle, columns, rows, summaryRows, extraTable, sheetName, filename }) {
   const generatedAt = formatGeneratedAt()
   const normalizedRows = normalizeRows(rows)
   const normalizedSummaryRows = buildSummaryRows(summaryRows, columns.length)
@@ -152,6 +183,13 @@ export function exportExcel({ title, subtitle, columns, rows, summaryRows, sheet
     ...(normalizedSummaryRows.length ? [[]] : []),
     ...normalizedSummaryRows,
   ]
+
+  // Its own titled block below the main table, same sheet - one file to
+  // open rather than juggling a second export/sheet for what's really
+  // supporting detail on the same report.
+  if (extraTable?.rows?.length) {
+    reportRows.push([], [extraTable.title], extraTable.columns, ...normalizeRows(extraTable.rows))
+  }
   const ws = XLSX.utils.aoa_to_sheet(reportRows)
   const dataStartRow = 5
   const dataEndRow = reportRows.length

@@ -1,6 +1,8 @@
-import { and, asc, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { products } from "./product.schema.js";
+import { readyStockMovements } from "./readyStockMovement.schema.js";
+import { batches } from "./batch.schema.js";
 
 const numberOrNull = (value) => (value === null || value === undefined ? null : Number(value));
 
@@ -72,4 +74,30 @@ export const listReadyStock = async ({ from, to } = {}) => {
     ...row,
     totalValue: row.availableQty * (row.pricePerUnit || 0),
   }));
+};
+
+const stockHistorySelection = {
+  id: readyStockMovements.id,
+  date: readyStockMovements.occurredAt,
+  quantity: readyStockMovements.quantity,
+  pricePerUnit: batches.pricePerUnit,
+};
+
+// Every production batch that added to this product's ready stock, in a
+// window (month by default - see resolveMonthRange in readyStock.service.js).
+// reason = "production" scopes this to genuine incoming stock, same as
+// priceAsOfSql above - a future "sale"/"adjustment"/"wastage" movement
+// isn't stock being *added*, so it has no place in this history.
+export const listStockHistoryForProduct = async (productId, { from, to } = {}) => {
+  const conditions = [eq(readyStockMovements.productId, productId), eq(readyStockMovements.reason, "production")];
+
+  if (from) conditions.push(sql`${readyStockMovements.occurredAt} >= ${from}::date`);
+  if (to) conditions.push(sql`${readyStockMovements.occurredAt} <= (${to}::date + interval '1 day')`);
+
+  return db
+    .select(stockHistorySelection)
+    .from(readyStockMovements)
+    .innerJoin(batches, eq(readyStockMovements.batchId, batches.id))
+    .where(and(...conditions))
+    .orderBy(asc(readyStockMovements.occurredAt));
 };

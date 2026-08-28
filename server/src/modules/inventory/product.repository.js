@@ -1,7 +1,14 @@
 import { eq } from "drizzle-orm";
 import { v7 as uuidv7 } from "uuid";
+import { db } from "../../db/index.js";
 import { isUniqueViolation } from "../../utils/dbErrors.js";
 import { products } from "./product.schema.js";
+
+export const findProductById = async (id) => {
+  const rows = await db.select({ id: products.id }).from(products).where(eq(products.id, id));
+
+  return rows[0];
+};
 
 // Finds-or-creates a product by name inside the caller's transaction, same
 // race-safe pattern as upsertVendorByName in rawMaterial.repository.js.

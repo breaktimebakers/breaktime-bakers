@@ -136,37 +136,55 @@ export default function Expenses() {
       ) : filtered.length === 0 ? (
         <EmptyState icon={Receipt} title="No expenses found" description="Add an expense to get started." />
       ) : (
-        <div className="flex flex-col gap-2">
-          {filtered.map((e) => {
-            const catCfg = expenseCategories.find((c) => c.label === e.category)
-            return (
-              <div key={e.id} className="flex items-center gap-3 rounded-bakery border border-espresso/8 bg-proof-cream p-4 shadow-bakery transition hover:shadow-bakery-lg">
-                <CategoryPill category={e.category} icon={catCfg?.icon} />
-                <div className="min-w-0 flex-1">
-                  {e.note && <p className="truncate text-sm text-espresso/60">{e.note}</p>}
-                  <p className="font-mono text-xs text-espresso/40">{new Date(e.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-                </div>
-                <p className="font-mono font-semibold text-espresso">₹{e.amount.toLocaleString('en-IN')}</p>
-                {e.billUrl && (
-                  <button
-                    onClick={() => setViewingBill({ url: e.billUrl, title: `${e.category} — ${e.date}` })}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-espresso/30 hover:bg-oven-amber/10 hover:text-oven-amber"
-                    aria-label="View bill"
-                    title="View bill"
-                  >
-                    <Paperclip className="h-4 w-4" />
-                  </button>
-                )}
-                <button
-                  onClick={() => deleteExpense.mutate(e.id)}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-espresso/30 hover:bg-cherry-compote/10 hover:text-cherry-compote"
-                  aria-label="Delete expense"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            )
-          })}
+        <div className="overflow-hidden rounded-bakery border border-espresso/8 bg-proof-cream shadow-bakery">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-sm">
+              <thead>
+                <tr className="border-b border-espresso/10 bg-crust/30 text-left">
+                  <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Category</th>
+                  <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Note</th>
+                  <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Date</th>
+                  <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-espresso/50">Amount</th>
+                  <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Bill</th>
+                  <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-espresso/50">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((e) => {
+                  const catCfg = expenseCategories.find((c) => c.label === e.category)
+                  return (
+                    <tr key={e.id} className="border-b border-espresso/8 last:border-0 hover:bg-crust/20">
+                      <td className="px-4 py-3"><CategoryPill category={e.category} icon={catCfg?.icon} /></td>
+                      <td className="px-4 py-3 max-w-[240px] truncate text-espresso/60">{e.note || '—'}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-espresso/50">{new Date(e.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                      <td className="px-4 py-3 text-right font-mono font-semibold text-espresso">₹{e.amount.toLocaleString('en-IN')}</td>
+                      <td className="px-4 py-3">
+                        {e.billUrl ? (
+                          <button
+                            onClick={() => setViewingBill({ url: e.billUrl, title: `${e.category} — ${e.date}` })}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-oven-amber/10 px-2.5 py-1.5 text-xs font-medium text-oven-amber hover:bg-oven-amber/20"
+                          >
+                            <Paperclip className="h-3.5 w-3.5" /> View
+                          </button>
+                        ) : (
+                          <span className="text-xs text-espresso/30">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => deleteExpense.mutate(e.id)}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-espresso/30 hover:bg-cherry-compote/10 hover:text-cherry-compote"
+                          aria-label="Delete expense"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

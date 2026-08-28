@@ -24,6 +24,7 @@ export const ENDPOINTS = {
   },
   readyStock: {
     list: '/ready-stock',
+    history: (id) => `/ready-stock/${id}/history`,
   },
   areas: {
     list: '/areas',

@@ -28,7 +28,7 @@ function LotHistory({ material, onViewReceipt }) {
             <th className="py-1.5 pr-4">Date</th>
             <th className="py-1.5 pr-4">Vendor</th>
             <th className="py-1.5 pr-4">Rate</th>
-            <th className="py-1.5 pr-4">Remaining qty</th>
+            <th className="py-1.5 pr-4">Quantity</th>
             <th className="py-1.5 pr-4">Receipt</th>
           </tr>
         </thead>
@@ -38,7 +38,7 @@ function LotHistory({ material, onViewReceipt }) {
               <td className="py-2 pr-4 text-espresso/70">{formatDate(lot.purchaseDate)}</td>
               <td className="py-2 pr-4 text-espresso/70">{lot.vendorName || '—'}</td>
               <td className="py-2 pr-4 font-mono text-espresso/80">{formatCurrency(lot.unitCost)}</td>
-              <td className="py-2 pr-4 font-mono text-espresso/80">{lot.remainingQty} {material.unit}</td>
+              <td className="py-2 pr-4 font-mono text-espresso/80">{lot.originalQty} {material.unit}</td>
               <td className="py-2 pr-4">
                 {lot.receiptUrl ? (
                   <button

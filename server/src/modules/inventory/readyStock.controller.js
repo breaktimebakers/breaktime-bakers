@@ -6,3 +6,9 @@ export const list = async (req, res) => {
 
   sendResponse(res, 200, "Ready stock fetched", { readyStock });
 };
+
+export const history = async (req, res) => {
+  const history = await readyStockService.getStockHistory(req.params.id, req.validatedQuery);
+
+  sendResponse(res, 200, "Stock history fetched", { history });
+};

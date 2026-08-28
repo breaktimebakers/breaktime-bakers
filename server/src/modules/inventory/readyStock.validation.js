@@ -13,3 +13,15 @@ export const listReadyStockQuerySchema = z.object({
   from: isoDate.optional(),
   to: isoDate.optional(),
 });
+
+export const productIdParamSchema = z.object({
+  id: z.string().min(1),
+});
+
+// from/to default to the current calendar month when both are omitted -
+// see resolveMonthRange in readyStock.service.js. Same shape as
+// rawMaterial.validation.js's listLotsQuerySchema.
+export const listStockHistoryQuerySchema = z.object({
+  from: isoDate.optional(),
+  to: isoDate.optional(),
+});
