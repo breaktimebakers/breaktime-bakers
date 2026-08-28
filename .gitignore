@@ -17,7 +17,7 @@ yarn-debug.log*
 pnpm-debug.log*
 
 # Local uploads and generated files
-uploads/
+/uploads/
 
 # Editor and OS files
 .vscode/
