@@ -1,20 +1,23 @@
 import { useState, useMemo } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
-import { Pencil, UserCircle, CalendarDays, Wallet } from 'lucide-react'
-import { useWorker, useWorkerAttendance, useUpdateWorker, useMarkWorkerLeft, useReactivateWorker, useMarkAttendance, useClearAttendance } from '@/features/workers/hooks'
-import { Button, EmptyState, PageHeader } from '@/components/shared'
+import { Pencil, UserCircle, CalendarDays, Wallet, Plus } from 'lucide-react'
+import { useWorker, useWorkerAttendance, useUpdateWorker, useMarkWorkerLeft, useReactivateWorker, useMarkAttendance, useClearAttendance, useWorkerAdvances } from '@/features/workers/hooks'
+import { Button, EmptyState, PageHeader, MonthFilterBar } from '@/components/shared'
 import { RoleBadge, roleConfig } from '../components/RoleBadge'
 import { AadhaarDisplay } from '../components/AadhaarField'
 import { WorkerAvatar } from '../components/PhotoCapture'
 import { AttendanceCalendar, statusConfig } from '../components/AttendanceCalendar'
-import { dayNames, dailySalaryFromMonthly } from '@/features/workers/utils'
+import { dayNames, computeGrossSalaryForMonth, sumAdvancesForMonth } from '@/features/workers/utils'
 import { EditWorkerModal } from '../components/EditWorkerModal'
 import { InlineField } from '../components/InlineField'
+import { AddAdvanceModal } from '../components/AddAdvanceModal'
+import { AdvanceList } from '../components/AdvanceList'
 
 export default function WorkerDetail() {
   const { workerId } = useParams({ strict: false })
   const { data: worker, isLoading, isError } = useWorker(workerId)
   const { data: workerAttendance = [] } = useWorkerAttendance(workerId)
+  const { data: workerAdvances = [] } = useWorkerAdvances(workerId)
   const updateWorker = useUpdateWorker()
   const markLeftMutation = useMarkWorkerLeft()
   const reactivateMutation = useReactivateWorker()
@@ -24,6 +27,11 @@ export default function WorkerDetail() {
   const [editOpen, setEditOpen] = useState(false)
   const [calView, setCalView] = useState('calendar')
   const [attStatusFilter, setAttStatusFilter] = useState('all')
+  const [advanceOpen, setAdvanceOpen] = useState(false)
+  const [advanceMonth, setAdvanceMonth] = useState(() => {
+    const now = new Date()
+    return { year: now.getFullYear(), month: now.getMonth() }
+  })
 
   // Every hook above and below runs unconditionally on every render -
   // worker is undefined during the loading state, so each memo below
@@ -37,16 +45,28 @@ export default function WorkerDetail() {
     if (!worker) return { present: 0, half: 0, overtime: 0, total: 0, dailySalary: 0, otRate: 0 }
 
     const now = new Date()
-    const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-    const monthEntries = workerAttendance.filter((a) => a.date.startsWith(monthStr))
-    const present = monthEntries.filter((a) => a.status === 'present').length
-    const half = monthEntries.filter((a) => a.status === 'half_day').length
-    const overtime = monthEntries.reduce((s, a) => s + (a.overtimeHours || 0), 0)
-    const dailySalary = dailySalaryFromMonthly(worker.monthlySalary, now.getFullYear(), now.getMonth(), worker.weekOffDay)
-    const otRate = worker.overtimeRate || 0
-    const total = present * dailySalary + half * 0.5 * dailySalary + overtime * otRate
-    return { present, half, overtime, total, dailySalary, otRate }
+    return computeGrossSalaryForMonth(worker, workerAttendance, now.getFullYear(), now.getMonth())
   }, [workerAttendance, worker])
+
+  // Advances given this calendar month, deducted from the gross pay
+  // estimate above - this is also the running cap on the Add Advance
+  // modal (can't advance more than what's left of this month's earned
+  // salary).
+  const advancesThisMonth = useMemo(() => {
+    const now = new Date()
+    return sumAdvancesForMonth(workerAdvances, workerId, now.getFullYear(), now.getMonth())
+  }, [workerAdvances, workerId])
+
+  const netPayable = payEstimate.total - advancesThisMonth
+
+  // Advances for whichever month the "Advance history" section below is
+  // browsing (independent of the pay estimate's month, which always
+  // tracks the current month) - lets the owner page back to see a past
+  // month's advances with their dates.
+  const advancesForSelectedMonth = useMemo(() => {
+    const mStr = `${advanceMonth.year}-${String(advanceMonth.month + 1).padStart(2, '0')}`
+    return workerAdvances.filter((a) => a.date.startsWith(mStr))
+  }, [workerAdvances, advanceMonth])
 
   // Filtered attendance list (for list view)
   const filteredAttendance = useMemo(() => {
@@ -188,11 +208,30 @@ export default function WorkerDetail() {
               <div><p className="text-xs text-espresso/50">Present days</p><p className="font-mono text-lg font-bold text-espresso">{payEstimate.present}</p><p className="text-xs text-espresso/40">{payEstimate.present} × ₹{payEstimate.dailySalary.toFixed(0)}</p></div>
               <div><p className="text-xs text-espresso/50">Half days</p><p className="font-mono text-lg font-bold text-espresso">{payEstimate.half}</p><p className="text-xs text-espresso/40">{payEstimate.half} × ₹{(payEstimate.dailySalary * 0.5).toFixed(0)}</p></div>
               <div><p className="text-xs text-espresso/50">Overtime</p><p className="font-mono text-lg font-bold text-espresso">{payEstimate.overtime}h</p><p className="text-xs text-espresso/40">{payEstimate.overtime} × ₹{payEstimate.otRate}</p></div>
-              <div className="rounded-bakery bg-oven-amber/15 p-3"><p className="text-xs text-espresso/50">Estimated total</p><p className="font-mono text-2xl font-bold text-oven-amber">₹{payEstimate.total.toLocaleString('en-IN')}</p></div>
+              <div className="rounded-bakery bg-oven-amber/15 p-3"><p className="text-xs text-espresso/50">Gross total</p><p className="font-mono text-2xl font-bold text-oven-amber">₹{payEstimate.total.toLocaleString('en-IN')}</p></div>
+            </div>
+            <div className="mt-3 flex items-center justify-between rounded-bakery border border-espresso/8 bg-proof-cream/60 px-4 py-2.5">
+              <p className="text-sm text-espresso/60">Advance deducted <span className="font-mono font-medium text-espresso">₹{advancesThisMonth.toLocaleString('en-IN')}</span></p>
+              <p className="text-sm text-espresso/60">Net payable <span className="font-mono text-base font-bold text-espresso">₹{netPayable.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span></p>
+            </div>
+
+            <div className="mt-4 flex items-center justify-between">
+              <h4 className="text-sm font-medium text-espresso/70">Advance history</h4>
+              <Button size="sm" variant="secondary" onClick={() => setAdvanceOpen(true)}><Plus className="h-3.5 w-3.5" /> Give advance</Button>
+            </div>
+            <div className="mt-2">
+              <MonthFilterBar
+                year={advanceMonth.year}
+                month={advanceMonth.month}
+                onChange={(y, m) => setAdvanceMonth({ year: y, month: m })}
+              />
+              <AdvanceList advances={advancesForSelectedMonth} />
             </div>
           </div>
         </div>
       )}
+
+      <AddAdvanceModal open={advanceOpen} onClose={() => setAdvanceOpen(false)} worker={worker} availableThisMonth={netPayable} />
 
       {tab === 'attendance' && (
         <div>

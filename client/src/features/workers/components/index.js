@@ -1,4 +1,6 @@
 export { maskAadhaar, formatAadhaarInput, AadhaarField, AadhaarDisplay } from './AadhaarField'
+export { AddAdvanceModal } from './AddAdvanceModal'
+export { AdvanceList } from './AdvanceList'
 export { AddWorkerModal } from './AddWorkerModal'
 export { AttendanceCalendar } from './AttendanceCalendar'
 export { EditWorkerModal } from './EditWorkerModal'

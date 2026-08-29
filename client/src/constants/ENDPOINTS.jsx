@@ -60,6 +60,17 @@ export const ENDPOINTS = {
     mark: '/attendance',
     clear: (workerId, date) => `/attendance/${workerId}/${date}`,
   },
+  advances: {
+    list: '/advances',
+    create: '/advances',
+    remove: (id) => `/advances/${id}`,
+  },
+  salaryPayments: {
+    list: '/salary-payments',
+    markPaid: '/salary-payments',
+    bulkMarkPaid: '/salary-payments/bulk',
+    markUnpaid: (workerId, year, month) => `/salary-payments/${workerId}/${year}/${month}`,
+  },
   expenses: {
     list: '/expenses',
     create: '/expenses',

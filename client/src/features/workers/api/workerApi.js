@@ -19,3 +19,10 @@ export const attendanceApi = {
   mark: (body) => apiClient.post(ENDPOINTS.attendance.mark, body),
   clear: (workerId, date) => apiClient.delete(ENDPOINTS.attendance.clear(workerId, date)),
 }
+
+export const advanceApi = {
+  listByWorker: (workerId) => apiClient.get(ENDPOINTS.advances.list, { query: { workerId } }),
+  listAll: () => apiClient.get(ENDPOINTS.advances.list),
+  create: (body) => apiClient.post(ENDPOINTS.advances.create, body),
+  remove: (id) => apiClient.delete(ENDPOINTS.advances.remove(id)),
+}

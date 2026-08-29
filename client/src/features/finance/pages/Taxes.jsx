@@ -2,8 +2,7 @@ import { useState, useMemo } from 'react'
 import { Plus, Trash2, Landmark, Paperclip, AlertCircle } from 'lucide-react'
 import { useTaxEntries, useCreateTaxEntry, useDeleteTaxEntry } from '@/features/finance/hooks'
 import { uploadTaxBill } from '@/lib/uploadTaxBill'
-import { Button, EmptyState, Field, FileViewerModal, Modal, ReceiptDropzone, PageHeader, inputClass } from '@/components/shared'
-import { MonthFilterBar } from '../components/MonthFilterBar'
+import { Button, EmptyState, Field, FileViewerModal, Modal, ReceiptDropzone, PageHeader, inputClass, MonthFilterBar } from '@/components/shared'
 
 export default function Taxes() {
   const { data: taxEntries = [], isLoading, isError } = useTaxEntries()

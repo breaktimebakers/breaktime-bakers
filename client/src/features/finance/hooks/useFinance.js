@@ -1,8 +1,10 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useLocalQuery, setLocalData } from '@/lib/localStore'
 import { useRawMaterials } from '@/features/inventory/hooks'
-import { useWorkers, useAllAttendance } from '@/features/workers/hooks'
-import { dailySalaryFromMonthly } from '@/features/workers/utils'
+import { useWorkers, useAllAttendance, useAllAdvances } from '@/features/workers/hooks'
+import { computeGrossSalaryForMonth, sumAdvancesForMonth } from '@/features/workers/utils'
+import { useSalaryPayments } from './useSalaryPayments'
+import { useMarkSalaryPaid, useMarkSalaryUnpaid, useBulkMarkSalaryPaid } from './useSalaryPaymentMutations'
 import { useExpenses } from './useExpenses'
 import { useTaxEntries } from './useTaxEntries'
 import { seedCustomerPayments, seedSupplierPaymentStatus } from '../data/seedFinance'
@@ -35,8 +37,14 @@ export function useFinance() {
   // scale) and the month filtering below happens client-side, same as
   // the original mock data did.
   const { data: attendance = [] } = useAllAttendance()
+  const { data: advances = [] } = useAllAdvances()
+  const { data: salaryPayments = [] } = useSalaryPayments()
   const { data: expenses = [] } = useExpenses()
   const { data: taxEntries = [] } = useTaxEntries()
+
+  const markSalaryPaidMutation = useMarkSalaryPaid()
+  const markSalaryUnpaidMutation = useMarkSalaryUnpaid()
+  const bulkMarkSalaryPaidMutation = useBulkMarkSalaryPaid()
 
   const { data: customerPayments = [] } = useLocalQuery(KEYS.customerPayments, seedCustomerPayments)
   const { data: supplierPaymentStatus = {} } = useLocalQuery(KEYS.supplierPaymentStatus, seedSupplierPaymentStatus)
@@ -85,16 +93,99 @@ export function useFinance() {
   const getSalaryForMonth = (workerId, year, month) => {
     const worker = workers.find((w) => w.id === workerId)
     if (!worker) return { total: 0, present: 0, half: 0, absent: 0, overtime: 0, dailySalary: 0, otRate: 0 }
-    const mStr = `${year}-${String(month + 1).padStart(2, '0')}`
-    const monthEntries = attendance.filter((a) => a.workerId === workerId && a.date.startsWith(mStr))
-    const present = monthEntries.filter((a) => a.status === 'present').length
-    const half = monthEntries.filter((a) => a.status === 'half_day').length
-    const absent = monthEntries.filter((a) => a.status === 'absent').length
-    const overtime = monthEntries.reduce((s, a) => s + (a.overtimeHours || 0), 0)
-    const dailySalary = dailySalaryFromMonthly(worker.monthlySalary, year, month, worker.weekOffDay)
-    const otRate = worker.overtimeRate || 0
-    const total = present * dailySalary + half * 0.5 * dailySalary + overtime * otRate
-    return { total, present, half, absent, overtime, dailySalary, otRate }
+    return computeGrossSalaryForMonth(worker, attendance.filter((a) => a.workerId === workerId), year, month)
+  }
+
+  // Advances given to a worker within one month - deducted from that
+  // month's gross to get what's actually still owed.
+  const getAdvancesForMonth = (workerId, year, month) => sumAdvancesForMonth(advances, workerId, year, month)
+
+  const getNetPayable = (workerId, year, month) =>
+    getSalaryForMonth(workerId, year, month).total - getAdvancesForMonth(workerId, year, month)
+
+  const isSalaryPaid = (workerId, year, month) =>
+    salaryPayments.some((p) => p.workerId === workerId && p.year === year && p.month === month)
+
+  const markSalaryPaid = (workerId, year, month) => {
+    markSalaryPaidMutation.mutate({ workerId, year, month, amountPaid: getNetPayable(workerId, year, month) })
+  }
+
+  const markSalaryUnpaid = (workerId, year, month) => {
+    markSalaryUnpaidMutation.mutate({ workerId, year, month })
+  }
+
+  const bulkMarkSalaryPaid = (workerIds, year, month) => {
+    const payments = workerIds.map((workerId) => ({
+      workerId,
+      year,
+      month,
+      amountPaid: getNetPayable(workerId, year, month),
+    }))
+    bulkMarkSalaryPaidMutation.mutate(payments)
+  }
+
+  // Every (year, month) from a worker's joining month through now (or
+  // through their leftDate's month if they've left) - what the running
+  // Paid/Unpaid totals below walk for every worker to decide which
+  // months' net payable still counts as owed.
+  const monthsSinceJoining = (worker, nowYear, nowMonth) => {
+    const start = new Date(worker.joiningDate)
+    let y = start.getFullYear()
+    let m = start.getMonth()
+    let endY = nowYear
+    let endM = nowMonth
+    if (worker.status === 'left' && worker.leftDate) {
+      const left = new Date(worker.leftDate)
+      endY = left.getFullYear()
+      endM = left.getMonth()
+    }
+    const months = []
+    while (y < endY || (y === endY && m <= endM)) {
+      months.push({ year: y, month: m })
+      m += 1
+      if (m > 11) {
+        m = 0
+        y += 1
+      }
+    }
+    return months
+  }
+
+  // Money that actually went out the door for one specific month - every
+  // advance given that month (spent the moment it's given, regardless of
+  // whether that month's salary is marked paid yet) plus the net payable
+  // for that month if it's been marked paid. Scoped to whichever month
+  // the Finance Salary page's filter is on, so it changes as you flip
+  // months - this is a period figure ("what did we pay in August"), not
+  // a running lifetime total.
+  const getPaidTotalForMonth = (year, month) => {
+    const advancesTotal = workers.reduce((s, w) => s + getAdvancesForMonth(w.id, year, month), 0)
+    const paidNet = workers.reduce(
+      (s, w) => (isSalaryPaid(w.id, year, month) ? s + getNetPayable(w.id, year, month) : s),
+      0,
+    )
+    return advancesTotal + paidNet
+  }
+
+  // Running total of net payable still owed, across every worker and
+  // every month from their joining date through now that hasn't been
+  // marked paid - unlike getPaidTotalForMonth above, this is deliberately
+  // NOT scoped to the filtered month. It's the real outstanding
+  // liability regardless of which month it originated in, so an unpaid
+  // month keeps counting here every time this is called in a later
+  // month - that's the entire "rollover" behavior, no separate
+  // carry-forward step needed.
+  const getUnpaidTotal = () => {
+    const now = new Date()
+    const nowYear = now.getFullYear()
+    const nowMonth = now.getMonth()
+    let unpaid = 0
+    workers.forEach((w) => {
+      monthsSinceJoining(w, nowYear, nowMonth).forEach(({ year, month }) => {
+        if (!isSalaryPaid(w.id, year, month)) unpaid += getNetPayable(w.id, year, month)
+      })
+    })
+    return unpaid
   }
 
   // Flatten all lots purchased in a given month into rows
@@ -246,6 +337,14 @@ export function useFinance() {
     addCustomerPayment, addPartialPayment, markCustomerPaymentPaid,
     markLotPaid,
     getSalaryForMonth,
+    getAdvancesForMonth,
+    getNetPayable,
+    isSalaryPaid,
+    markSalaryPaid,
+    markSalaryUnpaid,
+    bulkMarkSalaryPaid,
+    getPaidTotalForMonth,
+    getUnpaidTotal,
     getSupplierPaymentRows,
     getMaterialPurchaseHistory,
     getRawMaterialPurchasedTotal,

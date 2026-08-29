@@ -9,3 +9,5 @@ export {
   useMarkAttendance,
   useClearAttendance,
 } from './useWorkerMutations'
+export { useWorkerAdvances, useAllAdvances, advanceKeys } from './useAdvances'
+export { useCreateAdvance, useDeleteAdvance } from './useAdvanceMutations'

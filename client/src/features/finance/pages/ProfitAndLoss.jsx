@@ -1,8 +1,7 @@
 import { useState, useMemo } from 'react'
 import { TrendingUp, TrendingDown } from 'lucide-react'
 import { useFinance } from '@/features/finance/hooks'
-import { PageHeader } from '@/components/shared'
-import { MonthFilterBar } from '../components/MonthFilterBar'
+import { PageHeader, MonthFilterBar } from '@/components/shared'
 
 function MiniBar({ label, value, isPositive }) {
   return (

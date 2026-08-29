@@ -68,10 +68,45 @@ separate table for this. `AttendanceCalendar.jsx` groups a worker's
 attendance by Sunday-start week (`weekStartOf`); a `week_off` entry
 anywhere in a week suppresses the default day for the rest of that same
 week, turning it into an ordinary day that needs its own present/absent
-mark. Payroll (`dailySalaryFromMonthly` in `salary.js`, and the mirrored
-calc in `useFinance.js`) never needed to change for this - it already only
-pays for entries explicitly marked `present`/`half_day`, so it's naturally
-agnostic to which specific day was off.
+mark. Payroll (`dailySalaryFromMonthly` / `computeGrossSalaryForMonth` in
+`salary.js`) never needed to change for this - it already only pays for
+entries explicitly marked `present`/`half_day`, so it's naturally agnostic
+to which specific day was off.
+
+**Salary advances & Paid/Unpaid tracking**: `computeGrossSalaryForMonth`
+(`client/src/features/workers/utils/salary.js`) is the single source of
+truth for a worker's gross pay in a given month - the worker detail page's
+pay estimate, Finance's Salary table, and the advance cap check below all
+call it, rather than each keeping its own copy (they used to; if you find
+another place computing present/half/overtime totals by hand, fold it into
+this function instead of adding a fourth copy). Two backend tables sit
+alongside `worker_attendance` in the same `workers` module:
+
+- `worker_advances` - a ledger (add + delete only, never edited, same
+  shape as `expenses`). The rule that an advance can't exceed what a
+  worker has already earned that month is enforced **client-side only**
+  (`AddAdvanceModal.jsx`, via `computeGrossSalaryForMonth` +
+  `sumAdvancesForMonth`) - a deliberate choice, not an oversight, since the
+  rest of payroll math already lives only in the client and this is a
+  single-admin trusted tool, not a concurrency-sensitive integrity check
+  like FIFO stock. The API itself does not re-validate the cap.
+- `worker_salary_payments` - presence of a row for `(workerId, year,
+  month)` means that month's salary was paid; absence means unpaid.
+  Un-marking paid is a delete, not a status flip. The Finance Salary
+  page's two summary cards are deliberately asymmetric in scope:
+  **Paid** (`useFinance.js: getPaidTotalForMonth(year, month)`) is scoped
+  to whichever month the page's filter is on - advances given that month
+  plus net payable for that month if marked paid - so it changes as you
+  flip months, same as the table below it. **Unpaid**
+  (`getUnpaidTotal()`) is deliberately *not* scoped to the filter - it
+  walks every `(year, month)` from a worker's `joiningDate` (capped at
+  `leftDate` if they've left) through the current month and sums
+  net-payable-but-unmarked amounts, so it's always the true outstanding
+  liability regardless of which month you're looking at. There is no
+  explicit "rollover" step for an unpaid month - it just keeps getting
+  picked up by that walk in every later month until it's marked paid.
+  Don't scope Unpaid to the month filter to "match" Paid - that would
+  hide money still owed from earlier months.
 
 **Auth**: JWT access token (15m) + refresh token (7d), both httpOnly cookies.
 Refresh tokens are rotated on use and hashed in the `sessions` table; reusing
