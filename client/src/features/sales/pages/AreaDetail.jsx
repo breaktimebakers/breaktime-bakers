@@ -1,45 +1,18 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
 import { Store, Phone, MapPin, Plus, Navigation, Pencil, LayoutGrid, Table as TableIcon } from 'lucide-react'
 import { useArea, useStores, useCreateStore, useUpdateStore, useUpdateStoreStatus } from '@/features/sales/hooks'
 import { Button, EmptyState, Field, Modal, PageHeader, inputClass } from '@/components/shared'
+import { StoreLocationPicker } from '@/features/sales/components/StoreLocationPicker'
+import { AreaStoresMap } from '@/features/sales/components/AreaStoresMap'
 
-function MapPicker({ lat, lng, onChange }) {
-  const ref = useRef(null)
-  const [pin, setPin] = useState(lat && lng ? { x: 50, y: 50 } : null)
+const hasValidStoreLocation = (store) => {
+  if (store?.lat === null || store?.lat === undefined || store?.lat === '') return false
+  if (store?.lng === null || store?.lng === undefined || store?.lng === '') return false
 
-  const handleClick = (e) => {
-    const rect = ref.current.getBoundingClientRect()
-    const x = ((e.clientX - rect.left) / rect.width) * 100
-    const y = ((e.clientY - rect.top) / rect.height) * 100
-    setPin({ x, y })
-    const newLat = 19.0 + (y / 100) * 0.2
-    const newLng = 72.8 + (x / 100) * 0.2
-    onChange({ lat: newLat.toFixed(4), lng: newLng.toFixed(4) })
-  }
-
-  return (
-    <div>
-      <div
-        ref={ref}
-        onClick={handleClick}
-        className="relative h-44 cursor-crosshair overflow-hidden rounded-lg border-2 border-dashed border-espresso/20"
-        style={{
-          backgroundColor: '#F7EFE2',
-          backgroundImage: 'linear-gradient(rgba(59,42,33,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(59,42,33,0.06) 1px, transparent 1px)',
-          backgroundSize: '20px 20px',
-        }}
-      >
-        {pin && (
-          <div className="absolute -translate-x-1/2 -translate-y-full" style={{ left: `${pin.x}%`, top: `${pin.y}%` }}>
-            <MapPin className="h-7 w-7 text-cherry-compote" fill="currentColor" />
-          </div>
-        )}
-        {!pin && <p className="absolute inset-0 flex items-center justify-center text-xs text-espresso/40">Click to drop pin</p>}
-      </div>
-      <p className="mt-1 text-[11px] text-espresso/40">Connect Google Maps API key to enable live pin drop.</p>
-    </div>
-  )
+  const lat = Number(store.lat)
+  const lng = Number(store.lng)
+  return Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180
 }
 
 // Green/red status dot - whether this dealer is currently taking product
@@ -59,23 +32,28 @@ function StoreFormModal({ open, onClose, areaId, store }) {
   const updateStore = useUpdateStore()
   const updateStoreStatus = useUpdateStoreStatus()
   const isEdit = !!store
+  const hasSavedLocation = isEdit && hasValidStoreLocation(store)
   const [form, setForm] = useState({ dealerName: '', shopName: '', dealerPhone: '', storeType: 'Shop', address: '', lat: '', lng: '', isActive: true })
+  const [locationAuthorized, setLocationAuthorized] = useState(false)
 
   // This modal instance stays mounted across different "Edit" clicks (only
-  // `open`/`store` change), so a plain useState initializer only ever ran
-  // once - re-sync whenever a different store (or a fresh "Add store") is
-  // passed in.
+  // `open`/`store` change), so reset on every open as well as when switching
+  // stores. This also clears a completed/cancelled Add Store form when the
+  // next Add Store modal opens with the same null `store` prop.
   useEffect(() => {
+    if (!open) return
+
+    setLocationAuthorized(hasSavedLocation)
     setForm(store
       ? { dealerName: store.dealerName || '', shopName: store.shopName || '', dealerPhone: store.dealerPhone || '', storeType: store.storeType || 'Shop', address: store.address || '', lat: store.lat ?? '', lng: store.lng ?? '', isActive: store.isActive }
       : { dealerName: '', shopName: '', dealerPhone: '', storeType: 'Shop', address: '', lat: '', lng: '', isActive: true }
     )
-  }, [store])
+  }, [open, store, hasSavedLocation])
 
   const busy = createStore.isPending || updateStore.isPending || updateStoreStatus.isPending
 
   const submit = async () => {
-    if (!form.dealerName) return
+    if (!form.dealerName || !locationAuthorized) return
 
     const body = {
       dealerName: form.dealerName,
@@ -107,7 +85,7 @@ function StoreFormModal({ open, onClose, areaId, store }) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} eyebrow="Sales / Stores" title={isEdit ? 'Edit store' : 'Add store'} footer={<><Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button><Button onClick={submit} disabled={busy}>{busy ? 'Saving…' : isEdit ? 'Save changes' : 'Add store'}</Button></>}>
+    <Modal open={open} onClose={onClose} eyebrow="Sales / Stores" title={isEdit ? 'Edit store' : 'Add store'} footer={<><Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button><Button onClick={submit} disabled={busy || !locationAuthorized}>{busy ? 'Saving…' : !locationAuthorized ? 'Allow location first' : isEdit ? 'Save changes' : 'Add store'}</Button></>}>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Dealer name" required><input className={inputClass} value={form.dealerName} onChange={(e) => setForm({ ...form, dealerName: e.target.value })} /></Field>
         <Field label="Shop name"><input className={inputClass} value={form.shopName} onChange={(e) => setForm({ ...form, shopName: e.target.value })} placeholder="e.g. Sunrise Bakery" /></Field>
@@ -119,10 +97,10 @@ function StoreFormModal({ open, onClose, areaId, store }) {
         </Field>
         <div className="col-span-2"><Field label="Address"><input className={inputClass} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></Field></div>
         <div className="col-span-2">
-          <Field label="Location"><MapPicker lat={form.lat} lng={form.lng} onChange={({ lat, lng }) => setForm({ ...form, lat, lng })} /></Field>
+          <Field label="Location"><StoreLocationPicker lat={form.lat} lng={form.lng} requirePermission={!hasSavedLocation} onChange={({ lat, lng, address }) => setForm((current) => ({ ...current, lat, lng, address: address || current.address }))} onAuthorizationChange={setLocationAuthorized} /></Field>
         </div>
-        <Field label="Latitude"><input className={inputClass} value={form.lat} onChange={(e) => setForm({ ...form, lat: e.target.value })} /></Field>
-        <Field label="Longitude"><input className={inputClass} value={form.lng} onChange={(e) => setForm({ ...form, lng: e.target.value })} /></Field>
+        <Field label="Latitude"><input type="number" inputMode="decimal" step="any" min="-90" max="90" className={inputClass} value={form.lat} onChange={(e) => setForm({ ...form, lat: e.target.value })} /></Field>
+        <Field label="Longitude"><input type="number" inputMode="decimal" step="any" min="-180" max="180" className={inputClass} value={form.lng} onChange={(e) => setForm({ ...form, lng: e.target.value })} /></Field>
 
         {isEdit && (
           <div className="col-span-2">
@@ -181,6 +159,8 @@ export default function AreaDetail() {
         <EmptyState icon={Store} title="No stores yet" description="Add a store to this area." />
       ) : (
         <>
+          <AreaStoresMap stores={stores} />
+
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-bakery border border-espresso/8 bg-proof-cream px-4 py-3 shadow-bakery">
             <p className="text-sm font-medium text-espresso/60">
               {stores.length} {stores.length === 1 ? 'store' : 'stores'}
