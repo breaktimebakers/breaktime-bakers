@@ -43,7 +43,11 @@ const withSignedReceiptUrl = async (lot) => {
 export const listLots = async (rawMaterialId, query) => {
   await requireRawMaterial(rawMaterialId);
 
-  const range = resolveMonthRange(query);
+  // inStock (the wastage lot-picker) bypasses the month-range default
+  // entirely - resolveMonthRange only knows about from/to and would
+  // otherwise silently drop the flag, since it destructures just those
+  // two fields back out of query.
+  const range = query.inStock ? { inStock: true } : resolveMonthRange(query);
   const lots = await rawMaterialRepo.listLotsForMaterial(rawMaterialId, range);
 
   return Promise.all(lots.map(withSignedReceiptUrl));
@@ -54,4 +58,14 @@ export const createLot = async (rawMaterialId, body) => {
 
   const lot = await rawMaterialRepo.createLotForMaterial(rawMaterialId, body);
   return withSignedReceiptUrl(lot);
+};
+
+export const createWastage = async (rawMaterialId, lotId, body) => {
+  await requireRawMaterial(rawMaterialId);
+
+  await rawMaterialRepo.createWastageForLot(lotId, body);
+
+  // Refetched rather than hand-patched so the response reflects the new
+  // stockQty/nextLotRate, both computed server-side from lots at read time.
+  return rawMaterialRepo.findRawMaterialById(rawMaterialId);
 };

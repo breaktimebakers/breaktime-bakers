@@ -31,10 +31,14 @@ export const updateRawMaterialSchema = z.object({
 });
 
 // from/to default to the current calendar month when both are omitted -
-// see resolveMonthRange in rawMaterial.service.js.
+// see resolveMonthRange in rawMaterial.service.js. inStock bypasses that
+// default entirely (see listLotsForMaterial) - it's for the wastage
+// lot-picker, which needs every lot with remaining stock regardless of
+// purchase date.
 export const listLotsQuerySchema = z.object({
   from: isoDate.optional(),
   to: isoDate.optional(),
+  inStock: z.coerce.boolean().optional(),
 });
 
 export const createLotSchema = z.object({
@@ -43,4 +47,15 @@ export const createLotSchema = z.object({
   vendor: z.string().trim().max(150).optional(),
   purchaseDate: isoDate,
   receiptKey: z.string().trim().max(500).optional(),
+});
+
+export const lotWastageParamSchema = z.object({
+  id: z.string().min(1),
+  lotId: z.string().min(1),
+});
+
+export const createWastageSchema = z.object({
+  qty: z.coerce.number().positive("Quantity must be greater than 0"),
+  date: isoDate,
+  note: z.string().trim().max(500).optional(),
 });

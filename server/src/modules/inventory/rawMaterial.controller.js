@@ -42,3 +42,9 @@ export const createLot = async (req, res) => {
 
   sendResponse(res, 201, "Lot added", { lot });
 };
+
+export const createWastage = async (req, res) => {
+  const rawMaterial = await rawMaterialService.createWastage(req.params.id, req.params.lotId, req.body);
+
+  sendResponse(res, 201, "Marked as wastage", { rawMaterial });
+};

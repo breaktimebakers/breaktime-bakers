@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Search, Pencil, Plus, Trash2, PackagePlus, ChevronDown, AlertTriangle, FileText } from 'lucide-react'
+import { Search, Pencil, Plus, Trash2, PackagePlus, PackageX, ChevronDown, AlertTriangle, FileText } from 'lucide-react'
 import {
   useRawMaterials,
   useRawMaterialLots,
@@ -10,10 +10,11 @@ import { exportPDF, exportExcel, formatCurrency, formatDate } from '@/utils'
 import { AddMaterialModal } from '../components/AddMaterialModal'
 import { EditMaterialModal } from '../components/EditMaterialModal'
 import { RestockModal } from '../components/RestockModal'
+import { MarkWastageModal } from '../components/MarkWastageModal'
 
 // A material's lot history is fetched lazily (see LotHistory below), so a
 // row that's never been expanded never issues that request.
-function LotHistory({ material, onViewReceipt }) {
+function LotHistory({ material, onViewReceipt, onMarkWastage }) {
   const { data: lots = [], isLoading, isError } = useRawMaterialLots(material.id)
 
   if (isLoading) return <p className="px-4 py-3 text-xs text-espresso/40">Loading purchase history…</p>
@@ -30,6 +31,7 @@ function LotHistory({ material, onViewReceipt }) {
             <th className="py-1.5 pr-4">Rate</th>
             <th className="py-1.5 pr-4">Quantity</th>
             <th className="py-1.5 pr-4">Receipt</th>
+            <th className="py-1.5 pr-4"></th>
           </tr>
         </thead>
         <tbody>
@@ -51,6 +53,16 @@ function LotHistory({ material, onViewReceipt }) {
                   <span className="text-espresso/30">—</span>
                 )}
               </td>
+              <td className="py-2 pr-4">
+                {lot.remainingQty > 0 && (
+                  <button
+                    onClick={() => onMarkWastage(lot)}
+                    className="flex items-center gap-1 rounded-lg bg-cherry-compote/10 px-2 py-1 text-cherry-compote hover:bg-cherry-compote/20"
+                  >
+                    <PackageX className="h-3.5 w-3.5" /> Mark spoiled
+                  </button>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -69,6 +81,7 @@ export default function RawMaterials() {
   const [restockMat, setRestockMat] = useState(null)
   const [deletingMat, setDeletingMat] = useState(null)
   const [viewingReceipt, setViewingReceipt] = useState(null)
+  const [wastageCtx, setWastageCtx] = useState(null)
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
 
@@ -207,6 +220,7 @@ export default function RawMaterials() {
                           <div className="flex items-center justify-end gap-1.5">
                             <button onClick={() => setEditMat(m)} className="flex h-8 w-8 items-center justify-center rounded-lg text-espresso/60 hover:bg-espresso/5 hover:text-espresso" title="Edit"><Pencil className="h-4 w-4" /></button>
                             <button onClick={() => setRestockMat(m)} className="flex h-8 w-8 items-center justify-center rounded-lg text-matcha-glaze hover:bg-matcha-glaze/10" title="Restock"><PackagePlus className="h-4 w-4" /></button>
+                            <button onClick={() => setWastageCtx({ material: m })} className="flex h-8 w-8 items-center justify-center rounded-lg text-cherry-compote hover:bg-cherry-compote/10" title="Mark wastage"><PackageX className="h-4 w-4" /></button>
                             <button onClick={() => setDeletingMat(m)} className="flex h-8 w-8 items-center justify-center rounded-lg text-cherry-compote hover:bg-cherry-compote/10" title="Delete"><Trash2 className="h-4 w-4" /></button>
                           </div>
                         </td>
@@ -215,7 +229,7 @@ export default function RawMaterials() {
                         <tr className="bg-crust/20">
                           <td colSpan={5} className="px-4 py-4">
                             <p className="mb-2 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Purchase history (this month)</p>
-                            <LotHistory material={m} onViewReceipt={setViewingReceipt} />
+                            <LotHistory material={m} onViewReceipt={setViewingReceipt} onMarkWastage={(lot) => setWastageCtx({ material: m, lot })} />
                           </td>
                         </tr>
                       )}
@@ -243,6 +257,7 @@ export default function RawMaterials() {
                   <div className="mt-3 flex items-center gap-1.5">
                     <button onClick={() => setEditMat(m)} className="flex items-center gap-1 rounded-lg bg-espresso/5 px-2.5 py-1.5 text-xs text-espresso/70"><Pencil className="h-3.5 w-3.5" /> Edit</button>
                     <button onClick={() => setRestockMat(m)} className="flex items-center gap-1 rounded-lg bg-matcha-glaze/10 px-2.5 py-1.5 text-xs text-matcha-glaze"><PackagePlus className="h-3.5 w-3.5" /> Restock</button>
+                    <button onClick={() => setWastageCtx({ material: m })} className="flex items-center gap-1 rounded-lg bg-cherry-compote/10 px-2.5 py-1.5 text-xs text-cherry-compote"><PackageX className="h-3.5 w-3.5" /> Wastage</button>
                     <button onClick={() => setDeletingMat(m)} className="flex items-center gap-1 rounded-lg bg-cherry-compote/10 px-2.5 py-1.5 text-xs text-cherry-compote"><Trash2 className="h-3.5 w-3.5" /> Delete</button>
                   </div>
                   <button onClick={() => setExpanded(expanded === m.id ? null : m.id)} className="mt-3 flex w-full items-center justify-center gap-1 border-t border-espresso/8 pt-2 text-xs text-espresso/50">
@@ -251,7 +266,7 @@ export default function RawMaterials() {
                   </button>
                   {expanded === m.id && (
                     <div className="mt-2">
-                      <LotHistory material={m} onViewReceipt={setViewingReceipt} />
+                      <LotHistory material={m} onViewReceipt={setViewingReceipt} onMarkWastage={(lot) => setWastageCtx({ material: m, lot })} />
                     </div>
                   )}
                 </div>
@@ -264,6 +279,7 @@ export default function RawMaterials() {
       <AddMaterialModal open={addOpen} onClose={() => setAddOpen(false)} />
       <EditMaterialModal open={!!editMat} onClose={() => setEditMat(null)} material={editMat} />
       <RestockModal open={!!restockMat} onClose={() => setRestockMat(null)} material={restockMat} />
+      <MarkWastageModal open={!!wastageCtx} onClose={() => setWastageCtx(null)} material={wastageCtx?.material} lot={wastageCtx?.lot} />
       <ConfirmModal
         open={!!deletingMat}
         onClose={() => setDeletingMat(null)}

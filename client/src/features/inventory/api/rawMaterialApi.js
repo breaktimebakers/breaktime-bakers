@@ -8,4 +8,5 @@ export const rawMaterialApi = {
   remove: (id) => apiClient.delete(ENDPOINTS.rawMaterials.remove(id)),
   lots: (id, query) => apiClient.get(ENDPOINTS.rawMaterials.lots(id), { query }),
   createLot: (id, body) => apiClient.post(ENDPOINTS.rawMaterials.createLot(id), body),
+  markWastage: (id, lotId, body) => apiClient.post(ENDPOINTS.rawMaterials.markWastage(id, lotId), body),
 }

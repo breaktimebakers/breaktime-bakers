@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { rawMaterialApi } from '../api/rawMaterialApi'
 import { rawMaterialKeys } from './useRawMaterials'
+import { expenseKeys } from '@/features/finance/hooks/useExpenses'
 import { toast } from '@/lib/toast'
 
 // Every mutation below invalidates the whole raw-materials branch of the
@@ -47,5 +48,23 @@ export function useCreateLot() {
   return useMutation({
     mutationFn: ({ materialId, body }) => rawMaterialApi.createLot(materialId, body),
     onSuccess: () => invalidateAll(queryClient),
+  })
+}
+
+// Also invalidates the expenses branch of the cache - marking wastage
+// creates a "Wastage / Loss" expense server-side in the same transaction,
+// so the Finance Expenses page needs to see it too.
+export function useMarkWastage() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ materialId, lotId, body }) => rawMaterialApi.markWastage(materialId, lotId, body),
+    onSuccess: () => {
+      invalidateAll(queryClient)
+      queryClient.invalidateQueries({ queryKey: expenseKeys.all })
+      toast.success('Marked as wastage')
+    },
+    onError: (err) => {
+      toast.error('Could not mark wastage', { description: err.message })
+    },
   })
 }

@@ -17,6 +17,7 @@ export const ENDPOINTS = {
     remove: (id) => `/raw-materials/${id}`,
     lots: (id) => `/raw-materials/${id}/lots`,
     createLot: (id) => `/raw-materials/${id}/lots`,
+    markWastage: (id, lotId) => `/raw-materials/${id}/lots/${lotId}/wastage`,
   },
   batches: {
     list: '/batches',

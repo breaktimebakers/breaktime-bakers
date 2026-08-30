@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, ilike, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gt, gte, ilike, lte, sql } from "drizzle-orm";
 import { v7 as uuidv7 } from "uuid";
 import { db } from "../../db/index.js";
 import { httpError } from "../../utils/httpError.js";
@@ -6,6 +6,12 @@ import { isUniqueViolation } from "../../utils/dbErrors.js";
 import { rawMaterials } from "./rawMaterial.schema.js";
 import { materialLots } from "./materialLot.schema.js";
 import { vendors } from "./vendor.schema.js";
+import { materialLotWastages } from "./materialLotWastage.schema.js";
+// Imported directly (not via the finance module's service/repository) so
+// the expense insert below can share the same transaction as the lot
+// decrement - atomicity here requires one db.transaction, not two
+// sequential calls across modules.
+import { expenses } from "../finance/expense.schema.js";
 
 // pg returns numeric/aggregate results as strings by default; mapWith
 // decodes the raw driver value with no null-guard of its own, so a
@@ -201,12 +207,18 @@ const lotSelection = {
 
 // Oldest-first, matching FIFO consumption order - this is also the order
 // the "purchase history" UI shows lots in, with the oldest marked as
-// "FIFO next".
-export const listLotsForMaterial = async (rawMaterialId, { from, to } = {}) => {
+// "FIFO next". `inStock` is for the wastage lot-picker: it needs every lot
+// that still has stock regardless of when it was purchased, so it
+// deliberately ignores from/to rather than combining with them.
+export const listLotsForMaterial = async (rawMaterialId, { from, to, inStock } = {}) => {
   const conditions = [eq(materialLots.rawMaterialId, rawMaterialId)];
 
-  if (from) conditions.push(gte(materialLots.purchaseDate, from));
-  if (to) conditions.push(lte(materialLots.purchaseDate, to));
+  if (inStock) {
+    conditions.push(gt(materialLots.remainingQty, 0));
+  } else {
+    if (from) conditions.push(gte(materialLots.purchaseDate, from));
+    if (to) conditions.push(lte(materialLots.purchaseDate, to));
+  }
 
   return db
     .select(lotSelection)
@@ -246,4 +258,65 @@ export const createLotForMaterial = async (rawMaterialId, { qty, rate, vendor, p
   });
 
   return findLotById(lotId);
+};
+
+// Removes `qty` from one specific lot (spoilage/rats/expiry - the admin
+// picks the exact lot, unlike FIFO batch consumption which picks for
+// them) and logs the loss as a "Wastage / Loss" expense, atomically.
+// `.for("update")` row-locks the lot for the rest of the transaction, same
+// reasoning as consumeFifo in batch.repository.js - two admins can't both
+// read the same remainingQty and jointly overdraw it.
+export const createWastageForLot = async (lotId, { qty, date, note }) => {
+  return db.transaction(async (tx) => {
+    const [lot] = await tx
+      .select({
+        id: materialLots.id,
+        rawMaterialId: materialLots.rawMaterialId,
+        remainingQty: materialLots.remainingQty,
+        unitCost: materialLots.unitCost,
+      })
+      .from(materialLots)
+      .where(eq(materialLots.id, lotId))
+      .for("update");
+
+    if (!lot) {
+      throw httpError(404, "Lot not found");
+    }
+
+    if (qty > lot.remainingQty) {
+      throw httpError(422, "Quantity exceeds this lot's remaining stock");
+    }
+
+    await tx
+      .update(materialLots)
+      .set({ remainingQty: lot.remainingQty - qty })
+      .where(eq(materialLots.id, lotId));
+
+    const [material] = await tx
+      .select({ name: rawMaterials.name, unit: rawMaterials.unit })
+      .from(rawMaterials)
+      .where(eq(rawMaterials.id, lot.rawMaterialId));
+
+    const amount = qty * lot.unitCost;
+
+    const expenseId = uuidv7();
+    await tx.insert(expenses).values({
+      id: expenseId,
+      category: "Wastage / Loss",
+      amount,
+      date,
+      note: note ? `${material.name}: ${note}` : `${material.name} — ${qty}${material.unit} spoiled`,
+    });
+
+    await tx.insert(materialLotWastages).values({
+      id: uuidv7(),
+      lotId,
+      rawMaterialId: lot.rawMaterialId,
+      expenseId,
+      qty,
+      costAtWastage: amount,
+    });
+
+    return lot.rawMaterialId;
+  });
 };

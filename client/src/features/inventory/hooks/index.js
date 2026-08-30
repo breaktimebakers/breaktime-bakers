@@ -4,6 +4,7 @@ export {
   useUpdateRawMaterial,
   useDeleteRawMaterial,
   useCreateLot,
+  useMarkWastage,
 } from './useRawMaterialMutations'
 export { useBatches, batchKeys } from './useBatches'
 export { useCreateBatch } from './useBatchMutations'

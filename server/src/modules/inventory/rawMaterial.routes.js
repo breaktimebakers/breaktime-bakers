@@ -10,6 +10,8 @@ import {
   updateRawMaterialSchema,
   listLotsQuerySchema,
   createLotSchema,
+  lotWastageParamSchema,
+  createWastageSchema,
 } from "./rawMaterial.validation.js";
 import * as rawMaterialController from "./rawMaterial.controller.js";
 
@@ -52,6 +54,13 @@ router.post(
   validate(rawMaterialIdParamSchema, "params"),
   validate(createLotSchema),
   asyncHandler(rawMaterialController.createLot),
+);
+
+router.post(
+  "/:id/lots/:lotId/wastage",
+  validate(lotWastageParamSchema, "params"),
+  validate(createWastageSchema),
+  asyncHandler(rawMaterialController.createWastage),
 );
 
 export default router;
