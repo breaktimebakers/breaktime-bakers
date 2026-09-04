@@ -6,9 +6,13 @@ export const stores = pgTable(
   {
     id: varchar("id", { length: 36 }).primaryKey(),
 
-    areaId: varchar("area_id", { length: 36 })
-      .notNull()
-      .references(() => areas.id, { onDelete: "restrict" }),
+    // Nullable - a store with no area is "unassigned" (e.g. just removed
+    // from an area being split, waiting to be moved into a new one). Not
+    // "restrict" against being orphaned this way, only against the area
+    // row itself being deleted while stores still point at it.
+    areaId: varchar("area_id", { length: 36 }).references(() => areas.id, {
+      onDelete: "restrict",
+    }),
 
     dealerName: varchar("dealer_name", { length: 150 }).notNull(),
 

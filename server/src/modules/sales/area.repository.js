@@ -1,4 +1,4 @@
-import { asc, eq, sql } from "drizzle-orm";
+import { asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { v7 as uuidv7 } from "uuid";
 import { db } from "../../db/index.js";
 import { httpError } from "../../utils/httpError.js";
@@ -108,6 +108,30 @@ export const findStoreById = async (id) => {
   const rows = await db.select(storeSelection).from(stores).where(eq(stores.id, id));
 
   return rows[0];
+};
+
+// Stores just removed from an area (or never assigned one) - the pool an
+// admin picks from when populating a newly split-off area.
+export const listUnassignedStores = async () => {
+  return db
+    .select(storeSelection)
+    .from(stores)
+    .where(isNull(stores.areaId))
+    .orderBy(asc(stores.dealerName));
+};
+
+export const bulkAssignStores = async (storeIds, areaId) => {
+  await db
+    .update(stores)
+    .set({ areaId, updatedAt: new Date() })
+    .where(inArray(stores.id, storeIds));
+};
+
+export const bulkUnassignStores = async (storeIds) => {
+  await db
+    .update(stores)
+    .set({ areaId: null, updatedAt: new Date() })
+    .where(inArray(stores.id, storeIds));
 };
 
 export const createStoreForArea = async (areaId, body) => {

@@ -13,7 +13,12 @@ export const areaApi = {
 
 export const storeApi = {
   list: () => apiClient.get(ENDPOINTS.stores.list),
+  unassigned: () => apiClient.get(ENDPOINTS.stores.unassigned),
   update: (id, body) => apiClient.patch(ENDPOINTS.stores.update(id), body),
   updateStatus: (id, isActive) =>
     apiClient.patch(ENDPOINTS.stores.updateStatus(id), { isActive }),
+  bulkAssign: (storeIds, areaId) =>
+    apiClient.patch(ENDPOINTS.stores.bulkAssign, { storeIds, areaId }),
+  bulkUnassign: (storeIds) =>
+    apiClient.patch(ENDPOINTS.stores.bulkUnassign, { storeIds }),
 };

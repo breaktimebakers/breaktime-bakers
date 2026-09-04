@@ -11,6 +11,7 @@ export const areaKeys = {
 export const storeKeys = {
   all: ['stores'],
   list: ['stores', 'list'],
+  unassigned: ['stores', 'unassigned'],
 }
 
 export function useAreas() {
@@ -57,6 +58,18 @@ export function useAllStores() {
     queryKey: storeKeys.list,
     queryFn: async () => {
       const { stores } = await storeApi.list()
+      return stores
+    },
+  })
+}
+
+// Stores with no area - the pool an admin assigns into a newly split-off
+// area (see BulkAssignStoresModal on the Areas page).
+export function useUnassignedStores() {
+  return useQuery({
+    queryKey: storeKeys.unassigned,
+    queryFn: async () => {
+      const { stores } = await storeApi.unassigned()
       return stores
     },
   })

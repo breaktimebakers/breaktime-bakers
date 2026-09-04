@@ -31,3 +31,12 @@ export const updateStoreSchema = createStoreSchema;
 export const updateStoreStatusSchema = z.object({
   isActive: z.boolean(),
 });
+
+export const bulkAssignStoresSchema = z.object({
+  storeIds: z.array(z.string().min(1)).min(1, "Select at least one store"),
+  areaId: z.string().min(1),
+});
+
+export const bulkUnassignStoresSchema = z.object({
+  storeIds: z.array(z.string().min(1)).min(1, "Select at least one store"),
+});

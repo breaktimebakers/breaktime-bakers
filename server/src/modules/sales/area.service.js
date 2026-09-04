@@ -41,6 +41,16 @@ export const listStores = async (areaId) => {
 
 export const listAllStores = () => areaRepo.listAllStores();
 
+export const listUnassignedStores = () => areaRepo.listUnassignedStores();
+
+export const bulkAssignStores = async (storeIds, areaId) => {
+  await requireArea(areaId);
+
+  return areaRepo.bulkAssignStores(storeIds, areaId);
+};
+
+export const bulkUnassignStores = (storeIds) => areaRepo.bulkUnassignStores(storeIds);
+
 export const createStore = async (areaId, body) => {
   await requireArea(areaId);
 

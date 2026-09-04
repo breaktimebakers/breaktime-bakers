@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
-import { Store, Phone, MapPin, Plus, Navigation, Pencil, LayoutGrid, Table as TableIcon } from 'lucide-react'
-import { useArea, useStores, useCreateStore, useUpdateStore, useUpdateStoreStatus } from '@/features/sales/hooks'
+import { Store, Phone, MapPin, Plus, Navigation, Pencil, LayoutGrid, Table as TableIcon, CheckSquare, X, FolderMinus } from 'lucide-react'
+import { useArea, useStores, useCreateStore, useUpdateStore, useUpdateStoreStatus, useBulkUnassignStores } from '@/features/sales/hooks'
 import { Button, EmptyState, Field, Modal, PageHeader, inputClass } from '@/components/shared'
 import { StoreLocationPicker } from '@/features/sales/components/StoreLocationPicker'
 import { AreaStoresMap } from '@/features/sales/components/AreaStoresMap'
@@ -136,12 +136,34 @@ export default function AreaDetail() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editStore, setEditStore] = useState(null)
   const [view, setView] = useState('cards')
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState([])
+  const bulkUnassign = useBulkUnassignStores()
 
   if (areaLoading) return <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading area…</p>
   if (areaError || !area) return <EmptyState icon={MapPin} title="Area not found" description="This area does not exist." />
 
   const openAdd = () => { setEditStore(null); setModalOpen(true) }
   const openEdit = (store) => { setEditStore(store); setModalOpen(true) }
+
+  const toggleSelectMode = () => {
+    setSelectMode((current) => !current)
+    setSelectedIds([])
+  }
+
+  const toggleSelected = (id) => {
+    setSelectedIds((current) => (current.includes(id) ? current.filter((s) => s !== id) : [...current, id]))
+  }
+
+  const removeSelected = async () => {
+    try {
+      await bulkUnassign.mutateAsync({ storeIds: selectedIds })
+      setSelectedIds([])
+      setSelectMode(false)
+    } catch {
+      // Error already surfaced as a toast by useBulkUnassignStores.
+    }
+  }
 
   return (
     <div>
@@ -151,7 +173,38 @@ export default function AreaDetail() {
         <span className="text-espresso">{area.name}</span>
       </div>
 
-      <PageHeader eyebrow="Sales / Areas" title={area.name} description={`${area.city} · ${area.pincode} · ${stores.length} ${stores.length === 1 ? 'store' : 'stores'}`} actions={<Button onClick={openAdd}><Plus className="h-4 w-4" /> Add store</Button>} />
+      <PageHeader
+        eyebrow="Sales / Areas"
+        title={area.name}
+        description={`${area.city} · ${area.pincode} · ${stores.length} ${stores.length === 1 ? 'store' : 'stores'}`}
+        actions={
+          <>
+            {stores.length > 0 && (
+              <Button variant="secondary" onClick={toggleSelectMode}>
+                {selectMode ? <X className="h-4 w-4" /> : <CheckSquare className="h-4 w-4" />}
+                {selectMode ? 'Cancel' : 'Select stores'}
+              </Button>
+            )}
+            <Button onClick={openAdd}><Plus className="h-4 w-4" /> Add store</Button>
+          </>
+        }
+      />
+
+      {selectMode && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-bakery border border-oven-amber/30 bg-oven-amber/10 px-4 py-3">
+          <p className="text-sm font-medium text-espresso">
+            {selectedIds.length} {selectedIds.length === 1 ? 'store' : 'stores'} selected
+          </p>
+          <Button
+            variant="secondary"
+            disabled={selectedIds.length === 0 || bulkUnassign.isPending}
+            onClick={removeSelected}
+          >
+            <FolderMinus className="h-4 w-4" />
+            {bulkUnassign.isPending ? 'Removing…' : 'Remove from area'}
+          </Button>
+        </div>
+      )}
 
       {storesLoading ? (
         <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading stores…</p>
@@ -188,16 +241,32 @@ export default function AreaDetail() {
           {view === 'cards' ? (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {stores.map((s) => (
-                <div key={s.id} className="rounded-bakery border border-espresso/8 bg-proof-cream p-5 shadow-bakery">
+                <div
+                  key={s.id}
+                  onClick={selectMode ? () => toggleSelected(s.id) : undefined}
+                  className={`rounded-bakery border p-5 shadow-bakery transition-colors ${selectMode ? 'cursor-pointer' : ''} ${selectMode && selectedIds.includes(s.id) ? 'border-oven-amber bg-oven-amber/5' : 'border-espresso/8 bg-proof-cream'}`}
+                >
                   <div className="flex items-start justify-between">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-bakery bg-sourdough/40 text-espresso">
-                      <Store className="h-5 w-5" />
-                    </div>
+                    {selectMode ? (
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(s.id)}
+                        onChange={() => toggleSelected(s.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="h-5 w-5 rounded border-espresso/20 text-oven-amber"
+                      />
+                    ) : (
+                      <div className="flex h-11 w-11 items-center justify-center rounded-bakery bg-sourdough/40 text-espresso">
+                        <Store className="h-5 w-5" />
+                      </div>
+                    )}
                     <div className="flex items-center gap-2">
                       <span className="rounded-full bg-espresso/5 px-2.5 py-1 text-xs font-medium text-espresso/70">{s.storeType}</span>
-                      <button onClick={() => openEdit(s)} className="flex h-8 w-8 items-center justify-center rounded-lg text-espresso/50 hover:bg-espresso/5 hover:text-espresso" title="Edit store">
-                        <Pencil className="h-4 w-4" />
-                      </button>
+                      {!selectMode && (
+                        <button onClick={() => openEdit(s)} className="flex h-8 w-8 items-center justify-center rounded-lg text-espresso/50 hover:bg-espresso/5 hover:text-espresso" title="Edit store">
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                   <h3 className="mt-4 font-display text-lg font-semibold text-espresso">{s.dealerName}</h3>
@@ -228,6 +297,7 @@ export default function AreaDetail() {
                 <table className="w-full min-w-[860px] text-sm">
                   <thead>
                     <tr className="border-b border-espresso/10 bg-crust/30 text-left">
+                      {selectMode && <th className="w-10 px-4 py-3" />}
                       <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Dealer</th>
                       <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Shop</th>
                       <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Type</th>
@@ -239,7 +309,22 @@ export default function AreaDetail() {
                   </thead>
                   <tbody>
                     {stores.map((s) => (
-                      <tr key={s.id} className="border-b border-espresso/8 last:border-0 hover:bg-crust/20">
+                      <tr
+                        key={s.id}
+                        onClick={selectMode ? () => toggleSelected(s.id) : undefined}
+                        className={`border-b border-espresso/8 last:border-0 ${selectMode ? 'cursor-pointer' : ''} ${selectMode && selectedIds.includes(s.id) ? 'bg-oven-amber/5' : 'hover:bg-crust/20'}`}
+                      >
+                        {selectMode && (
+                          <td className="px-4 py-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.includes(s.id)}
+                              onChange={() => toggleSelected(s.id)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="h-4 w-4 rounded border-espresso/20 text-oven-amber"
+                            />
+                          </td>
+                        )}
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2.5">
                             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-bakery bg-sourdough/40 text-espresso">
@@ -262,15 +347,18 @@ export default function AreaDetail() {
                                 href={`https://www.google.com/maps?q=${s.lat},${s.lng}`}
                                 target="_blank"
                                 rel="noreferrer"
+                                onClick={(e) => e.stopPropagation()}
                                 className="flex h-8 w-8 items-center justify-center rounded-lg text-oven-amber hover:bg-oven-amber/10"
                                 title="View on map"
                               >
                                 <Navigation className="h-4 w-4" />
                               </a>
                             )}
-                            <button onClick={() => openEdit(s)} className="flex h-8 w-8 items-center justify-center rounded-lg text-espresso/50 hover:bg-espresso/5 hover:text-espresso" title="Edit store">
-                              <Pencil className="h-4 w-4" />
-                            </button>
+                            {!selectMode && (
+                              <button onClick={() => openEdit(s)} className="flex h-8 w-8 items-center justify-center rounded-lg text-espresso/50 hover:bg-espresso/5 hover:text-espresso" title="Edit store">
+                                <Pencil className="h-4 w-4" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

@@ -64,6 +64,37 @@ export function useUpdateStore() {
   })
 }
 
+export function useBulkAssignStores() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ storeIds, areaId }) => storeApi.bulkAssign(storeIds, areaId),
+    onSuccess: (_data, { storeIds }) => {
+      // Touches the target area's store list/count, the unassigned pool,
+      // and (if these stores came from another area) that area's count
+      // too - invalidate the whole branch rather than track all three.
+      invalidateAreas(queryClient)
+      toast.success(`${storeIds.length} ${storeIds.length === 1 ? 'store' : 'stores'} assigned`)
+    },
+    onError: (err) => {
+      toast.error('Could not assign stores', { description: err.message })
+    },
+  })
+}
+
+export function useBulkUnassignStores() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ storeIds }) => storeApi.bulkUnassign(storeIds),
+    onSuccess: (_data, { storeIds }) => {
+      invalidateAreas(queryClient)
+      toast.success(`${storeIds.length} ${storeIds.length === 1 ? 'store' : 'stores'} removed from area`)
+    },
+    onError: (err) => {
+      toast.error('Could not remove stores', { description: err.message })
+    },
+  })
+}
+
 export function useUpdateStoreStatus() {
   const queryClient = useQueryClient()
   return useMutation({

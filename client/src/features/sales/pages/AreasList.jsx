@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Plus, MapPin, ArrowRight, Store, LayoutGrid, Table as TableIcon } from 'lucide-react'
-import { useAreas, useCreateArea } from '@/features/sales/hooks'
+import { Plus, MapPin, ArrowRight, Store, LayoutGrid, Table as TableIcon, FolderInput } from 'lucide-react'
+import { useAreas, useCreateArea, useUnassignedStores, useBulkAssignStores } from '@/features/sales/hooks'
 import { Button, EmptyState, Field, Modal, PageHeader, inputClass } from '@/components/shared'
 
 function AddAreaModal({ open, onClose }) {
@@ -32,6 +32,118 @@ function AddAreaModal({ open, onClose }) {
   )
 }
 
+// Stores just removed from an area, waiting to be moved into a new one -
+// e.g. after splitting a 100-store area into two. Only rendered once
+// there's actually something to assign, so it stays invisible for the
+// vast majority of admins who never split an area.
+function UnassignedStoresBanner() {
+  const { data: unassigned = [] } = useUnassignedStores()
+  const [modalOpen, setModalOpen] = useState(false)
+
+  if (unassigned.length === 0) return null
+
+  return (
+    <>
+      <button
+        onClick={() => setModalOpen(true)}
+        className="mb-4 flex w-full items-center justify-between gap-3 rounded-bakery border border-oven-amber/30 bg-oven-amber/10 px-4 py-3 text-left transition hover:bg-oven-amber/15"
+      >
+        <span className="flex items-center gap-2 text-sm font-medium text-espresso">
+          <FolderInput className="h-4 w-4 text-oven-amber" />
+          {unassigned.length} {unassigned.length === 1 ? 'store has' : 'stores have'} no area
+        </span>
+        <span className="text-sm font-medium text-oven-amber">Assign now</span>
+      </button>
+      <AssignUnassignedStoresModal open={modalOpen} onClose={() => setModalOpen(false)} stores={unassigned} />
+    </>
+  )
+}
+
+function AssignUnassignedStoresModal({ open, onClose, stores }) {
+  const { data: areas = [] } = useAreas()
+  const bulkAssign = useBulkAssignStores()
+  const [selectedIds, setSelectedIds] = useState([])
+  const [targetAreaId, setTargetAreaId] = useState('')
+
+  const toggleSelected = (id) => {
+    setSelectedIds((current) => (current.includes(id) ? current.filter((s) => s !== id) : [...current, id]))
+  }
+
+  const selectAll = () => setSelectedIds(selectedIds.length === stores.length ? [] : stores.map((s) => s.id))
+
+  const submit = async () => {
+    if (!targetAreaId || selectedIds.length === 0) return
+    try {
+      await bulkAssign.mutateAsync({ storeIds: selectedIds, areaId: targetAreaId })
+      setSelectedIds([])
+      setTargetAreaId('')
+      onClose()
+    } catch {
+      // Error already surfaced as a toast by useBulkAssignStores.
+    }
+  }
+
+  const busy = bulkAssign.isPending
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      eyebrow="Sales / Areas"
+      title="Assign unassigned stores"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button onClick={submit} disabled={busy || !targetAreaId || selectedIds.length === 0}>
+            {busy ? 'Assigning…' : `Assign ${selectedIds.length || ''} to area`}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <Field label="Move selected stores to" required>
+          <select className={inputClass} value={targetAreaId} onChange={(e) => setTargetAreaId(e.target.value)}>
+            <option value="">Select an area…</option>
+            {areas.map((a) => (
+              <option key={a.id} value={a.id}>{a.name}</option>
+            ))}
+          </select>
+        </Field>
+
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-medium text-espresso/50">{selectedIds.length} of {stores.length} selected</p>
+          <button onClick={selectAll} className="text-xs font-medium text-oven-amber hover:underline">
+            {selectedIds.length === stores.length ? 'Deselect all' : 'Select all'}
+          </button>
+        </div>
+
+        <div className="max-h-72 space-y-1.5 overflow-y-auto rounded-bakery border border-espresso/8">
+          {stores.map((s) => (
+            <label
+              key={s.id}
+              className="flex cursor-pointer items-center gap-3 border-b border-espresso/6 px-3 py-2.5 last:border-0 hover:bg-crust/30"
+            >
+              <input
+                type="checkbox"
+                checked={selectedIds.includes(s.id)}
+                onChange={() => toggleSelected(s.id)}
+                className="h-4 w-4 rounded border-espresso/20 text-oven-amber"
+              />
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-bakery bg-sourdough/40 text-espresso">
+                <Store className="h-4 w-4" />
+              </span>
+              <span className="min-w-0">
+                <p className="truncate text-sm font-medium text-espresso">{s.dealerName}</p>
+                {s.address && <p className="truncate text-xs text-espresso/50">{s.address}</p>}
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 export default function AreasList() {
   const { data: areas = [], isLoading, isError } = useAreas()
   const [addOpen, setAddOpen] = useState(false)
@@ -40,6 +152,8 @@ export default function AreasList() {
   return (
     <div>
       <PageHeader eyebrow="Sales / Areas" title="Areas" description="Sales territories and the stores within them." actions={<Button onClick={() => setAddOpen(true)}><Plus className="h-4 w-4" /> Add area</Button>} />
+
+      <UnassignedStoresBanner />
 
       {isLoading ? (
         <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading areas...</p>

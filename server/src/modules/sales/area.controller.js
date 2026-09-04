@@ -54,3 +54,21 @@ export const updateStoreStatus = async (req, res) => {
 
   sendResponse(res, 200, "Store status updated", { store });
 };
+
+export const listUnassignedStores = async (req, res) => {
+  const stores = await areaService.listUnassignedStores();
+
+  sendResponse(res, 200, "Unassigned stores fetched", { stores });
+};
+
+export const bulkAssignStores = async (req, res) => {
+  await areaService.bulkAssignStores(req.body.storeIds, req.body.areaId);
+
+  sendResponse(res, 200, "Stores assigned", {});
+};
+
+export const bulkUnassignStores = async (req, res) => {
+  await areaService.bulkUnassignStores(req.body.storeIds);
+
+  sendResponse(res, 200, "Stores unassigned", {});
+};

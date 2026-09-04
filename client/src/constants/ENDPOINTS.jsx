@@ -37,8 +37,11 @@ export const ENDPOINTS = {
   },
   stores: {
     list: '/stores',
+    unassigned: '/stores/unassigned',
     update: (id) => `/stores/${id}`,
     updateStatus: (id) => `/stores/${id}/status`,
+    bulkAssign: '/stores/bulk-assign',
+    bulkUnassign: '/stores/bulk-unassign',
   },
   orders: {
     list: '/orders',
