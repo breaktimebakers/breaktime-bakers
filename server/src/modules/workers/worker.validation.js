@@ -29,7 +29,3 @@ export const createWorkerSchema = z.object({
 });
 
 export const updateWorkerSchema = createWorkerSchema;
-
-export const updateWorkerAreasSchema = z.object({
-  areaIds: z.array(z.string().min(1)).default([]),
-});

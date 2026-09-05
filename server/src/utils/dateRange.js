@@ -50,3 +50,19 @@ export const resolveMonthRange = ({ from, to } = {}) => {
   if (!from && !to) return currentMonthRange();
   return { from, to };
 };
+
+// The server's own "today" as YYYY-MM-DD - shared by anything that stamps
+// or reads today's date server-side (an order's orderDate, the order
+// taker schedule's gating check) so they can't disagree with each other.
+export const todayIso = () => toIsoDate(new Date());
+
+// Sunday-start week (inclusive) the server's "today" falls in - used to
+// cap order-taker schedule overrides to the current week only.
+export const currentWeekRange = () => {
+  const now = new Date();
+  const sunday = new Date(now);
+  sunday.setDate(now.getDate() - now.getDay());
+  const saturday = new Date(sunday);
+  saturday.setDate(sunday.getDate() + 6);
+  return { from: toIsoDate(sunday), to: toIsoDate(saturday) };
+};

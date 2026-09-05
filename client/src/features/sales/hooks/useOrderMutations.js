@@ -1,9 +1,13 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { orderApi } from '../api/orderApi'
 import { orderKeys } from './useOrders'
+import { salesKeys } from './useSalesOverview'
 import { toast } from '@/lib/toast'
 
-const invalidateOrders = (queryClient) => queryClient.invalidateQueries({ queryKey: orderKeys.all })
+const invalidateOrders = (queryClient) => Promise.all([
+  queryClient.invalidateQueries({ queryKey: orderKeys.all }),
+  queryClient.invalidateQueries({ queryKey: salesKeys.overview }),
+])
 
 export function useCreateOrder() {
   const queryClient = useQueryClient()

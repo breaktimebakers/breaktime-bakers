@@ -1,9 +1,12 @@
-import { and, desc, eq, gte, lte, ne, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, lte, ne, or, sql } from "drizzle-orm";
 import { v7 as uuidv7 } from "uuid";
 import { db } from "../../db/index.js";
+import { todayIso } from "../../utils/dateRange.js";
 import { orders } from "./order.schema.js";
 import { orderItems } from "./orderItem.schema.js";
 import { stores } from "./store.schema.js";
+import { areas } from "./area.schema.js";
+import { workers } from "../workers/worker.schema.js";
 
 // Line items, aggregated per order - a single order can carry several
 // products (see orderItem.schema.js). productName/unit are joined in here
@@ -36,13 +39,7 @@ const orderSelection = {
   items: orderItemsSql,
 };
 
-const pad = (n) => String(n).padStart(2, "0");
-const todayIso = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-};
-
-export const listOrders = async ({ from, to, areaId, storeId, status, orderTakerId, productId } = {}) => {
+const buildOrderConditions = ({ from, to, areaId, storeId, status, orderTakerId, productId, search } = {}) => {
   const conditions = [];
 
   if (from) conditions.push(gte(orders.orderDate, from));
@@ -58,16 +55,86 @@ export const listOrders = async ({ from, to, areaId, storeId, status, orderTaker
     );
   }
 
-  // Always joined (cheap - storeId is a NOT NULL restrict FK) rather than
-  // conditionally, so the areaId filter above can just reference
-  // stores.areaId without branching the query shape.
-  return db
-    .select(orderSelection)
+  if (search) {
+    // Treat LIKE wildcards as literal characters, matching the UI's substring search.
+    const pattern = `%${search.replace(/[\\%_]/g, "\\$&")}%`;
+    conditions.push(or(
+      ilike(stores.dealerName, pattern),
+      ilike(workers.name, pattern),
+      ilike(orders.id, pattern),
+      sql`EXISTS (
+        SELECT 1 FROM order_items oi
+        JOIN products p ON p.id = oi.product_id
+        WHERE oi.order_id = ${orders.id} AND p.name ILIKE ${pattern}
+      )`,
+    ));
+  }
+
+  return conditions.length ? and(...conditions) : undefined;
+};
+
+const totalQuantitySql = sql`COALESCE((
+  SELECT SUM(oi.quantity) FROM order_items oi WHERE oi.order_id = ${orders.id}
+), 0)`;
+
+const productsLabelSql = sql`COALESCE((
+  SELECT MIN(p.name) || CASE WHEN COUNT(*) > 1 THEN ' +' || (COUNT(*) - 1)::text || ' more' ELSE '' END
+  FROM order_items oi JOIN products p ON p.id = oi.product_id
+  WHERE oi.order_id = ${orders.id}
+), '—')`;
+
+export const listOrders = async (query = {}) => {
+  const { page, pageSize = 10, sortKey = "orderDate", sortDir = "desc" } = query;
+  const sortColumns = {
+    otName: workers.name,
+    storeName: stores.dealerName,
+    areaName: areas.name,
+    productsLabel: productsLabelSql,
+    totalQty: totalQuantitySql,
+    status: orders.status,
+    orderDate: orders.orderDate,
+  };
+  const direction = sortDir === "asc" ? asc : desc;
+  const statement = db
+    .select({
+      ...orderSelection,
+      otName: workers.name,
+      storeName: stores.dealerName,
+      areaName: areas.name,
+      productsLabel: productsLabelSql,
+      totalQty: totalQuantitySql.mapWith(Number),
+    })
     .from(orders)
     .innerJoin(stores, eq(orders.storeId, stores.id))
-    .where(conditions.length ? and(...conditions) : undefined)
-    .orderBy(desc(orders.orderDate), desc(orders.createdAt));
+    .innerJoin(workers, eq(orders.orderTakerId, workers.id))
+    .leftJoin(areas, eq(stores.areaId, areas.id))
+    .where(buildOrderConditions(query))
+    // A unique tie-breaker prevents equal sort values moving between pages.
+    .orderBy(direction(sortColumns[sortKey] || orders.orderDate), desc(orders.createdAt), desc(orders.id));
+
+  if (page !== undefined) {
+    return statement.limit(pageSize).offset((page - 1) * pageSize);
+  }
+
+  return statement;
 };
+
+export const countOrders = async (query = {}) => {
+  const [result] = await db
+    .select({ total: count() })
+    .from(orders)
+    .innerJoin(stores, eq(orders.storeId, stores.id))
+    .innerJoin(workers, eq(orders.orderTakerId, workers.id))
+    .where(buildOrderConditions(query));
+
+  return result.total;
+};
+
+// Cards show lifetime totals, independently of the table's filters and page.
+export const countOrdersByOrderTaker = () => db
+  .select({ orderTakerId: orders.orderTakerId, total: count() })
+  .from(orders)
+  .groupBy(orders.orderTakerId);
 
 export const findOrderById = async (id) => {
   const rows = await db.select(orderSelection).from(orders).where(eq(orders.id, id));

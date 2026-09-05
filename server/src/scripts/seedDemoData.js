@@ -1,6 +1,6 @@
 // Seeds sample data across every module wired to the real backend so
-// far: sales (areas/stores/orders), workers (incl. roles, assigned
-// areas, attendance), inventory (batches -> products/ready stock, via
+// far: sales (areas/stores/orders), workers (incl. roles, weekly area
+// schedule, attendance), inventory (batches -> products/ready stock, via
 // the real FIFO consumption path), and finance (expenses/tax entries).
 //
 // Additive and idempotent by name/count, same as seedRawMaterials.js -
@@ -15,7 +15,7 @@ import { orders } from "../modules/sales/order.schema.js";
 import { orderItems } from "../modules/sales/orderItem.schema.js";
 import { workers } from "../modules/workers/worker.schema.js";
 import { workerRoles } from "../modules/workers/workerRole.schema.js";
-import { workerAreas } from "../modules/workers/workerArea.schema.js";
+import { workerWeeklyArea } from "../modules/workers/workerWeeklyArea.schema.js";
 import { workerAttendance } from "../modules/workers/workerAttendance.schema.js";
 import { rawMaterials } from "../modules/inventory/rawMaterial.schema.js";
 import { products } from "../modules/inventory/product.schema.js";
@@ -134,12 +134,6 @@ const seedWorkers = async (areaIds) => {
 
       await db.insert(workerRoles).values(def.roles.map((role) => ({ id: uuidv7(), workerId, role })));
 
-      if (def.assignedAreas.length) {
-        await db.insert(workerAreas).values(
-          def.assignedAreas.map((areaName) => ({ id: uuidv7(), workerId, areaId: areaIds[areaName] })),
-        );
-      }
-
       // Last 6 days of attendance - mostly present, one absent, one half-day.
       const statuses = ["present", "present", "present", "absent", "present", "half_day"];
       for (let i = 1; i <= 6; i++) {
@@ -153,6 +147,34 @@ const seedWorkers = async (areaIds) => {
       }
 
       console.log(`Created worker: ${def.name} (${def.roles.join(", ")})`);
+    }
+
+    // Checked independently of whether the worker itself already existed
+    // (not nested in the branch above) - re-running this script after
+    // dropping/recreating the schedule tables should still backfill a
+    // route for a marketer who was seeded before this table existed.
+    // Round-robins their areas across the week (skipping their weekOffDay)
+    // so the demo data shows a real route rather than one static area -
+    // see workerWeeklyArea.schema.js.
+    if (def.assignedAreas.length) {
+      const existingTemplate = await db
+        .select({ id: workerWeeklyArea.id })
+        .from(workerWeeklyArea)
+        .where(eq(workerWeeklyArea.workerId, workerId));
+
+      if (existingTemplate.length === 0) {
+        const weekDayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+        let rotation = 0;
+        const rows = [];
+        for (const weekday of weekDayNames) {
+          if (weekday === def.weekOffDay) continue;
+          const areaId = areaIds[def.assignedAreas[rotation % def.assignedAreas.length]];
+          rotation++;
+          if (areaId) rows.push({ id: uuidv7(), workerId, weekday, areaId });
+        }
+        await db.insert(workerWeeklyArea).values(rows);
+        console.log(`Seeded weekly route: ${def.name}`);
+      }
     }
 
     workerIds[def.name] = workerId;

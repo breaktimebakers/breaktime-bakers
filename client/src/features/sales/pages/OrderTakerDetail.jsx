@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { MapPin, Plus, ClipboardList, Calendar, ShoppingBag, Search } from 'lucide-react'
-import { useAreas, useAllStores, useOrders } from '@/features/sales/hooks'
+import { useAreas, useAllStores, useOrders, useScheduleToday } from '@/features/sales/hooks'
 import { useWorker } from '@/features/workers/hooks'
 import { ORDER_STATUS } from '@/constants/orderStatus'
 import { AddPersonOrderModal } from '../components/AddPersonOrderModal'
@@ -17,6 +17,7 @@ export default function OrderTakerDetail() {
   const { data: person, isLoading: personLoading, isError: personError } = useWorker(personId)
   const { data: areas = [] } = useAreas()
   const { data: stores = [] } = useAllStores()
+  const { data: todaySchedule } = useScheduleToday()
   // Scoped server-side to this order taker - not the full order history
   // filtered client-side.
   const { data: personOrders = [] } = useOrders({ filter: 'all', orderTakerId: personId })
@@ -42,7 +43,10 @@ export default function OrderTakerDetail() {
   // undefined during the loading state, so each memo guards for that
   // rather than the component early-returning before them (see
   // WorkerDetail.jsx for the same reasoning).
-  const assignedAreas = useMemo(() => areas.filter((a) => (person?.assignedAreaIds || []).includes(a.id)), [areas, person])
+  const todayArea = useMemo(() => {
+    const areaId = (todaySchedule?.assignments || []).find((a) => a.workerId === personId)?.areaId
+    return areas.find((a) => a.id === areaId)
+  }, [areas, todaySchedule, personId])
 
   const weekOrders = useMemo(() => personOrders.filter((o) => { const d = new Date(o.orderDate); return (new Date() - d) / 86400000 <= 7 }), [personOrders])
 
@@ -134,12 +138,15 @@ export default function OrderTakerDetail() {
         <span className="text-espresso">{person.name}</span>
       </div>
 
-      <PageHeader eyebrow="Sales / Order taker" title={person.name} description={`${assignedAreas.length} assigned ${assignedAreas.length === 1 ? 'area' : 'areas'}`} actions={<Button onClick={() => setAddOpen(true)}><Plus className="h-4 w-4" /> Add order on behalf</Button>} />
+      <PageHeader eyebrow="Sales / Order taker" title={person.name} description={todayArea ? `Covering ${todayArea.name} today` : 'Not scheduled to any area today'} actions={<Button onClick={() => setAddOpen(true)}><Plus className="h-4 w-4" /> Add order on behalf</Button>} />
 
-      <div className="mb-4 flex flex-wrap gap-1.5">
-        {assignedAreas.map((a) => (
-          <span key={a.id} className="inline-flex items-center gap-1 rounded-full bg-espresso/5 px-2.5 py-1 text-xs text-espresso/70"><MapPin className="h-3 w-3" />{a.name}</span>
-        ))}
+      <div className="mb-4 flex flex-wrap items-center gap-1.5">
+        {todayArea ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-espresso/5 px-2.5 py-1 text-xs text-espresso/70"><MapPin className="h-3 w-3" />Today: {todayArea.name}</span>
+        ) : (
+          <span className="text-xs text-espresso/40">Not scheduled today</span>
+        )}
+        <Link to="/sales/orders/order-takers/schedule" className="text-xs font-medium text-oven-amber hover:underline">Edit schedule</Link>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">

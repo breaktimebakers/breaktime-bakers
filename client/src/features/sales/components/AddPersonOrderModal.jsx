@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { X, AlertCircle } from 'lucide-react'
-import { useAreas, useAllStores, useCreateOrder } from '../hooks'
+import { useAreas, useAllStores, useCreateOrder, useScheduleToday } from '../hooks'
 import { useReadyStock } from '@/features/inventory/hooks'
 import { Button, Field, Modal, inputClass } from '@/components/shared'
 
@@ -10,14 +10,18 @@ export function AddPersonOrderModal({ open, onClose, person }) {
   const createOrder = useCreateOrder()
   const { data: areas = [] } = useAreas()
   const { data: stores = [] } = useAllStores()
+  const { data: todaySchedule } = useScheduleToday()
   // "all" - see AddOrderModal.jsx for why this can't use the hook's own
   // "today" default.
   const { data: products = [] } = useReadyStock({ filter: 'all' })
   const [form, setForm] = useState(makeEmptyForm)
   const [error, setError] = useState('')
 
-  const assignedAreaIds = person?.assignedAreaIds || []
-  const assignedStores = stores.filter((s) => assignedAreaIds.includes(s.areaId))
+  // Whichever single area this person is actually scheduled to today -
+  // see order.service.js's matching server-side check, which rejects an
+  // order for any other area.
+  const todayAreaId = (todaySchedule?.assignments || []).find((a) => a.workerId === person?.id)?.areaId
+  const todayStores = todayAreaId ? stores.filter((s) => s.areaId === todayAreaId) : []
 
   const addLine = () => setForm((f) => ({ ...f, items: [...f.items, { productId: products[0]?.id || '', quantity: '' }] }))
   const removeLine = (i) => setForm((f) => ({ ...f, items: f.items.filter((_, idx) => idx !== i) }))
@@ -54,18 +58,17 @@ export function AddPersonOrderModal({ open, onClose, person }) {
   return (
     <Modal open={open} onClose={onClose} eyebrow="Order takers" title={`Add order for ${person.name}`} footer={<><Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button><Button onClick={submit} disabled={busy}>{busy ? 'Adding…' : 'Add order'}</Button></>}>
       <div className="grid gap-3">
-        <Field label="Store (assigned areas only)" required>
-          <select className={inputClass} value={form.storeId} onChange={(e) => setForm({ ...form, storeId: e.target.value })}>
-            <option value="">Select store...</option>
-            {assignedAreaIds.map((aid) => {
-              const area = areas.find((a) => a.id === aid)
-              return (
-                <optgroup key={aid} label={area?.name}>
-                  {assignedStores.filter((s) => s.areaId === aid).map((s) => <option key={s.id} value={s.id}>{s.dealerName}</option>)}
-                </optgroup>
-              )
-            })}
-          </select>
+        <Field label="Store (today's area only)" required>
+          {todayAreaId ? (
+            <select className={inputClass} value={form.storeId} onChange={(e) => setForm({ ...form, storeId: e.target.value })}>
+              <option value="">Select store...</option>
+              <optgroup label={areas.find((a) => a.id === todayAreaId)?.name}>
+                {todayStores.map((s) => <option key={s.id} value={s.id}>{s.dealerName}</option>)}
+              </optgroup>
+            </select>
+          ) : (
+            <p className="text-xs text-cherry-compote">Not scheduled to any area today - set it in the weekly schedule first.</p>
+          )}
         </Field>
 
         <div>

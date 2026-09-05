@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, Fragment } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
-import { Plus, Filter, LayoutGrid, Table as TableIcon, Truck, PackageCheck, CircleCheck, CheckSquare, Square, ClipboardList } from 'lucide-react'
+import { Plus, Filter, ChevronDown, ChevronRight, Truck, PackageCheck, CircleCheck, CheckSquare, Square, ClipboardList } from 'lucide-react'
 import { useOrders, useAllStores, useAreas, useUpdateOrderStatus } from '@/features/sales/hooks'
 import { useWorkers } from '@/features/workers/hooks'
 import { useReadyStock } from '@/features/inventory/hooks'
@@ -11,7 +11,7 @@ import { formatDateShort } from '@/utils'
 import { StatusDropdown } from '../components/StatusDropdown'
 import { AddOrderModal } from '../components/AddOrderModal'
 import { FillOrderModal } from '../components/FillOrderModal'
-import { OrderTicket } from '../components/OrderTicket'
+import { OrderProductsTable } from '../components/OrderProductsTable'
 
 const PAGE_SIZE = 8
 
@@ -25,7 +25,13 @@ export default function OrdersOverview() {
   // down to only products with a stock movement today).
   const { data: products = [] } = useReadyStock({ filter: 'all' })
   const area = areas.find((a) => a.id === areaId)
-  const [view, setView] = useState('cards')
+  const [expandedIds, setExpandedIds] = useState(() => new Set())
+  const toggleExpanded = (id) => setExpandedIds((previous) => {
+    const next = new Set(previous)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    return next
+  })
   const [addOpen, setAddOpen] = useState(false)
   const [fillOrder, setFillOrder] = useState(null)
   const [selected, setSelected] = useState(new Set())
@@ -134,10 +140,7 @@ export default function OrdersOverview() {
             <Filter className="h-3.5 w-3.5" /> More filters
             {moreActive && <span className="flex h-4 w-4 items-center justify-center rounded-full bg-cherry-compote text-[9px] font-bold text-crust">!</span>}
           </button>
-          <div className="ml-auto inline-flex rounded-full bg-crust p-0.5">
-            <button onClick={() => setView('cards')} className={`rounded-full p-1.5 ${view === 'cards' ? 'bg-espresso text-crust' : 'text-espresso/60'}`}><LayoutGrid className="h-4 w-4" /></button>
-            <button onClick={() => setView('table')} className={`rounded-full p-1.5 ${view === 'table' ? 'bg-espresso text-crust' : 'text-espresso/60'}`}><TableIcon className="h-4 w-4" /></button>
-          </div>
+
         </div>
 
         {moreOpen && (
@@ -187,29 +190,15 @@ export default function OrdersOverview() {
         <EmptyState icon={ClipboardList} title="Could not load orders" description="Something went wrong fetching orders. Try refreshing." />
       ) : orders.length === 0 ? (
         <EmptyState icon={ClipboardList} title="No orders found" description="Try adjusting your filters." />
-      ) : view === 'cards' ? (
-        <>
-          <div className="mb-3 flex items-center gap-2">
-            <button onClick={toggleSelectAllOnPage} className="inline-flex items-center gap-1.5 text-xs font-medium text-espresso/60 hover:text-espresso">
-              {allOnPageSelected ? <CheckSquare className="h-4 w-4 text-oven-amber" /> : <Square className="h-4 w-4" />}
-              {allOnPageSelected ? 'Deselect all on page' : 'Select all on page'}
-            </button>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {paged.map((o) => <OrderTicket key={o.id} order={o} stores={stores} areas={areas} orderTakers={workers} onFill={() => setFillOrder(o)} onStatus={(s) => updateOrderStatus.mutate({ id: o.id, status: s })} selected={selected.has(o.id)} onToggleSelect={() => toggleSelect(o.id)} />)}
-          </div>
-          <div className="mt-4 rounded-bakery border border-espresso/8 bg-proof-cream shadow-bakery">
-            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={orders.length} pageSize={PAGE_SIZE} />
-          </div>
-        </>
       ) : (
         <div className="overflow-hidden rounded-bakery border border-espresso/8 bg-proof-cream shadow-bakery">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[700px] text-sm">
               <thead>
                 <tr className="border-b border-espresso/10 bg-crust/30 text-left">
+                  <th scope="col" className="w-10 px-2 py-3"><span className="sr-only">Order products</span></th>
                   <th className="px-4 py-3 w-10">
-                    <button onClick={toggleSelectAllOnPage}>
+                    <button type="button" aria-label={allOnPageSelected ? 'Deselect all on page' : 'Select all on page'} aria-pressed={allOnPageSelected} onClick={toggleSelectAllOnPage}>
                       {allOnPageSelected ? <CheckSquare className="h-4 w-4 text-oven-amber" /> : <Square className="h-4 w-4 text-espresso/40" />}
                     </button>
                   </th>
@@ -229,28 +218,53 @@ export default function OrdersOverview() {
                   const cfg = ORDER_STATUS[o.status]
                   const items = o.items || []
                   const totalQty = items.reduce((s, it) => s + it.quantity, 0)
+                  const expandable = items.length > 1
+                  const isExpanded = expandable && expandedIds.has(o.id)
                   return (
-                    <tr key={o.id} className={`border-b border-espresso/8 last:border-0 ${selected.has(o.id) ? 'bg-oven-amber/5' : ''}`}>
-                      <td className="px-4 py-3">
-                        <button onClick={() => toggleSelect(o.id)}>
-                          {selected.has(o.id) ? <CheckSquare className="h-4 w-4 text-oven-amber" /> : <Square className="h-4 w-4 text-espresso/40" />}
-                        </button>
-                      </td>
-                      <td className="px-4 py-3 font-medium text-espresso">{store?.dealerName}</td>
-                      <td className="px-4 py-3 text-espresso/60">{area?.name}</td>
-                      <td className="px-4 py-3 text-espresso/80">
-                        {items.length === 0 ? '—' : items.length === 1 ? items[0].productName : `${items[0].productName} +${items.length - 1} more`}
-                      </td>
-                      <td className="px-4 py-3 font-mono text-espresso">{totalQty}</td>
-                      <td className="px-4 py-3"><span className={`inline-flex items-center gap-1 text-xs ${cfg.color}`}><cfg.icon className="h-3.5 w-3.5" />{cfg.label}</span></td>
-                      <td className="px-4 py-3 text-espresso/60">{formatDateShort(o.orderDate)}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button size="sm" variant="secondary" onClick={() => setFillOrder(o)}>Fill</Button>
-                          <StatusDropdown order={o} onUpdate={(s) => updateOrderStatus.mutate({ id: o.id, status: s })} />
-                        </div>
-                      </td>
-                    </tr>
+                    <Fragment key={o.id}>
+                      <tr onClick={expandable ? () => toggleExpanded(o.id) : undefined} className={`border-b border-espresso/8 last:border-0 hover:bg-crust/20 ${expandable ? 'cursor-pointer' : ''} ${isExpanded ? 'bg-crust/40' : ''} ${selected.has(o.id) ? 'bg-oven-amber/5' : ''}`}>
+                        <td className="px-2 py-3">
+                          {expandable && (
+                            <button
+                              type="button"
+                              aria-label={`${isExpanded ? 'Hide' : 'Show'} products for ${store?.dealerName || 'order'}`}
+                              aria-expanded={isExpanded}
+                              aria-controls={isExpanded ? `area-order-products-${o.id}` : undefined}
+                              onClick={(event) => { event.stopPropagation(); toggleExpanded(o.id) }}
+                              className="flex h-7 w-7 items-center justify-center rounded-md text-espresso/50 hover:bg-espresso/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oven-amber"
+                            >
+                              {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                            </button>
+                          )}
+                        </td>
+                        <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
+                          <button type="button" aria-label={`Select order for ${store?.dealerName || 'store'}`} aria-pressed={selected.has(o.id)} onClick={() => toggleSelect(o.id)}>
+                            {selected.has(o.id) ? <CheckSquare className="h-4 w-4 text-oven-amber" /> : <Square className="h-4 w-4 text-espresso/40" />}
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 font-medium text-espresso">{store?.dealerName}</td>
+                        <td className="px-4 py-3 text-espresso/60">{area?.name}</td>
+                        <td className="px-4 py-3 text-espresso/80">
+                          {items.length === 0 ? '—' : items.length === 1 ? items[0].productName : `${items[0].productName} +${items.length - 1} more`}
+                        </td>
+                        <td className="px-4 py-3 font-mono text-espresso">{totalQty}</td>
+                        <td className="px-4 py-3"><span className={`inline-flex items-center gap-1 text-xs ${cfg.color}`}><cfg.icon className="h-3.5 w-3.5" />{cfg.label}</span></td>
+                        <td className="px-4 py-3 text-espresso/60">{formatDateShort(o.orderDate)}</td>
+                        <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-2">
+                            <Button size="sm" variant="secondary" onClick={() => setFillOrder(o)}>Fill</Button>
+                            <StatusDropdown order={o} onUpdate={(s) => updateOrderStatus.mutate({ id: o.id, status: s })} />
+                          </div>
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr className="border-b border-espresso/8 bg-crust/20 last:border-0">
+                          <td colSpan={9} className="px-4 py-4">
+                            <OrderProductsTable order={{ ...o, storeName: store?.dealerName, totalQty }} id={`area-order-products-${o.id}`} />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   )
                 })}
               </tbody>

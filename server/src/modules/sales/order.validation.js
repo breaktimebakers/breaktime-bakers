@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { paginationQueryShape } from "../../utils/pagination.js";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
 
@@ -8,6 +9,10 @@ const ORDER_STATUSES = ["in_transit", "shipped", "delivered"];
 // Orders pages show only today's orders unless the admin asks for more,
 // same "default to today" idiom as listBatchesQuerySchema.
 export const listOrdersQuerySchema = z.object({
+  ...paginationQueryShape,
+  search: z.string().trim().max(200).optional(),
+  sortKey: z.enum(["otName", "storeName", "areaName", "productsLabel", "totalQty", "status", "orderDate"]).optional().default("orderDate"),
+  sortDir: z.enum(["asc", "desc"]).optional().default("desc"),
   filter: z.enum(["today", "week", "custom", "all"]).optional().default("today"),
   from: isoDate.optional(),
   to: isoDate.optional(),

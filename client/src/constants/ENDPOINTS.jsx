@@ -2,6 +2,9 @@
 // Query/mutation hooks import from here instead of hardcoding strings,
 // so a path only ever needs to change in one place.
 export const ENDPOINTS = {
+  sales: {
+    overview: '/sales/overview',
+  },
   auth: {
     register: '/auth/register',
     login: '/auth/login',
@@ -57,7 +60,12 @@ export const ENDPOINTS = {
     remove: (id) => `/workers/${id}`,
     leave: (id) => `/workers/${id}/leave`,
     reactivate: (id) => `/workers/${id}/reactivate`,
-    updateAreas: (id) => `/workers/${id}/areas`,
+  },
+  schedule: {
+    week: '/schedule',
+    today: '/schedule/today',
+    template: (workerId) => `/schedule/template/${workerId}`,
+    override: (workerId) => `/schedule/override/${workerId}`,
   },
   attendance: {
     list: '/attendance',

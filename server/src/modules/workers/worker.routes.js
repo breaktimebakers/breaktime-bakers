@@ -7,7 +7,6 @@ import {
   workerIdParamSchema,
   createWorkerSchema,
   updateWorkerSchema,
-  updateWorkerAreasSchema,
 } from "./worker.validation.js";
 import * as workerController from "./worker.controller.js";
 
@@ -34,13 +33,6 @@ router.patch(
   "/:id/reactivate",
   validate(workerIdParamSchema, "params"),
   asyncHandler(workerController.reactivate),
-);
-
-router.patch(
-  "/:id/areas",
-  validate(workerIdParamSchema, "params"),
-  validate(updateWorkerAreasSchema),
-  asyncHandler(workerController.updateAreas),
 );
 
 router.delete("/:id", validate(workerIdParamSchema, "params"), asyncHandler(workerController.remove));

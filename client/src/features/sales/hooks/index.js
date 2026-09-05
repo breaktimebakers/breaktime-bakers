@@ -1,4 +1,5 @@
 export { useSales } from './useSales'
+export { useSalesOverview, salesKeys } from './useSalesOverview'
 export {
   useAreas,
   useArea,
@@ -17,5 +18,7 @@ export {
   useBulkAssignStores,
   useBulkUnassignStores,
 } from './useAreaMutations'
-export { useOrders, orderKeys } from './useOrders'
+export { useOrders, usePaginatedOrders, orderKeys } from './useOrders'
 export { useCreateOrder, useUpdateOrderStatus, useFulfillOrder } from './useOrderMutations'
+export { useScheduleWeek, useScheduleToday, scheduleKeys } from './useSchedule'
+export { useSaveWeeklyTemplate, useSetScheduleOverride } from './useScheduleMutations'

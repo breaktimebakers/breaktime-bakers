@@ -42,9 +42,3 @@ export const remove = async (req, res) => {
 
   sendResponse(res, 200, "Worker deleted", null);
 };
-
-export const updateAreas = async (req, res) => {
-  const worker = await workerService.updateWorkerAreas(req.params.id, req.body.areaIds);
-
-  sendResponse(res, 200, "Assigned areas updated", { worker });
-};

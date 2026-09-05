@@ -9,7 +9,6 @@ export const workerApi = {
   remove: (id) => apiClient.delete(ENDPOINTS.workers.remove(id)),
   markLeft: (id) => apiClient.patch(ENDPOINTS.workers.leave(id)),
   reactivate: (id) => apiClient.patch(ENDPOINTS.workers.reactivate(id)),
-  updateAreas: (id, areaIds) => apiClient.patch(ENDPOINTS.workers.updateAreas(id), { areaIds }),
 }
 
 export const attendanceApi = {

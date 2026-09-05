@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { X, AlertCircle } from 'lucide-react'
-import { useAreas, useAllStores, useCreateOrder } from '../hooks'
+import { useAreas, useAllStores, useCreateOrder, useScheduleToday } from '../hooks'
 import { useWorkers } from '@/features/workers/hooks'
 import { useReadyStock } from '@/features/inventory/hooks'
 import { Button, Field, Modal, inputClass } from '@/components/shared'
@@ -12,6 +12,7 @@ export function AddOrderModal({ open, onClose, areaId }) {
   const { data: areas = [] } = useAreas()
   const { data: stores = [] } = useAllStores()
   const { data: workers = [] } = useWorkers()
+  const { data: todaySchedule } = useScheduleToday()
   // "all" - not the hook's own "today" default, which is right for the
   // Ready Stock page itself (what was produced today) but wrong here: an
   // order's product picker needs every currently-available product,
@@ -20,8 +21,21 @@ export function AddOrderModal({ open, onClose, areaId }) {
   const [form, setForm] = useState(makeEmptyForm)
   const [error, setError] = useState('')
 
-  const orderTakers = workers.filter((w) => w.status === 'active' && w.roles.includes('marketer'))
+  const todayAreaByWorker = Object.fromEntries((todaySchedule?.assignments || []).map((a) => [a.workerId, a.areaId]))
+  const activeMarketers = workers.filter((w) => w.status === 'active' && w.roles.includes('marketer'))
   const visibleAreas = areaId ? areas.filter((a) => a.id === areaId) : areas
+  const selectedStore = stores.find((s) => s.id === form.storeId)
+  // Only order takers actually scheduled today for this store's area can
+  // take this order - see order.service.js's matching server-side check.
+  const orderTakers = selectedStore
+    ? activeMarketers.filter((ot) => todayAreaByWorker[ot.id] === selectedStore.areaId)
+    : activeMarketers.filter((ot) => todayAreaByWorker[ot.id])
+
+  const selectStore = (storeId) => {
+    const store = stores.find((s) => s.id === storeId)
+    const stillValid = form.orderTakerId && todayAreaByWorker[form.orderTakerId] === store?.areaId
+    setForm((f) => ({ ...f, storeId, orderTakerId: stillValid ? f.orderTakerId : '' }))
+  }
 
   const addLine = () => setForm((f) => ({ ...f, items: [...f.items, { productId: products[0]?.id || '', quantity: '' }] }))
   const removeLine = (i) => setForm((f) => ({ ...f, items: f.items.filter((_, idx) => idx !== i) }))
@@ -57,7 +71,7 @@ export function AddOrderModal({ open, onClose, areaId }) {
     <Modal open={open} onClose={onClose} eyebrow="Sales / Orders" title="Add order" footer={<><Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button><Button onClick={submit} disabled={busy}>{busy ? 'Adding…' : 'Add order'}</Button></>}>
       <div className="grid gap-3">
         <Field label="Store" required>
-          <select className={inputClass} value={form.storeId} onChange={(e) => setForm({ ...form, storeId: e.target.value })}>
+          <select className={inputClass} value={form.storeId} onChange={(e) => selectStore(e.target.value)}>
             <option value="">Select store...</option>
             {visibleAreas.map((a) => (
               <optgroup key={a.id} label={a.name}>
@@ -71,6 +85,9 @@ export function AddOrderModal({ open, onClose, areaId }) {
             <option value="">Select person...</option>
             {orderTakers.map((ot) => <option key={ot.id} value={ot.id}>{ot.name}</option>)}
           </select>
+          {form.storeId && orderTakers.length === 0 && (
+            <p className="mt-1 text-xs text-cherry-compote">No order taker is scheduled for this store&apos;s area today. Check the weekly schedule.</p>
+          )}
         </Field>
 
         <div>

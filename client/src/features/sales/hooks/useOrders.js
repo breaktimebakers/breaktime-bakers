@@ -18,3 +18,12 @@ export function useOrders(query = {}) {
     },
   })
 }
+
+export function usePaginatedOrders(query = {}) {
+  const params = { ...query, page: query.page ?? 1, pageSize: query.pageSize ?? 10 }
+
+  return useQuery({
+    queryKey: orderKeys.list(params),
+    queryFn: () => orderApi.list(params),
+  })
+}

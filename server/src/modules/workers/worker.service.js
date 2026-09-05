@@ -54,9 +54,3 @@ export const deleteWorker = async (id) => {
 
   await workerRepo.deleteWorker(id);
 };
-
-export const updateWorkerAreas = async (id, areaIds) => {
-  await requireWorker(id);
-
-  return withSignedPhotoUrl(await workerRepo.replaceWorkerAreas(id, areaIds));
-};

@@ -1,9 +1,13 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { areaApi, storeApi } from '../api/areaApi'
 import { areaKeys, storeKeys } from './useAreas'
+import { salesKeys } from './useSalesOverview'
 import { toast } from '@/lib/toast'
 
-const invalidateAreas = (queryClient) => queryClient.invalidateQueries({ queryKey: areaKeys.all })
+const invalidateAreas = (queryClient) => Promise.all([
+  queryClient.invalidateQueries({ queryKey: areaKeys.all }),
+  queryClient.invalidateQueries({ queryKey: salesKeys.overview }),
+])
 
 // Store data is also cached separately under storeKeys (useAllStores,
 // useUnassignedStores) for consumers that aren't scoped to one area, e.g.

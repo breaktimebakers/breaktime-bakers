@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { MapPin, ClipboardList, Store, ArrowRight, Receipt, Package } from 'lucide-react'
-import { useSales } from '@/features/sales/hooks'
-import { PageHeader } from '@/components/shared'
+import { useSalesOverview } from '@/features/sales/hooks'
+import { Button, PageHeader } from '@/components/shared'
 
 function StatCard({ label, value, icon: Icon, chipColor, danger }) {
   return (
@@ -36,20 +36,25 @@ function NavCard({ to, icon: Icon, title, description, linkLabel }) {
 }
 
 export default function SalesOverview() {
-  const { areas, stores, orders } = useSales()
-  const today = new Date().toISOString().slice(0, 10)
-  const ordersToday = orders.filter((o) => o.date === today).length
-  const pending = orders.filter((o) => o.status !== 'delivered').length
+  const { data: overview, isLoading, isError, isFetching, refetch } = useSalesOverview()
+  const pending = overview?.ordersPending
 
   return (
     <div>
       <PageHeader eyebrow="Sales / Overview" title="Sales" description="Manage sales territories, store orders, and field order takers." />
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <StatCard label="Total areas" value={areas.length} icon={MapPin} chipColor="bg-sourdough/50 text-espresso" />
-        <StatCard label="Total stores" value={stores.length} icon={Store} chipColor="bg-olive-herb/30 text-olive-herb" />
-        <StatCard label="Orders today" value={ordersToday} icon={Receipt} chipColor="bg-oven-amber/15 text-oven-amber" />
-        <StatCard label="Orders pending" value={pending} icon={Package} chipColor={pending > 0 ? 'bg-cherry-compote/15 text-cherry-compote' : 'bg-matcha-glaze/20 text-matcha-glaze'} danger={pending > 0} />
+      {isError && (
+        <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-bakery border border-cherry-compote/30 bg-proof-cream p-4 text-sm text-cherry-compote">
+          <p>{overview ? 'Could not refresh sales totals. Showing the last loaded values.' : 'Could not load sales totals. Please try again.'}</p>
+          <Button size="sm" variant="secondary" onClick={() => refetch()} disabled={isFetching}>{isFetching ? 'Retrying…' : 'Retry'}</Button>
+        </div>
+      )}
+      {isLoading && <p role="status" className="mb-3 text-sm text-espresso/50">Loading sales totals…</p>}
+      <div aria-busy={isFetching} className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <StatCard label="Total areas" value={overview?.totalAreas ?? '—'} icon={MapPin} chipColor="bg-sourdough/50 text-espresso" />
+        <StatCard label="Total stores" value={overview?.totalStores ?? '—'} icon={Store} chipColor="bg-olive-herb/30 text-olive-herb" />
+        <StatCard label="Orders today" value={overview?.ordersToday ?? '—'} icon={Receipt} chipColor="bg-oven-amber/15 text-oven-amber" />
+        <StatCard label="Orders pending" value={pending ?? '—'} icon={Package} chipColor={pending > 0 ? 'bg-cherry-compote/15 text-cherry-compote' : 'bg-matcha-glaze/20 text-matcha-glaze'} danger={pending > 0} />
       </div>
 
       <div className="mt-6 grid gap-4 sm:mt-8 sm:grid-cols-2 sm:gap-6">

@@ -5,7 +5,6 @@ export {
   useDeleteWorker,
   useMarkWorkerLeft,
   useReactivateWorker,
-  useUpdateWorkerAreas,
   useMarkAttendance,
   useClearAttendance,
 } from './useWorkerMutations'

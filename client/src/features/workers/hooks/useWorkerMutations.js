@@ -80,20 +80,6 @@ export function useReactivateWorker() {
   })
 }
 
-export function useUpdateWorkerAreas() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, areaIds }) => workerApi.updateAreas(id, areaIds),
-    onSuccess: () => {
-      invalidateWorkers(queryClient)
-      toast.success('Assigned areas updated')
-    },
-    onError: (err) => {
-      toast.error('Could not update assigned areas', { description: err.message })
-    },
-  })
-}
-
 export function useMarkAttendance() {
   const queryClient = useQueryClient()
   return useMutation({

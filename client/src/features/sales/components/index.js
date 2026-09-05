@@ -1,6 +1,5 @@
 export { AddOrderModal } from './AddOrderModal'
 export { AddPersonOrderModal } from './AddPersonOrderModal'
-export { AssignAreasModal } from './AssignAreasModal'
 export { FillOrderModal } from './FillOrderModal'
 export { OrderTicket } from './OrderTicket'
 export { StatusDropdown } from './StatusDropdown'

@@ -2,9 +2,9 @@ import { sendResponse } from "../../utils/apiResponse.js";
 import * as orderService from "./order.service.js";
 
 export const list = async (req, res) => {
-  const orders = await orderService.listOrders(req.validatedQuery);
+  const result = await orderService.listOrders(req.validatedQuery);
 
-  sendResponse(res, 200, "Orders fetched", { orders });
+  sendResponse(res, 200, "Orders fetched", result);
 };
 
 export const create = async (req, res) => {

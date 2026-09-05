@@ -1,23 +1,27 @@
-import { useState, useMemo } from 'react'
+import { OrderProductsTable } from '../components/OrderProductsTable'
+import { useState, useMemo, Fragment } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ArrowLeft, MapPin, Search } from 'lucide-react'
-import { useAreas, useAllStores, useOrders } from '@/features/sales/hooks'
+import { ArrowLeft, CalendarDays, ChevronDown, ChevronRight, MapPin, Search } from 'lucide-react'
+import { useAreas, usePaginatedOrders, useScheduleToday } from '@/features/sales/hooks'
 import { useWorkers } from '@/features/workers/hooks'
 import { ORDER_STATUS } from '@/constants/orderStatus'
-import { AssignAreasModal } from '../components/AssignAreasModal'
-import { Button, EmptyState, PageHeader, SortIcon, inputClass } from '@/components/shared'
+import { Button, EmptyState, PageHeader, Pagination, SortIcon, inputClass } from '@/components/shared'
+
+const PAGE_SIZE = 10
 
 export default function OrderTakersList() {
   const { data: workers = [] } = useWorkers()
   const { data: areas = [] } = useAreas()
-  const { data: stores = [] } = useAllStores()
-  const { data: orders = [], isLoading, isError } = useOrders({ filter: 'all' })
+  const { data: todaySchedule } = useScheduleToday()
   const orderTakers = useMemo(() => workers.filter((w) => w.roles.includes('marketer')), [workers])
-  const [assignPerson, setAssignPerson] = useState(null)
+  const todayAreaByWorker = useMemo(
+    () => Object.fromEntries((todaySchedule?.assignments || []).map((a) => [a.workerId, a.areaId])),
+    [todaySchedule],
+  )
 
   // Table filter state
   const [otFilter, setOtFilter] = useState('all')
-  const [dateMode, setDateMode] = useState('all')
+  const [dateMode, setDateMode] = useState('today')
   const [specificDate, setSpecificDate] = useState('')
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
@@ -25,6 +29,14 @@ export default function OrderTakersList() {
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState('orderDate')
   const [sortDir, setSortDir] = useState('desc')
+  const [expandedIds, setExpandedIds] = useState(() => new Set())
+
+  const toggleExpanded = (id) => setExpandedIds((prev) => {
+    const next = new Set(prev)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    return next
+  })
 
   const toggleSort = (key) => {
     if (sortKey === key) {
@@ -35,51 +47,30 @@ export default function OrderTakersList() {
     }
   }
 
-  const filteredOrders = useMemo(() => {
-    let list = orders.map((o) => {
-      const store = stores.find((s) => s.id === o.storeId)
-      const area = areas.find((a) => a.id === store?.areaId)
-      const ot = orderTakers.find((t) => t.id === o.orderTakerId)
-      const items = o.items || []
-      const productsLabel = items.length === 0 ? '—' : items.length === 1 ? items[0].productName : `${items[0].productName} +${items.length - 1} more`
-      const totalQty = items.reduce((s, it) => s + it.quantity, 0)
-      return { ...o, storeName: store?.dealerName || '—', areaName: area?.name || '—', otName: ot?.name || '—', productsLabel, totalQty }
-    })
-
-    if (otFilter !== 'all') list = list.filter((o) => o.orderTakerId === otFilter)
-    if (statusFilter !== 'all') list = list.filter((o) => o.status === statusFilter)
-    if (search) {
-      const q = search.toLowerCase()
-      list = list.filter((o) =>
-        o.storeName.toLowerCase().includes(q) ||
-        o.productsLabel.toLowerCase().includes(q) ||
-        o.otName.toLowerCase().includes(q) ||
-        o.id.toLowerCase().includes(q)
-      )
-    }
-    if (dateMode === 'today') list = list.filter((o) => o.orderDate === new Date().toISOString().slice(0, 10))
-    if (dateMode === 'week') list = list.filter((o) => { const d = new Date(o.orderDate); return (new Date() - d) / 86400000 <= 7 })
-    if (dateMode === 'specific' && specificDate) list = list.filter((o) => o.orderDate === specificDate)
-    if (dateMode === 'custom') {
-      if (customFrom) list = list.filter((o) => o.orderDate >= customFrom)
-      if (customTo) list = list.filter((o) => o.orderDate <= customTo)
-    }
-
-    list.sort((a, b) => {
-      let av = a[sortKey], bv = b[sortKey]
-      if (sortKey === 'totalQty') { av = Number(av) || 0; bv = Number(bv) || 0 }
-      if (av < bv) return sortDir === 'asc' ? -1 : 1
-      if (av > bv) return sortDir === 'asc' ? 1 : -1
-      return 0
-    })
-
-    return list
-  }, [orders, stores, areas, orderTakers, otFilter, statusFilter, search, dateMode, specificDate, customFrom, customTo, sortKey, sortDir])
+  const paginationResetKey = JSON.stringify([otFilter, dateMode, specificDate, customFrom, customTo, statusFilter, search, sortKey, sortDir])
+  const [pageState, setPageState] = useState({ key: paginationResetKey, page: 1 })
+  const requestedPage = pageState.key === paginationResetKey ? pageState.page : 1
+  if (pageState.key !== paginationResetKey) setPageState({ key: paginationResetKey, page: 1 })
+  const setPage = (nextPage) => setPageState({ key: paginationResetKey, page: nextPage })
+  const { data, isLoading, isError } = usePaginatedOrders({
+    page: requestedPage,
+    pageSize: PAGE_SIZE,
+    filter: dateMode === 'specific' ? 'custom' : dateMode,
+    from: dateMode === 'specific' ? specificDate || undefined : dateMode === 'custom' ? customFrom || undefined : undefined,
+    to: dateMode === 'specific' ? specificDate || undefined : dateMode === 'custom' ? customTo || undefined : undefined,
+    orderTakerId: otFilter === 'all' ? undefined : otFilter,
+    status: statusFilter,
+    search: search.trim() || undefined,
+    sortKey,
+    sortDir,
+  })
+  const pagedOrders = data?.orders || []
+  const { page = requestedPage, totalPages = 1, totalItems = 0 } = data?.pagination || {}
 
   const clearFilters = () => {
-    setOtFilter('all'); setDateMode('all'); setSpecificDate(''); setCustomFrom(''); setCustomTo(''); setStatusFilter('all'); setSearch('')
+    setOtFilter('all'); setDateMode('today'); setSpecificDate(''); setCustomFrom(''); setCustomTo(''); setStatusFilter('all'); setSearch('')
   }
-  const anyFilter = otFilter !== 'all' || dateMode !== 'all' || statusFilter !== 'all' || search
+  const anyFilter = otFilter !== 'all' || dateMode !== 'today' || statusFilter !== 'all' || search
 
   const columns = [
     { key: 'otName', label: 'Order taker' },
@@ -96,7 +87,16 @@ export default function OrderTakersList() {
       <Link to="/sales/orders" className="mb-3 inline-flex items-center gap-1.5 text-sm text-espresso/50 hover:text-oven-amber">
         <ArrowLeft className="h-4 w-4" /> Back to orders
       </Link>
-      <PageHeader eyebrow="Sales / Order takers" title="Order Takers" description="Field sales reps, their assigned territories, and a full breakdown of their orders." />
+      <PageHeader
+        eyebrow="Sales / Order takers"
+        title="Order Takers"
+        description="Field sales reps, the area each of them is covering today, and a full breakdown of their orders."
+        actions={
+          <Link to="/sales/orders/order-takers/schedule" className="inline-flex items-center gap-1.5 rounded-bakery border border-espresso/15 bg-proof-cream px-3 py-1.5 text-xs font-medium text-espresso transition hover:bg-sourdough/40">
+            <CalendarDays className="h-4 w-4" />Weekly schedule
+          </Link>
+        }
+      />
 
       {/* Cards */}
       {orderTakers.length === 0 ? (
@@ -104,8 +104,9 @@ export default function OrderTakersList() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {orderTakers.map((ot) => {
-            const count = orders.filter((o) => o.orderTakerId === ot.id).length
-            const assignedAreas = areas.filter((a) => (ot.assignedAreaIds || []).includes(a.id))
+            const count = data ? data.orderTakerCounts?.find((entry) => entry.orderTakerId === ot.id)?.total || 0 : undefined
+            const todayAreaId = todayAreaByWorker[ot.id]
+            const todayArea = areas.find((a) => a.id === todayAreaId)
             return (
               <div key={ot.id} className="rounded-bakery border border-espresso/8 bg-proof-cream p-5 shadow-bakery">
                 <div className="flex items-start gap-3">
@@ -114,20 +115,23 @@ export default function OrderTakersList() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <h3 className="font-display text-lg font-semibold text-espresso">{ot.name}</h3>
-                    <p className="text-xs text-espresso/50">{count} total {count === 1 ? 'order' : 'orders'}</p>
+                    <p className="text-xs text-espresso/50">{count === undefined ? '—' : count} total {count === 1 ? 'order' : 'orders'}</p>
                   </div>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-1.5">
-                  {assignedAreas.map((a) => (
-                    <span key={a.id} className="inline-flex items-center gap-1 rounded-full bg-espresso/5 px-2.5 py-1 text-xs text-espresso/70"><MapPin className="h-3 w-3" />{a.name}</span>
-                  ))}
-                  {assignedAreas.length === 0 && <span className="text-xs text-espresso/40">No areas assigned</span>}
+                  {todayArea ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-espresso/5 px-2.5 py-1 text-xs text-espresso/70"><MapPin className="h-3 w-3" />Today: {todayArea.name}</span>
+                  ) : (
+                    <span className="text-xs text-espresso/40">Not scheduled today</span>
+                  )}
                 </div>
                 <div className="mt-4 flex items-center gap-2">
                   <Link to="/sales/orders/order-takers/$personId" params={{ personId: ot.id }}>
                     <Button size="sm" variant="secondary">View detail</Button>
                   </Link>
-                  <Button size="sm" variant="ghost" onClick={() => setAssignPerson(ot)}>Assign areas</Button>
+                  <Link to="/sales/orders/order-takers/schedule">
+                    <Button size="sm" variant="ghost">Edit schedule</Button>
+                  </Link>
                 </div>
               </div>
             )
@@ -169,7 +173,7 @@ export default function OrderTakersList() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <p className="text-xs text-espresso/50">{filteredOrders.length} {filteredOrders.length === 1 ? 'order' : 'orders'}</p>
+            <p className="text-xs text-espresso/50">{totalItems} {totalItems === 1 ? 'order' : 'orders'}</p>
             {anyFilter && <button onClick={clearFilters} className="text-xs text-oven-amber hover:underline">Clear filters</button>}
           </div>
         </div>
@@ -178,16 +182,17 @@ export default function OrderTakersList() {
           <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading orders...</p>
         ) : isError ? (
           <EmptyState icon={Search} title="Could not load orders" description="Something went wrong fetching orders. Try refreshing." />
-        ) : filteredOrders.length === 0 ? (
+        ) : totalItems === 0 ? (
           <EmptyState icon={Search} title="No orders found" description="Try adjusting your filters." />
         ) : (
           <>
             {/* Desktop table */}
             <div className="hidden overflow-hidden rounded-bakery border border-espresso/8 bg-proof-cream shadow-bakery md:block">
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[760px] text-sm">
+                <table className="w-full min-w-[780px] text-sm">
                   <thead>
                     <tr className="border-b border-espresso/10 bg-crust/30 text-left">
+                      <th className="w-8 px-2 py-3"></th>
                       {columns.map((col) => (
                         <th key={col.key} className="px-4 py-3">
                           <button onClick={() => toggleSort(col.key)} className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-espresso/50 hover:text-espresso">
@@ -199,18 +204,47 @@ export default function OrderTakersList() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredOrders.map((o) => {
+                    {pagedOrders.map((o) => {
                       const sc = ORDER_STATUS[o.status]
+                      const items = o.items || []
+                      const expandable = items.length > 1
+                      const isExpanded = expandable && expandedIds.has(o.id)
                       return (
-                        <tr key={o.id} className="border-b border-espresso/8 last:border-0 hover:bg-crust/20">
-                          <td className="px-4 py-3 font-medium text-espresso">{o.otName}</td>
-                          <td className="px-4 py-3 text-espresso/80">{o.storeName}</td>
-                          <td className="px-4 py-3 text-espresso/60">{o.areaName}</td>
-                          <td className="px-4 py-3 text-espresso/80">{o.productsLabel}</td>
-                          <td className="px-4 py-3 font-mono text-espresso">{o.totalQty}</td>
-                          <td className="px-4 py-3"><span className={`text-xs font-medium capitalize ${sc.color}`}>{sc.label}</span></td>
-                          <td className="px-4 py-3 text-espresso/60">{new Date(o.orderDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
-                        </tr>
+                        <Fragment key={o.id}>
+                          <tr
+                            className={`border-b border-espresso/8 last:border-0 hover:bg-crust/20 ${isExpanded ? 'bg-crust/40' : ''} ${expandable ? 'cursor-pointer' : ''}`}
+                            onClick={expandable ? () => toggleExpanded(o.id) : undefined}
+                          >
+                            <td className="px-2 py-3 text-espresso/40">
+                              {expandable && (
+                                <button
+                                  type="button"
+                                  aria-label={`${isExpanded ? 'Hide' : 'Show'} products for ${o.storeName}`}
+                                  aria-expanded={isExpanded}
+                                  aria-controls={isExpanded ? `order-products-desktop-${o.id}` : undefined}
+                                  onClick={(event) => { event.stopPropagation(); toggleExpanded(o.id) }}
+                                  className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-espresso/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oven-amber"
+                                >
+                                  {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                </button>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 font-medium text-espresso">{o.otName}</td>
+                            <td className="px-4 py-3 text-espresso/80">{o.storeName}</td>
+                            <td className="px-4 py-3 text-espresso/60">{o.areaName}</td>
+                            <td className="px-4 py-3 text-espresso/80">{o.productsLabel}</td>
+                            <td className="px-4 py-3 font-mono text-espresso">{o.totalQty}</td>
+                            <td className="px-4 py-3"><span className={`text-xs font-medium capitalize ${sc.color}`}>{sc.label}</span></td>
+                            <td className="px-4 py-3 text-espresso/60">{new Date(o.orderDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                          </tr>
+                          {isExpanded && (
+                            <tr className="border-b border-espresso/8 last:border-0 bg-crust/20">
+                              <td colSpan={columns.length + 1} className="px-4 py-4">
+                                <OrderProductsTable order={o} id={`order-products-desktop-${o.id}`} />
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
                       )
                     })}
                   </tbody>
@@ -220,8 +254,11 @@ export default function OrderTakersList() {
 
             {/* Mobile cards */}
             <div className="grid gap-3 md:hidden">
-              {filteredOrders.map((o) => {
+              {pagedOrders.map((o) => {
                 const sc = ORDER_STATUS[o.status]
+                const items = o.items || []
+                const expandable = items.length > 1
+                const isExpanded = expandable && expandedIds.has(o.id)
                 return (
                   <div key={o.id} className="rounded-bakery border border-espresso/8 bg-proof-cream p-4 shadow-bakery">
                     <div className="flex items-start justify-between">
@@ -231,10 +268,25 @@ export default function OrderTakersList() {
                       </div>
                       <span className={`text-xs font-medium capitalize ${sc.color}`}>{sc.label}</span>
                     </div>
-                    <div className="mt-2 flex items-center justify-between text-xs">
-                      <span className="text-espresso/70">{o.productsLabel}</span>
+                    <button
+                      type="button"
+                      disabled={!expandable}
+                      aria-expanded={expandable ? isExpanded : undefined}
+                      aria-controls={isExpanded ? `order-products-mobile-${o.id}` : undefined}
+                      onClick={() => expandable && toggleExpanded(o.id)}
+                      className="mt-2 flex w-full items-center justify-between gap-2 text-xs"
+                    >
+                      <span className="inline-flex items-center gap-1 text-espresso/70">
+                        {expandable && (isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />)}
+                        {o.productsLabel}
+                      </span>
                       <span className="font-mono text-espresso">{o.totalQty} units</span>
-                    </div>
+                    </button>
+                    {isExpanded && (
+                      <div className="my-3">
+                        <OrderProductsTable order={o} id={`order-products-mobile-${o.id}`} />
+                      </div>
+                    )}
                     <div className="mt-1 text-xs text-espresso/45">
                       <span>{new Date(o.orderDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
                     </div>
@@ -242,11 +294,10 @@ export default function OrderTakersList() {
                 )
               })}
             </div>
+            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={totalItems} pageSize={PAGE_SIZE} />
           </>
         )}
       </div>
-
-      <AssignAreasModal open={!!assignPerson} onClose={() => setAssignPerson(null)} person={assignPerson} />
     </div>
   )
 }

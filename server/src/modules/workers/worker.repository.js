@@ -3,7 +3,6 @@ import { v7 as uuidv7 } from "uuid";
 import { db } from "../../db/index.js";
 import { workers } from "./worker.schema.js";
 import { workerRoles } from "./workerRole.schema.js";
-import { workerAreas } from "./workerArea.schema.js";
 
 // Roles live in a separate one-row-per-role table (see workerRole.schema.js)
 // and are aggregated back into a plain string array here - same json_agg
@@ -12,14 +11,6 @@ const rolesSql = sql`COALESCE((
   SELECT json_agg(wr.role ORDER BY wr.role)
   FROM worker_roles wr
   WHERE wr.worker_id = workers.id
-), '[]'::json)`;
-
-// A marketer's assigned sales territories - same join-table-aggregated-
-// back-into-an-array pattern as roles above (see workerArea.schema.js).
-const assignedAreaIdsSql = sql`COALESCE((
-  SELECT json_agg(wa.area_id ORDER BY wa.area_id)
-  FROM worker_areas wa
-  WHERE wa.worker_id = workers.id
 ), '[]'::json)`;
 
 const workerSelection = {
@@ -40,7 +31,6 @@ const workerSelection = {
   createdAt: workers.createdAt,
   updatedAt: workers.updatedAt,
   roles: rolesSql,
-  assignedAreaIds: assignedAreaIdsSql,
 };
 
 export const listWorkers = async () => {
@@ -144,18 +134,4 @@ export const setWorkerLeaveStatus = async (id, { status, leftDate }) => {
 
 export const deleteWorker = async (id) => {
   await db.delete(workers).where(eq(workers.id, id));
-};
-
-// Full replace, not incremental add/remove - matches AssignAreasModal's
-// "toggle a set, save" UX (same shape as replaceRoles above).
-export const replaceWorkerAreas = async (workerId, areaIds) => {
-  await db.transaction(async (tx) => {
-    await tx.delete(workerAreas).where(eq(workerAreas.workerId, workerId));
-
-    if (areaIds.length) {
-      await tx.insert(workerAreas).values(areaIds.map((areaId) => ({ id: uuidv7(), workerId, areaId })));
-    }
-  });
-
-  return findWorkerById(workerId);
 };
