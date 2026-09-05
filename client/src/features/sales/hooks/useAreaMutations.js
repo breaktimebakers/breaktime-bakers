@@ -1,9 +1,19 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { areaApi, storeApi } from '../api/areaApi'
-import { areaKeys } from './useAreas'
+import { areaKeys, storeKeys } from './useAreas'
 import { toast } from '@/lib/toast'
 
 const invalidateAreas = (queryClient) => queryClient.invalidateQueries({ queryKey: areaKeys.all })
+
+// Store data is also cached separately under storeKeys (useAllStores,
+// useUnassignedStores) for consumers that aren't scoped to one area, e.g.
+// the Add/Fill Order pickers and the Areas page's unassigned-stores
+// banner. areaKeys.all doesn't cover that branch, so anything that
+// changes a store (not just its area) needs to invalidate both.
+const invalidateAreasAndStores = (queryClient) => {
+  invalidateAreas(queryClient)
+  queryClient.invalidateQueries({ queryKey: storeKeys.all })
+}
 
 export function useCreateArea() {
   const queryClient = useQueryClient()
@@ -39,9 +49,10 @@ export function useCreateStore() {
     mutationFn: ({ areaId, body }) => areaApi.createStore(areaId, body),
     onSuccess: () => {
       // A new store changes both that area's store list and its
-      // storeCount on the Areas grid - invalidate the whole branch
-      // rather than hand-patching two separate caches.
-      invalidateAreas(queryClient)
+      // storeCount on the Areas grid, plus the standalone stores branch
+      // (Add/Fill Order pickers) - invalidate both rather than
+      // hand-patching separate caches.
+      invalidateAreasAndStores(queryClient)
       toast.success('Store added')
     },
     onError: (err) => {
@@ -55,7 +66,7 @@ export function useUpdateStore() {
   return useMutation({
     mutationFn: ({ id, body }) => storeApi.update(id, body),
     onSuccess: () => {
-      invalidateAreas(queryClient)
+      invalidateAreasAndStores(queryClient)
       toast.success('Store updated')
     },
     onError: (err) => {
@@ -71,8 +82,8 @@ export function useBulkAssignStores() {
     onSuccess: (_data, { storeIds }) => {
       // Touches the target area's store list/count, the unassigned pool,
       // and (if these stores came from another area) that area's count
-      // too - invalidate the whole branch rather than track all three.
-      invalidateAreas(queryClient)
+      // too - invalidate both branches rather than track all of them.
+      invalidateAreasAndStores(queryClient)
       toast.success(`${storeIds.length} ${storeIds.length === 1 ? 'store' : 'stores'} assigned`)
     },
     onError: (err) => {
@@ -86,7 +97,7 @@ export function useBulkUnassignStores() {
   return useMutation({
     mutationFn: ({ storeIds }) => storeApi.bulkUnassign(storeIds),
     onSuccess: (_data, { storeIds }) => {
-      invalidateAreas(queryClient)
+      invalidateAreasAndStores(queryClient)
       toast.success(`${storeIds.length} ${storeIds.length === 1 ? 'store' : 'stores'} removed from area`)
     },
     onError: (err) => {
@@ -100,7 +111,7 @@ export function useUpdateStoreStatus() {
   return useMutation({
     mutationFn: ({ id, isActive }) => storeApi.updateStatus(id, isActive),
     onSuccess: (_data, { isActive }) => {
-      invalidateAreas(queryClient)
+      invalidateAreasAndStores(queryClient)
       toast.success(isActive ? 'Store marked active' : 'Store marked inactive')
     },
     onError: (err) => {

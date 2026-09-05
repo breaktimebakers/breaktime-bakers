@@ -74,12 +74,13 @@ function StoreMarkersMap({ stores }) {
           zoom: 16,
           mapId: MAP_ID,
           gestureHandling: 'cooperative',
+          disableDefaultUI: true,
           cameraControl: true,
           zoomControl: true,
           fullscreenControl: true,
           streetViewControl: false,
           mapTypeControl: false,
-          keyboardShortcuts: true,
+          keyboardShortcuts: false,
         })
         infoWindowRef.current = new maps.InfoWindow({ maxWidth: 280 })
         setStatus('ready')

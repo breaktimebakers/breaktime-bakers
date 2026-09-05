@@ -29,7 +29,6 @@ export function StoreLocationPicker({ lat, lng, requirePermission = true, onChan
   const savedPosition = toPosition(lat, lng)
   const canUseSavedPosition = !requirePermission && Boolean(savedPosition)
   const mapElementRef = useRef(null)
-  const autocompleteElementRef = useRef(null)
   const mapRef = useRef(null)
   const markerRef = useRef(null)
   const markerClassRef = useRef(null)
@@ -49,6 +48,18 @@ export function StoreLocationPicker({ lat, lng, requirePermission = true, onChan
   useEffect(() => {
     onAuthorizationChangeRef.current = onAuthorizationChange
   }, [onAuthorizationChange])
+
+  useEffect(() => {
+    if (requirePermission || authorizationPosition) return
+
+    const position = toPosition(lat, lng)
+    if (!position) return
+
+    initialPositionRef.current = position
+    setStatus('loading')
+    setAuthorizationPosition(position)
+    onAuthorizationChangeRef.current?.(true)
+  }, [authorizationPosition, lat, lng, requirePermission])
 
   useEffect(() => {
     if (!requirePermission) return undefined
@@ -88,13 +99,11 @@ export function StoreLocationPicker({ lat, lng, requirePermission = true, onChan
     let cancelled = false
     let mapClickListener
     let markerDragListener
-    let autocompleteSelectListener
 
-    const emitPosition = (position, address) => {
+    const emitPosition = (position) => {
       onChangeRef.current({
         lat: roundCoordinate(position.lat),
         lng: roundCoordinate(position.lng),
-        ...(address ? { address } : {}),
       })
     }
 
@@ -125,8 +134,8 @@ export function StoreLocationPicker({ lat, lng, requirePermission = true, onChan
 
     const initialize = async () => {
       try {
-        const { maps, marker, places } = await loadStoreMapLibraries()
-        if (cancelled || !mapElementRef.current || !autocompleteElementRef.current) return
+        const { maps, marker } = await loadStoreMapLibraries()
+        if (cancelled || !mapElementRef.current) return
 
         const initialPosition = initialPositionRef.current || authorizationPosition
         markerClassRef.current = marker.AdvancedMarkerElement
@@ -134,9 +143,12 @@ export function StoreLocationPicker({ lat, lng, requirePermission = true, onChan
           center: initialPosition,
           zoom: 17,
           mapId: MAP_ID,
+          disableDefaultUI: true,
+          zoomControl: true,
           streetViewControl: false,
           mapTypeControl: false,
           fullscreenControl: false,
+          keyboardShortcuts: false,
         })
 
         if (initialPosition) placeMarker(initialPosition)
@@ -148,29 +160,6 @@ export function StoreLocationPicker({ lat, lng, requirePermission = true, onChan
           emitPosition(position)
         })
 
-        const autocomplete = new places.PlaceAutocompleteElement({
-          includedRegionCodes: ['in'],
-        })
-        autocomplete.placeholder = 'Search shop, landmark or address'
-        autocomplete.className = 'block w-full'
-        autocompleteElementRef.current.replaceChildren(autocomplete)
-
-        const handlePlaceSelect = async ({ placePrediction }) => {
-          try {
-            const place = placePrediction.toPlace()
-            await place.fetchFields({ fields: ['formattedAddress', 'location'] })
-            if (!place.location) return
-
-            const position = { lat: place.location.lat(), lng: place.location.lng() }
-            placeMarker(position, true)
-            emitPosition(position, place.formattedAddress)
-          } catch {
-            setLocationError('Could not load that place. Please try another result.')
-          }
-        }
-
-        autocomplete.addEventListener('gmp-select', handlePlaceSelect)
-        autocompleteSelectListener = () => autocomplete.removeEventListener('gmp-select', handlePlaceSelect)
         setStatus('ready')
       } catch (error) {
         if (!cancelled) {
@@ -186,7 +175,6 @@ export function StoreLocationPicker({ lat, lng, requirePermission = true, onChan
       cancelled = true
       mapClickListener?.remove()
       markerDragListener?.remove()
-      autocompleteSelectListener?.()
       if (markerRef.current) markerRef.current.map = null
       markerRef.current = null
       mapRef.current = null
@@ -267,6 +255,18 @@ export function StoreLocationPicker({ lat, lng, requirePermission = true, onChan
     )
   }
 
+  if (!authorizationPosition && !requirePermission) {
+    return (
+      <div className="rounded-lg border border-espresso/10 bg-crust/35 p-5 text-center">
+        <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-oven-amber/10 text-oven-amber">
+          <MapPin className="h-5 w-5" />
+        </div>
+        <h3 className="mt-3 font-display text-base font-semibold text-espresso">No saved location</h3>
+        <p className="mx-auto mt-1 max-w-sm text-sm text-espresso/55">Enter valid latitude and longitude below to load the map.</p>
+      </div>
+    )
+  }
+
   if (!authorizationPosition) {
     return (
       <div className="rounded-lg border border-espresso/10 bg-crust/35 p-5 text-center">
@@ -274,7 +274,7 @@ export function StoreLocationPicker({ lat, lng, requirePermission = true, onChan
           <LocateFixed className="h-5 w-5" />
         </div>
         <h3 className="mt-3 font-display text-base font-semibold text-espresso">Location permission required</h3>
-        <p className="mx-auto mt-1 max-w-sm text-sm text-espresso/55">The map and store search will load only after your browser provides the current device location. No fallback location will be used.</p>
+        <p className="mx-auto mt-1 max-w-sm text-sm text-espresso/55">The map will load only after your browser provides the current device location. No fallback location will be used.</p>
         <button
           type="button"
           onClick={useCurrentLocation}
@@ -290,18 +290,6 @@ export function StoreLocationPicker({ lat, lng, requirePermission = true, onChan
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <div ref={autocompleteElementRef} className="min-h-10 min-w-0 flex-1" />
-        <button
-          type="button"
-          onClick={useCurrentLocation}
-          disabled={status !== 'ready'}
-          className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-espresso/10 bg-crust/40 px-3 text-sm font-medium text-espresso/70 transition hover:bg-crust/70 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <LocateFixed className="h-4 w-4" /> {status === 'locating' ? 'Getting location…' : 'Update current location'}
-        </button>
-      </div>
-
       <div className="relative overflow-hidden rounded-lg border border-espresso/15 bg-crust/40">
         <div ref={mapElementRef} className="h-56 w-full" />
         {status === 'loading' && (
@@ -315,7 +303,18 @@ export function StoreLocationPicker({ lat, lng, requirePermission = true, onChan
         )}
       </div>
 
-      <p className="text-[11px] text-espresso/45">Search for the store, click the map, or drag the pin to set its exact location.</p>
+      <div className="flex justify-start">
+        <button
+          type="button"
+          onClick={useCurrentLocation}
+          disabled={status !== 'ready'}
+          className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-espresso/10 bg-crust/40 px-3 text-sm font-medium text-espresso/70 transition hover:bg-crust/70 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <LocateFixed className="h-4 w-4" /> {status === 'locating' ? 'Getting location…' : 'Update current location'}
+        </button>
+      </div>
+
+      <p className="text-[11px] text-espresso/45">Click the map, drag the pin, or enter coordinates to set the exact store location.</p>
       {locationAccuracy !== null && <p className="text-[11px] text-matcha-glaze">Device location received · accurate within approximately {locationAccuracy} m</p>}
       {locationError && <p className="text-xs text-cherry-compote">{locationError}</p>}
     </div>

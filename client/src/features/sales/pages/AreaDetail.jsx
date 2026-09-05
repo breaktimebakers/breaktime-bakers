@@ -53,7 +53,7 @@ function StoreFormModal({ open, onClose, areaId, store }) {
   const busy = createStore.isPending || updateStore.isPending || updateStoreStatus.isPending
 
   const submit = async () => {
-    if (!form.dealerName || !locationAuthorized) return
+    if (!form.dealerName || (!isEdit && !locationAuthorized)) return
 
     const body = {
       dealerName: form.dealerName,
@@ -85,7 +85,7 @@ function StoreFormModal({ open, onClose, areaId, store }) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} eyebrow="Sales / Stores" title={isEdit ? 'Edit store' : 'Add store'} footer={<><Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button><Button onClick={submit} disabled={busy || !locationAuthorized}>{busy ? 'Saving…' : !locationAuthorized ? 'Allow location first' : isEdit ? 'Save changes' : 'Add store'}</Button></>}>
+    <Modal open={open} onClose={onClose} eyebrow="Sales / Stores" title={isEdit ? 'Edit store' : 'Add store'} footer={<><Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button><Button onClick={submit} disabled={busy || (!isEdit && !locationAuthorized)}>{busy ? 'Saving…' : !isEdit && !locationAuthorized ? 'Allow location first' : isEdit ? 'Save changes' : 'Add store'}</Button></>}>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Dealer name" required><input className={inputClass} value={form.dealerName} onChange={(e) => setForm({ ...form, dealerName: e.target.value })} /></Field>
         <Field label="Shop name"><input className={inputClass} value={form.shopName} onChange={(e) => setForm({ ...form, shopName: e.target.value })} placeholder="e.g. Sunrise Bakery" /></Field>
@@ -97,7 +97,7 @@ function StoreFormModal({ open, onClose, areaId, store }) {
         </Field>
         <div className="col-span-2"><Field label="Address"><input className={inputClass} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></Field></div>
         <div className="col-span-2">
-          <Field label="Location"><StoreLocationPicker lat={form.lat} lng={form.lng} requirePermission={!hasSavedLocation} onChange={({ lat, lng, address }) => setForm((current) => ({ ...current, lat, lng, address: address || current.address }))} onAuthorizationChange={setLocationAuthorized} /></Field>
+          <Field label="Location"><StoreLocationPicker lat={form.lat} lng={form.lng} requirePermission={!isEdit} onChange={({ lat, lng, address }) => setForm((current) => ({ ...current, lat, lng, address: address || current.address }))} onAuthorizationChange={setLocationAuthorized} /></Field>
         </div>
         <Field label="Latitude"><input type="number" inputMode="decimal" step="any" min="-90" max="90" className={inputClass} value={form.lat} onChange={(e) => setForm({ ...form, lat: e.target.value })} /></Field>
         <Field label="Longitude"><input type="number" inputMode="decimal" step="any" min="-180" max="180" className={inputClass} value={form.lng} onChange={(e) => setForm({ ...form, lng: e.target.value })} /></Field>
@@ -278,7 +278,7 @@ export default function AreaDetail() {
                     </div>
                     <StatusDot active={s.isActive} />
                   </div>
-                  {s.lat && s.lng && (
+                  {hasValidStoreLocation(s) && (
                     <a
                       href={`https://www.google.com/maps?q=${s.lat},${s.lng}`}
                       target="_blank"
@@ -342,7 +342,7 @@ export default function AreaDetail() {
                         <td className="max-w-[260px] truncate px-4 py-3 text-espresso/55">{s.address || '-'}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1.5">
-                            {s.lat && s.lng && (
+                            {hasValidStoreLocation(s) && (
                               <a
                                 href={`https://www.google.com/maps?q=${s.lat},${s.lng}`}
                                 target="_blank"

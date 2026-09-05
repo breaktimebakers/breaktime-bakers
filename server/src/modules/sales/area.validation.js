@@ -16,15 +16,24 @@ export const createAreaSchema = z.object({
 
 export const updateAreaSchema = createAreaSchema;
 
-export const createStoreSchema = z.object({
-  dealerName: z.string().trim().min(1, "Dealer name is required").max(150),
-  shopName: z.string().trim().max(150).optional(),
-  dealerPhone: z.string().trim().max(20).optional(),
-  storeType: z.enum(["Shop", "Canteen", "Other"]),
-  address: z.string().trim().max(500).optional(),
-  lat: z.coerce.number().min(-90).max(90).optional(),
-  lng: z.coerce.number().min(-180).max(180).optional(),
-});
+export const createStoreSchema = z
+  .object({
+    dealerName: z.string().trim().min(1, "Dealer name is required").max(150),
+    shopName: z.string().trim().max(150).optional(),
+    dealerPhone: z.string().trim().max(20).optional(),
+    storeType: z.enum(["Shop", "Canteen", "Other"]),
+    address: z.string().trim().max(500).optional(),
+    lat: z.coerce.number().min(-90).max(90).optional(),
+    lng: z.coerce.number().min(-180).max(180).optional(),
+  })
+  // A location is meaningless with only one coordinate - every map
+  // reader (client and server) treats "one set, one missing" the same
+  // as "no location", so reject that state here rather than letting it
+  // silently persist.
+  .refine((data) => (data.lat === undefined) === (data.lng === undefined), {
+    message: "Latitude and longitude must be provided together",
+    path: ["lng"],
+  });
 
 export const updateStoreSchema = createStoreSchema;
 

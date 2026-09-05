@@ -4,12 +4,31 @@ const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
 
 let configured = false
 
+// Google's own "Keyboard shortcuts" dialog (shown when the map/marker
+// regains focus, e.g. after a click) is a native <dialog> that Maps'
+// internals sometimes re-showModal() without cleanly closing first,
+// throwing "already open as a non-modal dialog" and crashing whatever
+// click/drag triggered it. keyboardShortcuts: false on the map only
+// disables arrow-key panning, not this focus-triggered dialog. This app
+// never renders its own <dialog> elements, so making showModal
+// idempotent only ever affects Maps' internal dialog.
+function patchDialogShowModal() {
+  if (typeof HTMLDialogElement === 'undefined') return
+
+  const nativeShowModal = HTMLDialogElement.prototype.showModal
+  HTMLDialogElement.prototype.showModal = function showModal(...args) {
+    if (this.open) this.close()
+    return nativeShowModal.apply(this, args)
+  }
+}
+
 function configureGoogleMaps() {
   if (!apiKey) {
     throw new Error('Google Maps is not configured. Add VITE_GOOGLE_MAPS_API_KEY to client/.env.')
   }
 
   if (!configured) {
+    patchDialogShowModal()
     setOptions({ key: apiKey, v: 'weekly' })
     configured = true
   }
@@ -18,13 +37,12 @@ function configureGoogleMaps() {
 export async function loadStoreMapLibraries() {
   configureGoogleMaps()
 
-  const [maps, marker, places] = await Promise.all([
+  const [maps, marker] = await Promise.all([
     importLibrary('maps'),
     importLibrary('marker'),
-    importLibrary('places'),
   ])
 
-  return { maps, marker, places }
+  return { maps, marker }
 }
 
 export async function loadStoreOverviewMapLibraries() {
