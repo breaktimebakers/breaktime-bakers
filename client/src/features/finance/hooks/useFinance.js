@@ -108,7 +108,7 @@ export function useFinance() {
     salaryPayments.some((p) => p.workerId === workerId && p.year === year && p.month === month)
 
   const markSalaryPaid = (workerId, year, month) => {
-    markSalaryPaidMutation.mutate({ workerId, year, month, amountPaid: getNetPayable(workerId, year, month) })
+    markSalaryPaidMutation.mutate({ workerId, year, month })
   }
 
   const markSalaryUnpaid = (workerId, year, month) => {
@@ -116,13 +116,7 @@ export function useFinance() {
   }
 
   const bulkMarkSalaryPaid = (workerIds, year, month) => {
-    const payments = workerIds.map((workerId) => ({
-      workerId,
-      year,
-      month,
-      amountPaid: getNetPayable(workerId, year, month),
-    }))
-    bulkMarkSalaryPaidMutation.mutate(payments)
+    bulkMarkSalaryPaidMutation.mutate({ workerIds, year, month })
   }
 
   // Every (year, month) from a worker's joining month through now (or
@@ -167,10 +161,9 @@ export function useFinance() {
   // a running lifetime total.
   const getPaidTotalForMonth = (year, month) => {
     const advancesTotal = workers.reduce((s, w) => s + getAdvancesForMonth(w.id, year, month), 0)
-    const paidNet = workers.reduce(
-      (s, w) => (isSalaryPaid(w.id, year, month) ? s + getNetPayable(w.id, year, month) : s),
-      0,
-    )
+    const paidNet = salaryPayments
+      .filter((payment) => payment.year === year && payment.month === month)
+      .reduce((sum, payment) => sum + Number(payment.amountPaid), 0)
     return advancesTotal + paidNet
   }
 

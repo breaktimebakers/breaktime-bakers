@@ -1,20 +1,7 @@
 import { Link } from '@tanstack/react-router'
-import { Truck, UserRound, Route, ArrowRight, CircleCheck, CircleDot } from 'lucide-react'
-import { useDelivery } from '@/features/delivery/hooks'
-import { useSales } from '@/features/sales/hooks'
-import { PageHeader } from '@/components/shared'
-import { todayISO } from '@/utils'
-
-function StatCard({ label, value, icon: Icon, chipColor }) {
-  return (
-    <div className="rounded-bakery border border-espresso/8 bg-proof-cream p-4 shadow-bakery transition-all hover:-translate-y-0.5 hover:shadow-bakery-lg sm:p-5">
-      <div className="flex items-start justify-between">
-        <div><p className="font-mono text-[10px] uppercase tracking-wider text-espresso/50">{label}</p><p className="mt-1.5 font-mono text-2xl font-bold text-espresso sm:text-3xl">{value}</p></div>
-        <div className={`flex h-10 w-10 items-center justify-center rounded-bakery ${chipColor}`}><Icon className="h-5 w-5" /></div>
-      </div>
-    </div>
-  )
-}
+import { Truck, UserRound, MapPin, ClipboardList, ArrowRight } from 'lucide-react'
+import { useDeliveryScheduleToday } from '@/features/delivery/hooks'
+import { ErrorState, PageHeader, StatCard } from '@/components/shared'
 
 function NavCard({ to, icon: Icon, title, description, linkLabel }) {
   return (
@@ -28,28 +15,29 @@ function NavCard({ to, icon: Icon, title, description, linkLabel }) {
 }
 
 export default function DeliveryOverview() {
-  const { drivers, trips } = useDelivery()
-  const { orders } = useSales()
-  const today = todayISO()
-  const tripsToday = trips.filter((t) => t.date === today)
-  const todayOrders = orders.filter((o) => tripsToday.flatMap((t) => t.orderIds).includes(o.id))
-  const pending = todayOrders.filter((o) => o.status !== 'delivered').length
-  const completed = todayOrders.filter((o) => o.status === 'delivered').length
+  const { data: schedule, isLoading, isError, isFetching, refetch } = useDeliveryScheduleToday()
+  const assignments = schedule?.assignments || []
+  const activeDrivers = assignments.filter((a) => a.canAssign)
+  const assignedToday = assignments.filter((a) => a.areas.length > 0)
+  const areasToday = new Set(assignments.flatMap((a) => a.areas.map((area) => area.id))).size
 
   return (
     <div>
-      <PageHeader eyebrow="Delivery / Overview" title="Delivery" description="Manage drivers, plan trips, and track deliveries." />
+      <PageHeader eyebrow="Delivery / Overview" title="Delivery" description="Manage drivers and see who's covering which area today." />
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <StatCard label="Total drivers" value={drivers.length} icon={UserRound} chipColor="bg-sourdough/50 text-espresso" />
-        <StatCard label="Trips today" value={tripsToday.length} icon={Truck} chipColor="bg-oven-amber/15 text-oven-amber" />
-        <StatCard label="Stops pending today" value={pending} icon={CircleDot} chipColor="bg-cherry-compote/15 text-cherry-compote" />
-        <StatCard label="Stops completed today" value={completed} icon={CircleCheck} chipColor="bg-matcha-glaze/20 text-matcha-glaze" />
-      </div>
+      {isError ? (
+        <ErrorState description="Could not load today's delivery schedule." onRetry={refetch} retrying={isFetching} />
+      ) : (
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
+          <StatCard label="Active drivers" value={isLoading ? '—' : activeDrivers.length} icon={UserRound} chipColor="bg-sourdough/50 text-espresso" />
+          <StatCard label="Assigned today" value={isLoading ? '—' : assignedToday.length} icon={Truck} chipColor="bg-oven-amber/15 text-oven-amber" />
+          <StatCard label="Areas covered today" value={isLoading ? '—' : areasToday} icon={MapPin} chipColor="bg-matcha-glaze/20 text-matcha-glaze" />
+        </div>
+      )}
 
-      <div className="mt-6 grid gap-4 sm:mt-8 sm:grid-cols-2 sm:gap-6">
-        <NavCard to="/delivery/drivers" icon={UserRound} title="Drivers" description="Manage drivers and their assigned delivery territories." linkLabel="Manage" />
-        <NavCard to="/delivery/trips" icon={Route} title="Trips" description="Plan delivery trips and track stop-by-stop progress." linkLabel="View" />
+      <div className="mt-6 grid gap-4 sm:mt-8 sm:grid-cols-2">
+        <NavCard to="/delivery/status" icon={ClipboardList} title="Delivery status" description="See every store's delivery progress by area and delivery guy." linkLabel="View status" />
+        <NavCard to="/delivery/drivers" icon={UserRound} title="Drivers" description="Assign areas to drivers for a date, and manage delivery coverage." linkLabel="Manage" />
       </div>
     </div>
   )

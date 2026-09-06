@@ -67,6 +67,14 @@ export const ENDPOINTS = {
     today: '/schedule/today',
     assignment: (workerId) => `/schedule/assignment/${workerId}`,
   },
+  delivery: {
+    status: '/delivery/status',
+    scheduleDay: '/delivery/schedule',
+    scheduleToday: '/delivery/schedule/today',
+    setAreas: (driverId) => `/delivery/schedule/${driverId}`,
+    driverDay: (id) => `/delivery/drivers/${id}/day`,
+    driverStats: (id) => `/delivery/drivers/${id}/stats`,
+  },
   attendance: {
     list: '/attendance',
     mark: '/attendance',
@@ -79,6 +87,7 @@ export const ENDPOINTS = {
   },
   salaryPayments: {
     list: '/salary-payments',
+    payroll: '/salary-payments/payroll',
     markPaid: '/salary-payments',
     bulkMarkPaid: '/salary-payments/bulk',
     markUnpaid: (workerId, year, month) => `/salary-payments/${workerId}/${year}/${month}`,

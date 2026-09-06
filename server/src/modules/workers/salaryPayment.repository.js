@@ -23,6 +23,13 @@ export const listAllPayments = async () => {
   return db.select(paymentSelection).from(workerSalaryPayments);
 };
 
+export const listPaymentsForMonth = async (year, month) => {
+  return db
+    .select(paymentSelection)
+    .from(workerSalaryPayments)
+    .where(and(eq(workerSalaryPayments.year, year), eq(workerSalaryPayments.month, month)));
+};
+
 const upsertOne = async (tx, { workerId, year, month, amountPaid }) => {
   const todayStr = todayIso();
 

@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte, lte } from "drizzle-orm";
 import { v7 as uuidv7 } from "uuid";
 import { db } from "../../db/index.js";
 import { workerAdvances } from "./advance.schema.js";
@@ -19,6 +19,17 @@ const advanceSelection = {
 // month in one shot.
 export const listAllAdvances = async () => {
   return db.select(advanceSelection).from(workerAdvances).orderBy(desc(workerAdvances.date));
+};
+
+export const listAdvancesInRange = async (from, to, workerId) => {
+  const conditions = [gte(workerAdvances.date, from), lte(workerAdvances.date, to)];
+  if (workerId) conditions.push(eq(workerAdvances.workerId, workerId));
+
+  return db
+    .select(advanceSelection)
+    .from(workerAdvances)
+    .where(and(...conditions))
+    .orderBy(desc(workerAdvances.date));
 };
 
 export const listAdvancesForWorker = async (workerId) => {

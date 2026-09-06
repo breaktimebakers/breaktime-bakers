@@ -4,6 +4,14 @@ import { salaryPaymentApi } from '../api/salaryPaymentApi'
 export const salaryPaymentKeys = {
   all: ['salaryPayments'],
   list: ['salaryPayments', 'list'],
+  payroll: (query) => ['salaryPayments', 'payroll', query],
+}
+
+export function usePayroll(query) {
+  return useQuery({
+    queryKey: salaryPaymentKeys.payroll(query),
+    queryFn: () => salaryPaymentApi.payroll(query),
+  })
 }
 
 // Every settlement record, across every worker and month - what the

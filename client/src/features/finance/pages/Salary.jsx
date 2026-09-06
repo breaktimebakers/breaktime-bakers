@@ -1,37 +1,32 @@
-import { useState, useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import { Users, Eye, EyeOff, CircleCheck, Circle } from 'lucide-react'
-import { useFinance } from '@/features/finance/hooks'
-import { useWorkers } from '@/features/workers/hooks'
-import { Button, PageHeader, MonthFilterBar, monthNames } from '@/components/shared'
+import { usePayroll, useMarkSalaryPaid, useMarkSalaryUnpaid, useBulkMarkSalaryPaid } from '@/features/finance/hooks'
+import { Button, EmptyState, ErrorState, PageHeader, MonthFilterBar, monthNames } from '@/components/shared'
 import { RoleBadge } from '@/features/workers/components/RoleBadge'
+import { todayISO } from '@/utils'
 
 export default function Salary() {
-  const { getSalaryForMonth, getAdvancesForMonth, getNetPayable, isSalaryPaid, markSalaryPaid, markSalaryUnpaid, bulkMarkSalaryPaid, getPaidTotalForMonth, getUnpaidTotal } = useFinance()
-  const { data: workers = [] } = useWorkers()
-  const now = new Date()
-  const [year, setYear] = useState(now.getFullYear())
-  const [month, setMonth] = useState(now.getMonth())
+  const [todayYear, todayMonth] = todayISO().split('-').map(Number)
+  const [year, setYear] = useState(todayYear)
+  const [month, setMonth] = useState(todayMonth - 1)
   const [showLeft, setShowLeft] = useState(false)
   const [selected, setSelected] = useState(() => new Set())
+  const payrollQuery = usePayroll({ year, month, includeLeft: showLeft })
+  const markPaid = useMarkSalaryPaid()
+  const markUnpaid = useMarkSalaryUnpaid()
+  const bulkMarkPaidMutation = useBulkMarkSalaryPaid()
 
-  const filteredWorkers = useMemo(() => {
-    if (showLeft) return workers
-    return workers.filter((w) => w.status === 'active')
-  }, [workers, showLeft])
+  const rows = payrollQuery.data?.rows || []
+  const summary = payrollQuery.data?.summary
+  const totalNetPayable = summary?.totalNetPayable || 0
+  const totalPaid = summary?.totalPaid || 0
+  const totalUnpaid = summary?.totalUnpaid || 0
+  const mutationBusy = markPaid.isPending || markUnpaid.isPending || bulkMarkPaidMutation.isPending
+  const futurePeriod = year > todayYear || (year === todayYear && month > todayMonth - 1)
 
-  const rows = useMemo(() => {
-    return filteredWorkers.map((w) => {
-      const salary = getSalaryForMonth(w.id, year, month)
-      const advance = getAdvancesForMonth(w.id, year, month)
-      const netPayable = getNetPayable(w.id, year, month)
-      const paid = isSalaryPaid(w.id, year, month)
-      return { worker: w, ...salary, advance, netPayable, paid }
-    })
-  }, [filteredWorkers, getSalaryForMonth, getAdvancesForMonth, getNetPayable, isSalaryPaid, year, month])
-
-  const totalNetPayable = rows.reduce((s, r) => s + r.netPayable, 0)
-  const totalPaid = getPaidTotalForMonth(year, month)
-  const totalUnpaid = getUnpaidTotal()
+  useEffect(() => {
+    setSelected(new Set())
+  }, [year, month, showLeft])
 
   const toggleSelected = (workerId) => {
     setSelected((prev) => {
@@ -54,13 +49,24 @@ export default function Salary() {
   }
 
   const togglePaid = (row) => {
-    if (row.paid) markSalaryUnpaid(row.worker.id, year, month)
-    else markSalaryPaid(row.worker.id, year, month)
+    if (row.paid) markUnpaid.mutate({ workerId: row.worker.id, year, month })
+    else markPaid.mutate(
+      { workerId: row.worker.id, year, month },
+      {
+        onSuccess: () => setSelected((current) => {
+          const next = new Set(current)
+          next.delete(row.worker.id)
+          return next
+        }),
+      },
+    )
   }
 
   const bulkMarkPaid = () => {
-    bulkMarkSalaryPaid([...selected], year, month)
-    setSelected(new Set())
+    bulkMarkPaidMutation.mutate(
+      { workerIds: [...selected], year, month },
+      { onSuccess: () => setSelected(new Set()) },
+    )
   }
 
   return (
@@ -72,6 +78,7 @@ export default function Salary() {
         actions={
           <button
             onClick={() => setShowLeft((s) => !s)}
+            disabled={payrollQuery.isFetching}
             className="inline-flex items-center gap-2 rounded-lg border border-espresso/15 bg-proof-cream px-3 py-2 text-sm font-medium text-espresso/70 hover:bg-sourdough/40"
           >
             {showLeft ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -87,12 +94,12 @@ export default function Salary() {
       <div className="mb-4 grid gap-3 sm:grid-cols-2">
         <div className="rounded-bakery border border-matcha-glaze/20 bg-matcha-glaze/5 p-4 shadow-bakery">
           <p className="font-mono text-[10px] uppercase tracking-wider text-espresso/50">Paid — {monthNames[month]} {year}</p>
-          <p className="mt-1 font-mono text-2xl font-bold text-matcha-glaze">₹{totalPaid.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
+          <p className="mt-1 font-mono text-2xl font-bold text-matcha-glaze">{payrollQuery.isLoading ? '—' : `₹${totalPaid.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}</p>
           <p className="mt-0.5 text-xs text-espresso/40">Advances given + salaries marked paid this month</p>
         </div>
         <div className="rounded-bakery border border-cherry-compote/20 bg-cherry-compote/5 p-4 shadow-bakery">
           <p className="font-mono text-[10px] uppercase tracking-wider text-espresso/50">Unpaid (pending, all-time)</p>
-          <p className="mt-1 font-mono text-2xl font-bold text-cherry-compote">₹{totalUnpaid.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
+          <p className="mt-1 font-mono text-2xl font-bold text-cherry-compote">{payrollQuery.isLoading ? '—' : `₹${totalUnpaid.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}</p>
           <p className="mt-0.5 text-xs text-espresso/40">Net payable still owed, every month not yet marked paid</p>
         </div>
       </div>
@@ -102,17 +109,21 @@ export default function Salary() {
         <div className="mb-4 flex items-center justify-between rounded-bakery border border-oven-amber/30 bg-oven-amber/10 px-4 py-3">
           <p className="text-sm font-medium text-espresso">{selected.size} worker{selected.size === 1 ? '' : 's'} selected</p>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="secondary" onClick={() => setSelected(new Set())}>Clear</Button>
-            <Button size="sm" onClick={bulkMarkPaid}>Mark {selected.size} as Paid</Button>
+            <Button size="sm" variant="secondary" onClick={() => setSelected(new Set())} disabled={mutationBusy}>Clear</Button>
+            <Button size="sm" onClick={bulkMarkPaid} disabled={mutationBusy}>{bulkMarkPaidMutation.isPending ? 'Saving…' : `Mark ${selected.size} as Paid`}</Button>
           </div>
         </div>
       )}
 
-      {rows.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-bakery border-2 border-dashed border-espresso/15 px-6 py-12 text-center">
-          <Users className="mb-3 h-12 w-12 text-espresso/30" />
-          <p className="font-display text-lg text-espresso/60">No workers to show</p>
+      {payrollQuery.isError ? (
+        <ErrorState description="Could not load payroll." onRetry={payrollQuery.refetch} retrying={payrollQuery.isFetching} />
+      ) : payrollQuery.isLoading ? (
+        <div role="status" className="space-y-3 rounded-bakery border border-espresso/8 bg-proof-cream p-5 shadow-bakery">
+          {[1, 2, 3, 4].map((item) => <div key={item} className="h-12 animate-pulse rounded-lg bg-crust/60" />)}
+          <span className="sr-only">Loading payroll…</span>
         </div>
+      ) : rows.length === 0 ? (
+        <EmptyState icon={Users} title="No workers to show" description="No workers were employed during this salary period." />
       ) : (
         <>
           {/* Desktop table */}
@@ -122,7 +133,7 @@ export default function Salary() {
                 <thead>
                   <tr className="border-b border-espresso/10 bg-crust/30 text-left">
                     <th className="px-4 py-3">
-                      <input type="checkbox" checked={allUnpaidSelected} onChange={toggleSelectAll} disabled={unpaidRows.length === 0} className="h-4 w-4 accent-oven-amber" />
+                      <input type="checkbox" checked={allUnpaidSelected} onChange={toggleSelectAll} disabled={unpaidRows.length === 0 || mutationBusy || futurePeriod} className="h-4 w-4 accent-oven-amber" />
                     </th>
                     <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Worker</th>
                     <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Roles</th>
@@ -143,7 +154,7 @@ export default function Salary() {
                           type="checkbox"
                           checked={selected.has(r.worker.id)}
                           onChange={() => toggleSelected(r.worker.id)}
-                          disabled={r.paid}
+                          disabled={r.paid || mutationBusy || futurePeriod}
                           className="h-4 w-4 accent-oven-amber"
                         />
                       </td>
@@ -167,6 +178,7 @@ export default function Salary() {
                       <td className="px-4 py-3 text-center">
                         <button
                           onClick={() => togglePaid(r)}
+                          disabled={mutationBusy || (futurePeriod && !r.paid)}
                           className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition ${r.paid ? 'bg-matcha-glaze/15 text-matcha-glaze hover:bg-matcha-glaze/25' : 'bg-espresso/8 text-espresso/50 hover:bg-espresso/15'}`}
                         >
                           {r.paid ? <CircleCheck className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}
@@ -197,7 +209,7 @@ export default function Salary() {
                       type="checkbox"
                       checked={selected.has(r.worker.id)}
                       onChange={() => toggleSelected(r.worker.id)}
-                      disabled={r.paid}
+                      disabled={r.paid || mutationBusy || futurePeriod}
                       className="mt-1 h-4 w-4 accent-oven-amber"
                     />
                     <div>
@@ -219,6 +231,7 @@ export default function Salary() {
                   <p className="text-xs text-espresso/40">Monthly salary: ₹{r.worker.monthlySalary.toLocaleString('en-IN')}</p>
                   <button
                     onClick={() => togglePaid(r)}
+                    disabled={mutationBusy || (futurePeriod && !r.paid)}
                     className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition ${r.paid ? 'bg-matcha-glaze/15 text-matcha-glaze' : 'bg-espresso/8 text-espresso/50'}`}
                   >
                     {r.paid ? <CircleCheck className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}

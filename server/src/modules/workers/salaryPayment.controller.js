@@ -7,6 +7,12 @@ export const list = async (req, res) => {
   sendResponse(res, 200, "Salary payments fetched", { payments });
 };
 
+export const payroll = async (req, res) => {
+  const result = await salaryPaymentService.getPayroll(req.validatedQuery);
+
+  sendResponse(res, 200, "Payroll fetched", result);
+};
+
 export const markPaid = async (req, res) => {
   const payment = await salaryPaymentService.markPaid(req.body);
 
@@ -14,7 +20,7 @@ export const markPaid = async (req, res) => {
 };
 
 export const bulkMarkPaid = async (req, res) => {
-  await salaryPaymentService.bulkMarkPaid(req.body.payments);
+  await salaryPaymentService.bulkMarkPaid(req.body);
 
   sendResponse(res, 200, "Salaries marked as paid", null);
 };

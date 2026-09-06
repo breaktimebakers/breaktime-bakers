@@ -1,4 +1,4 @@
-import { and, count, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, gte, lte } from "drizzle-orm";
 import { v7 as uuidv7 } from "uuid";
 import { db } from "../../db/index.js";
 import { workerAttendance } from "./workerAttendance.schema.js";
@@ -24,6 +24,16 @@ export const listAttendanceByDate = async (date) => {
 // a single date or month filter can't serve.
 export const listAllAttendance = async () => {
   return db.select(attendanceSelection).from(workerAttendance);
+};
+
+export const listAttendanceInRange = async (from, to, workerId) => {
+  const conditions = [gte(workerAttendance.date, from), lte(workerAttendance.date, to)];
+  if (workerId) conditions.push(eq(workerAttendance.workerId, workerId));
+
+  return db
+    .select(attendanceSelection)
+    .from(workerAttendance)
+    .where(and(...conditions));
 };
 
 const buildWorkerAttendanceConditions = (workerId, { status } = {}) => {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { Link, useLocation, useNavigate } from '@tanstack/react-router'
-import { Warehouse, Wheat, CookingPot, PackageCheck, Receipt, MapPin, ClipboardList, Users, Truck, UserRound, Route, Wallet, X, Menu, CalendarCheck, LogOut, HandCoins, Landmark, TrendingUp, Search } from 'lucide-react'
+import { Warehouse, Wheat, CookingPot, PackageCheck, Receipt, MapPin, ClipboardList, Users, Truck, UserRound, Wallet, X, Menu, CalendarCheck, LogOut, HandCoins, Landmark, TrendingUp, Search } from 'lucide-react'
 import { ConfirmModal } from '@/components/shared'
 import { useAuth } from '@/features/auth/hooks'
 
@@ -27,8 +27,8 @@ const navConfig = [
     label: 'Delivery', icon: Truck, path: '/delivery',
     children: [
       { label: 'Overview', path: '/delivery' },
+      { label: 'Delivery Status', path: '/delivery/status', icon: ClipboardList },
       { label: 'Drivers', path: '/delivery/drivers', icon: UserRound },
-      { label: 'Trips', path: '/delivery/trips', icon: Route },
     ],
   },
   {
