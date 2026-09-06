@@ -67,7 +67,7 @@ export function AddPersonOrderModal({ open, onClose, person }) {
               </optgroup>
             </select>
           ) : (
-            <p className="text-xs text-cherry-compote">Not scheduled to any area today - set it in the weekly schedule first.</p>
+            <p className="text-xs text-cherry-compote">Not scheduled to any area today - set it in the daily assignments first.</p>
           )}
         </Field>
 

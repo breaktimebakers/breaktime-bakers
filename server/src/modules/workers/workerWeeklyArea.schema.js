@@ -2,12 +2,8 @@ import { pgTable, varchar, index, unique } from "drizzle-orm/pg-core";
 import { workers } from "./worker.schema.js";
 import { areas } from "../sales/area.schema.js";
 
-// A marketer's recurring weekly route - which area they cover on each
-// weekday by default (e.g. every Monday -> Bandra). One row per
-// (worker, weekday) that's actually assigned; a weekday with no row means
-// that worker isn't scheduled anywhere that day. See
-// workerAreaOverride.schema.js for one-off changes to a specific date -
-// same default-plus-override shape as a worker's weekOffDay.
+// Retained only to preserve legacy data during schema pushes. Daily scheduling
+// never reads or writes this table; old recurring routes are inactive.
 export const workerWeeklyArea = pgTable(
   "worker_weekly_area",
   {

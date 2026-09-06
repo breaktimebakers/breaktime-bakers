@@ -1,145 +1,85 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ArrowLeft, CalendarDays } from 'lucide-react'
-import { useAreas, useScheduleWeek, useSaveWeeklyTemplate, useSetScheduleOverride } from '@/features/sales/hooks'
-import { Button, EmptyState, Modal, PageHeader, inputClass } from '@/components/shared'
-
-const WEEK_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-
-function TemplateModal({ open, onClose, worker }) {
-  const { data: areas = [] } = useAreas()
-  const saveTemplate = useSaveWeeklyTemplate()
-  const [days, setDays] = useState({})
-
-  // Re-sync whenever a different worker is opened - the modal instance
-  // doesn't unmount between "Edit route" clicks for different people.
-  useEffect(() => {
-    setDays(worker?.template || {})
-  }, [worker])
-
-  if (!worker) return null
-
-  const submit = async () => {
-    try {
-      await saveTemplate.mutateAsync({ workerId: worker.workerId, days })
-      onClose()
-    } catch {
-      // Error already surfaced as a toast by useSaveWeeklyTemplate.
-    }
-  }
-
-  const busy = saveTemplate.isPending
-
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      eyebrow="Order takers"
-      title={`Weekly route — ${worker.workerName}`}
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
-          <Button onClick={submit} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button>
-        </>
-      }
-    >
-      <p className="mb-3 text-xs text-espresso/50">
-        Their default area for each day of the week - leave a day set to &quot;No area&quot; if they&apos;re off that day.
-        This is the recurring route; use the schedule table to change a single day without touching it.
-      </p>
-      <div className="space-y-2">
-        {WEEK_DAYS.map((day) => (
-          <div key={day} className="flex items-center gap-3">
-            <span className="w-24 shrink-0 text-sm font-medium text-espresso">{day}</span>
-            <select
-              className={inputClass}
-              value={days[day] || ''}
-              onChange={(e) => setDays((d) => ({ ...d, [day]: e.target.value || null }))}
-            >
-              <option value="">No area</option>
-              {areas.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
-          </div>
-        ))}
-      </div>
-    </Modal>
-  )
-}
-
-function DayCell({ worker, day, areas }) {
-  const setOverride = useSetScheduleOverride()
-
-  const onChange = async (e) => {
-    const areaId = e.target.value || null
-    try {
-      await setOverride.mutateAsync({ workerId: worker.workerId, date: day.date, areaId })
-    } catch {
-      // Error already surfaced as a toast by useSetScheduleOverride.
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-1">
-      <select
-        className={`${inputClass} text-xs`}
-        value={day.areaId || ''}
-        onChange={onChange}
-        disabled={setOverride.isPending}
-      >
-        <option value="">{day.isOverride ? 'Revert to default' : 'No area'}</option>
-        {areas.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-      </select>
-      {day.isOverride && <span className="text-[10px] font-medium text-oven-amber">Override</span>}
-    </div>
-  )
-}
+import { useAreas, useScheduleDay, useSetDailyAssignment } from '@/features/sales/hooks'
+import { Button, EmptyState, PageHeader, inputClass } from '@/components/shared'
 
 export default function OrderTakerSchedule() {
-  const { data: schedule, isLoading } = useScheduleWeek()
-  const { data: areas = [] } = useAreas()
-  const [editWorker, setEditWorker] = useState(null)
+  // An empty date asks the server for its today, matching order creation.
+  const [selectedDate, setSelectedDate] = useState('')
+  const { data: schedule, isLoading, isError, isFetching, refetch } = useScheduleDay(selectedDate)
+  const { data: areas = [], isLoading: areasLoading, isError: areasError, refetch: refetchAreas } = useAreas()
+  const saveAssignment = useSetDailyAssignment()
+  const date = schedule?.date
+  const assignments = schedule?.assignments || []
+  const busy = saveAssignment.isPending
+
+  const assign = async (workerId, areaId) => {
+    if (!date) return
+    try {
+      await saveAssignment.mutateAsync({ workerId, date, areaId: areaId || null })
+    } catch {
+      // The mutation displays the server's error and refreshes conflicting assignments.
+    }
+  }
 
   return (
     <div>
       <Link to="/sales/orders/order-takers" className="mb-3 inline-flex items-center gap-1.5 text-sm text-espresso/50 hover:text-oven-amber">
         <ArrowLeft className="h-4 w-4" /> Back to order takers
       </Link>
-      <PageHeader
-        eyebrow="Sales / Order takers"
-        title="Weekly Schedule"
-        description="Which area each order taker covers this week, day by day. Change one day here without touching their default route, or edit the whole route at once."
-      />
+      <PageHeader eyebrow="Sales / Order takers" title="Daily Area Assignments" description="Choose a date and assign an area to each order taker. Assignments apply only to that date and save automatically." />
 
-      {isLoading ? (
-        <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading schedule...</p>
-      ) : !schedule?.workers?.length ? (
-        <EmptyState icon={CalendarDays} title="No order takers yet" description="Give a worker the marketer role to schedule them here." />
+      <div className="mb-4 flex flex-wrap items-end gap-3 rounded-bakery border border-espresso/8 bg-proof-cream p-4 shadow-bakery">
+        <label className="block text-sm font-medium text-espresso">
+          Assignment date
+          <input type="date" className={`${inputClass} mt-1`} value={selectedDate || date || ''} disabled={busy} onChange={(event) => setSelectedDate(event.target.value)} />
+        </label>
+        <Button variant="secondary" disabled={busy} onClick={() => { setSelectedDate(''); if (!selectedDate) refetch() }}>Today</Button>
+        <p className="text-xs text-espresso/55">No area means unassigned for this date. Nothing repeats automatically.</p>
+      </div>
+
+      {isError || areasError ? (
+        <div role="alert" className="rounded-bakery border border-cherry-compote/30 bg-proof-cream p-4">
+          <p className="mb-3 text-sm text-cherry-compote">Could not load daily assignments or areas.</p>
+          <Button variant="secondary" onClick={() => { refetch(); refetchAreas() }}>Retry</Button>
+        </div>
+      ) : isLoading || areasLoading ? (
+        <p role="status" className="py-8 text-center text-sm text-espresso/50">Loading daily assignments…</p>
+      ) : !assignments.length ? (
+        <EmptyState icon={CalendarDays} title="No order takers yet" description="Give an active worker the marketer role to assign an area." />
       ) : (
-        <div className="overflow-hidden rounded-bakery border border-espresso/8 bg-proof-cream shadow-bakery">
+        <div aria-busy={isFetching || busy} className="overflow-hidden rounded-bakery border border-espresso/8 bg-proof-cream shadow-bakery">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-sm">
+            <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-espresso/10 bg-crust/30 text-left">
-                  <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Order taker</th>
-                  {schedule.dates.map((date) => (
-                    <th key={date} className="px-3 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">
-                      {new Date(date).toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short' })}
-                    </th>
-                  ))}
-                  <th className="px-4 py-3"></th>
+                  <th scope="col" className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Order taker</th>
+                  <th scope="col" className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Assigned area</th>
                 </tr>
               </thead>
               <tbody>
-                {schedule.workers.map((w) => (
-                  <tr key={w.workerId} className="border-b border-espresso/8 last:border-0">
-                    <td className="px-4 py-3 font-medium text-espresso">{w.workerName}</td>
-                    {w.days.map((day) => (
-                      <td key={day.date} className="px-3 py-3">
-                        <DayCell worker={w} day={day} areas={areas} />
-                      </td>
-                    ))}
-                    <td className="px-4 py-3 text-right">
-                      <Button size="sm" variant="ghost" onClick={() => setEditWorker(w)}>Edit route</Button>
+                {assignments.map((worker) => (
+                  <tr key={worker.workerId} className="border-b border-espresso/8 last:border-0">
+                    <td className="px-4 py-3 font-medium text-espresso">
+                      {worker.workerName}
+                      {!worker.canAssign && <p className="mt-1 text-xs font-normal text-espresso/50">Inactive or no longer a marketer. Clear this assignment to free the area.</p>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <select
+                        aria-label={`Area for ${worker.workerName}`}
+                        className={inputClass}
+                        value={worker.areaId || ''}
+                        disabled={busy || isFetching}
+                        onChange={(event) => assign(worker.workerId, event.target.value)}
+                      >
+                        <option value="">No area</option>
+                        {worker.areaId && !areas.some((area) => area.id === worker.areaId) && <option value={worker.areaId} disabled>Area unavailable — clear assignment</option>}
+                        {areas.map((area) => {
+                          const owner = assignments.find((other) => other.workerId !== worker.workerId && other.areaId === area.id)
+                          return <option key={area.id} value={area.id} disabled={!worker.canAssign || Boolean(owner)}>{area.name}{owner ? ` — ${owner.workerName}` : ''}</option>
+                        })}
+                      </select>
                     </td>
                   </tr>
                 ))}
@@ -148,8 +88,6 @@ export default function OrderTakerSchedule() {
           </div>
         </div>
       )}
-
-      <TemplateModal open={!!editWorker} onClose={() => setEditWorker(null)} worker={editWorker} />
     </div>
   )
 }

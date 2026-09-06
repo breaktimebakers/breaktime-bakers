@@ -62,10 +62,9 @@ export const ENDPOINTS = {
     reactivate: (id) => `/workers/${id}/reactivate`,
   },
   schedule: {
-    week: '/schedule',
+    day: '/schedule',
     today: '/schedule/today',
-    template: (workerId) => `/schedule/template/${workerId}`,
-    override: (workerId) => `/schedule/override/${workerId}`,
+    assignment: (workerId) => `/schedule/assignment/${workerId}`,
   },
   attendance: {
     list: '/attendance',

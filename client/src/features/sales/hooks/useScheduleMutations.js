@@ -3,32 +3,17 @@ import { scheduleApi } from '../api/scheduleApi'
 import { scheduleKeys } from './useSchedule'
 import { toast } from '@/lib/toast'
 
-const invalidateSchedule = (queryClient) => queryClient.invalidateQueries({ queryKey: scheduleKeys.all })
-
-export function useSaveWeeklyTemplate() {
+export function useSetDailyAssignment() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ workerId, days }) => scheduleApi.saveTemplate(workerId, days),
-    onSuccess: () => {
-      invalidateSchedule(queryClient)
-      toast.success('Weekly schedule saved')
+    mutationFn: ({ workerId, date, areaId }) => scheduleApi.setAssignment(workerId, date, areaId),
+    onSuccess: async (_data, { areaId }) => {
+      await queryClient.invalidateQueries({ queryKey: scheduleKeys.all })
+      toast.success(areaId ? 'Area assigned' : 'Assignment cleared')
     },
     onError: (err) => {
-      toast.error('Could not save weekly schedule', { description: err.message })
-    },
-  })
-}
-
-export function useSetScheduleOverride() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({ workerId, date, areaId }) => scheduleApi.setOverride(workerId, date, areaId),
-    onSuccess: () => {
-      invalidateSchedule(queryClient)
-      toast.success('Schedule updated')
-    },
-    onError: (err) => {
-      toast.error('Could not update schedule', { description: err.message })
+      queryClient.invalidateQueries({ queryKey: scheduleKeys.all })
+      toast.error('Could not save assignment', { description: err.message })
     },
   })
 }

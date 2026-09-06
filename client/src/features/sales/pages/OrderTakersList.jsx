@@ -93,7 +93,7 @@ export default function OrderTakersList() {
         description="Field sales reps, the area each of them is covering today, and a full breakdown of their orders."
         actions={
           <Link to="/sales/orders/order-takers/schedule" className="inline-flex items-center gap-1.5 rounded-bakery border border-espresso/15 bg-proof-cream px-3 py-1.5 text-xs font-medium text-espresso transition hover:bg-sourdough/40">
-            <CalendarDays className="h-4 w-4" />Weekly schedule
+            <CalendarDays className="h-4 w-4" />Daily assignments
           </Link>
         }
       />
@@ -130,7 +130,7 @@ export default function OrderTakersList() {
                     <Button size="sm" variant="secondary">View detail</Button>
                   </Link>
                   <Link to="/sales/orders/order-takers/schedule">
-                    <Button size="sm" variant="ghost">Edit schedule</Button>
+                    <Button size="sm" variant="ghost">Assign area</Button>
                   </Link>
                 </div>
               </div>

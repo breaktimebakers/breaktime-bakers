@@ -20,5 +20,5 @@ export {
 } from './useAreaMutations'
 export { useOrders, usePaginatedOrders, orderKeys } from './useOrders'
 export { useCreateOrder, useUpdateOrderStatus, useFulfillOrder } from './useOrderMutations'
-export { useScheduleWeek, useScheduleToday, scheduleKeys } from './useSchedule'
-export { useSaveWeeklyTemplate, useSetScheduleOverride } from './useScheduleMutations'
+export { useScheduleDay, useScheduleToday, scheduleKeys } from './useSchedule'
+export { useSetDailyAssignment } from './useScheduleMutations'

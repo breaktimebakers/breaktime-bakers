@@ -86,7 +86,7 @@ export function AddOrderModal({ open, onClose, areaId }) {
             {orderTakers.map((ot) => <option key={ot.id} value={ot.id}>{ot.name}</option>)}
           </select>
           {form.storeId && orderTakers.length === 0 && (
-            <p className="mt-1 text-xs text-cherry-compote">No order taker is scheduled for this store&apos;s area today. Check the weekly schedule.</p>
+            <p className="mt-1 text-xs text-cherry-compote">No order taker is scheduled for this store&apos;s area today. Check the daily assignments.</p>
           )}
         </Field>
 
