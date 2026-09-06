@@ -1,9 +1,8 @@
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Plus, Search, Pencil, Trash2, Eye, Users, LayoutGrid, Table as TableIcon } from 'lucide-react'
-import { useWorkers, useDeleteWorker } from '@/features/workers/hooks'
+import { usePaginatedWorkers, useDeleteWorker } from '@/features/workers/hooks'
 import { Button, EmptyState, Modal, PageHeader, Pagination, inputClass } from '@/components/shared'
-import { usePagination } from '@/hooks'
 import { RoleBadge, roleConfig } from '../components/RoleBadge'
 
 import { WorkerAvatar } from '../components/PhotoCapture'
@@ -14,7 +13,6 @@ const PAGE_SIZE = 8
 const allRoles = ['chef', 'labour', 'delivery', 'marketer']
 
 export default function WorkersList() {
-  const { data: workers = [], isLoading, isError } = useWorkers()
   const deleteWorker = useDeleteWorker()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -23,21 +21,23 @@ export default function WorkersList() {
   const [addOpen, setAddOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
 
-  const filtered = useMemo(() => {
-    let list = workers
-    if (search) {
-      const q = search.toLowerCase()
-      list = list.filter((w) => w.name.toLowerCase().includes(q) || (w.phone || '').includes(q))
-    }
-    if (statusFilter !== 'all') list = list.filter((w) => w.status === statusFilter)
-    if (roleFilter.length > 0) list = list.filter((w) => roleFilter.some((r) => w.roles.includes(r)))
-    return list
-  }, [workers, search, statusFilter, roleFilter])
-
-  const { page, setPage, totalPages, start, end } = usePagination(filtered.length, PAGE_SIZE)
-  const paged = filtered.slice(start, end)
-
   const toggleRoleFilter = (r) => setRoleFilter((p) => p.includes(r) ? p.filter((x) => x !== r) : [...p, r])
+
+  const paginationResetKey = JSON.stringify([search, statusFilter, roleFilter])
+  const [pageState, setPageState] = useState({ key: paginationResetKey, page: 1 })
+  const requestedPage = pageState.key === paginationResetKey ? pageState.page : 1
+  if (pageState.key !== paginationResetKey) setPageState({ key: paginationResetKey, page: 1 })
+  const setPage = (nextPage) => setPageState({ key: paginationResetKey, page: nextPage })
+
+  const { data, isLoading, isError } = usePaginatedWorkers({
+    page: requestedPage,
+    pageSize: PAGE_SIZE,
+    search: search.trim() || undefined,
+    status: statusFilter,
+    roles: roleFilter.length > 0 ? roleFilter : undefined,
+  })
+  const workers = data?.workers || []
+  const { page = requestedPage, totalPages = 1, totalItems = 0 } = data?.pagination || {}
 
   const confirmDelete = () => {
     if (deleteTarget) deleteWorker.mutate(deleteTarget.id)
@@ -76,22 +76,22 @@ export default function WorkersList() {
             <button onClick={() => setView('cards')} className={`rounded-full p-1.5 ${view === 'cards' ? 'bg-espresso text-crust' : 'text-espresso/60'}`}><LayoutGrid className="h-4 w-4" /></button>
           </div>
         </div>
-        <p className="mt-3 text-xs text-espresso/50">{filtered.length} {filtered.length === 1 ? 'worker' : 'workers'}</p>
+        <p className="mt-3 text-xs text-espresso/50">{totalItems} {totalItems === 1 ? 'worker' : 'workers'}</p>
       </div>
 
       {isLoading ? (
         <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading workers...</p>
       ) : isError ? (
         <EmptyState icon={Users} title="Could not load workers" description="Something went wrong fetching workers. Try refreshing." />
-      ) : filtered.length === 0 ? (
+      ) : totalItems === 0 ? (
         <EmptyState icon={Users} title="No workers found" description="Add a worker or adjust your filters." />
       ) : view === 'cards' ? (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {paged.map((w) => <WorkerCard key={w.id} worker={w} onDelete={setDeleteTarget} />)}
+            {workers.map((w) => <WorkerCard key={w.id} worker={w} onDelete={setDeleteTarget} />)}
           </div>
           <div className="mt-4 rounded-bakery border border-espresso/8 bg-proof-cream shadow-bakery">
-            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={filtered.length} pageSize={PAGE_SIZE} />
+            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={totalItems} pageSize={PAGE_SIZE} />
           </div>
         </>
       ) : (
@@ -109,7 +109,7 @@ export default function WorkersList() {
                 </tr>
               </thead>
               <tbody>
-                {paged.map((w) => (
+                {workers.map((w) => (
                   <tr key={w.id} className="border-b border-espresso/8 last:border-0 hover:bg-crust/20">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
@@ -148,7 +148,7 @@ export default function WorkersList() {
               </tbody>
             </table>
           </div>
-          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={filtered.length} pageSize={PAGE_SIZE} />
+          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={totalItems} pageSize={PAGE_SIZE} />
         </div>
       )}
 

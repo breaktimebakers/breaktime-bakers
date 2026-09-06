@@ -9,6 +9,7 @@ import {
   createOrderSchema,
   updateOrderStatusSchema,
   fulfillOrderSchema,
+  orderTakerStatsQuerySchema,
 } from "./order.validation.js";
 import * as orderController from "./order.controller.js";
 
@@ -17,6 +18,8 @@ const router = Router();
 router.use(requireAuth, requireRole("admin"));
 
 router.get("/", validateQuery(listOrdersQuerySchema), asyncHandler(orderController.list));
+
+router.get("/order-taker-stats", validateQuery(orderTakerStatsQuerySchema), asyncHandler(orderController.orderTakerStats));
 
 router.post("/", validate(createOrderSchema), asyncHandler(orderController.create));
 

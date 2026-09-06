@@ -18,7 +18,7 @@ export {
   useBulkAssignStores,
   useBulkUnassignStores,
 } from './useAreaMutations'
-export { useOrders, usePaginatedOrders, orderKeys } from './useOrders'
+export { useOrders, usePaginatedOrders, useOrderTakerStats, orderKeys } from './useOrders'
 export { useCreateOrder, useUpdateOrderStatus, useFulfillOrder } from './useOrderMutations'
 export { useScheduleDay, useScheduleToday, scheduleKeys } from './useSchedule'
 export { useSetDailyAssignment } from './useScheduleMutations'

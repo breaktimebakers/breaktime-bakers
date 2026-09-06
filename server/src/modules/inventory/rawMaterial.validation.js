@@ -1,8 +1,10 @@
 import { z } from "zod";
 import { isoDateSchema as isoDate, withDateRangeCheck } from "../../utils/isoDate.js";
+import { paginationQueryShape } from "../../utils/pagination.js";
 
 export const listRawMaterialsQuerySchema = withDateRangeCheck(
   z.object({
+    ...paginationQueryShape,
     search: z.string().trim().min(1).optional(),
     filter: z.enum(["all", "low", "custom"]).optional().default("all"),
     from: isoDate.optional(),

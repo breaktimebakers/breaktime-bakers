@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isoDateSchema as isoDate } from "../../utils/isoDate.js";
+import { paginationQueryShape } from "../../utils/pagination.js";
 
 const isoTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Expected HH:MM");
 
@@ -8,6 +9,23 @@ const WEEK_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frid
 
 export const workerIdParamSchema = z.object({
   id: z.string().min(1),
+});
+
+// A query-string array can arrive either as one repeated key (Express/qs
+// parses that natively into an array) or, from apiClient's plain
+// URLSearchParams.set(key, arrayValue), as a single comma-joined string -
+// normalize both into a string[] before validating each entry against ROLES.
+const rolesQuerySchema = z
+  .union([z.string(), z.array(z.string())])
+  .transform((val) => (Array.isArray(val) ? val : val.split(",")).map((r) => r.trim()).filter(Boolean))
+  .pipe(z.array(z.enum(ROLES)))
+  .optional();
+
+export const listWorkersQuerySchema = z.object({
+  ...paginationQueryShape,
+  search: z.string().trim().optional(),
+  status: z.enum(["all", "active", "left"]).optional().default("all"),
+  roles: rolesQuerySchema,
 });
 
 export const createWorkerSchema = z.object({

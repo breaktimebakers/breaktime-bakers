@@ -2,7 +2,7 @@ import { apiClient } from '@/lib/apiClient'
 import { ENDPOINTS } from '@/constants/ENDPOINTS'
 
 export const workerApi = {
-  list: () => apiClient.get(ENDPOINTS.workers.list),
+  list: (query) => apiClient.get(ENDPOINTS.workers.list, { query }),
   detail: (id) => apiClient.get(ENDPOINTS.workers.detail(id)),
   create: (body) => apiClient.post(ENDPOINTS.workers.create, body),
   update: (id, body) => apiClient.patch(ENDPOINTS.workers.update(id), body),
@@ -13,7 +13,7 @@ export const workerApi = {
 
 export const attendanceApi = {
   listByDate: (date) => apiClient.get(ENDPOINTS.attendance.list, { query: { date } }),
-  listByWorker: (workerId) => apiClient.get(ENDPOINTS.attendance.list, { query: { workerId } }),
+  listByWorker: (workerId, query = {}) => apiClient.get(ENDPOINTS.attendance.list, { query: { workerId, ...query } }),
   listAll: () => apiClient.get(ENDPOINTS.attendance.list),
   mark: (body) => apiClient.post(ENDPOINTS.attendance.mark, body),
   clear: (workerId, date) => apiClient.delete(ENDPOINTS.attendance.clear(workerId, date)),

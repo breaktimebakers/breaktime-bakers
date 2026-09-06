@@ -1,6 +1,7 @@
 import { httpError } from "../../utils/httpError.js";
 import { createReadUrl } from "../../utils/objectStorage.js";
 import { resolveMonthRange } from "../../utils/dateRange.js";
+import { resolvePagination } from "../../utils/pagination.js";
 import * as rawMaterialRepo from "./rawMaterial.repository.js";
 
 const requireRawMaterial = async (id) => {
@@ -13,7 +14,22 @@ const requireRawMaterial = async (id) => {
   return material;
 };
 
-export const listRawMaterials = (query) => rawMaterialRepo.listRawMaterials(query);
+export const listRawMaterials = async (query) => {
+  const { page, pageSize, ...filters } = query;
+
+  if (page === undefined) {
+    return { rawMaterials: await rawMaterialRepo.listRawMaterials(filters) };
+  }
+
+  const [totalItems, totalValue, materials] = await Promise.all([
+    rawMaterialRepo.countRawMaterials(filters),
+    rawMaterialRepo.getRawMaterialsTotalValue(filters),
+    rawMaterialRepo.listRawMaterials({ ...filters, page, pageSize }),
+  ]);
+  const pagination = resolvePagination(totalItems, { page, pageSize });
+
+  return { rawMaterials: materials, pagination, totalValue };
+};
 
 export const getRawMaterial = (id) => requireRawMaterial(id);
 

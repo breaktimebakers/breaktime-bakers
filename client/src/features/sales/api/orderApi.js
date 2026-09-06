@@ -6,4 +6,5 @@ export const orderApi = {
   create: (body) => apiClient.post(ENDPOINTS.orders.create, body),
   updateStatus: (id, status) => apiClient.patch(ENDPOINTS.orders.updateStatus(id), { status }),
   fulfill: (id, body) => apiClient.patch(ENDPOINTS.orders.fulfill(id), body),
+  getOrderTakerStats: (orderTakerId, range) => apiClient.get(ENDPOINTS.orders.orderTakerStats, { query: { orderTakerId, range } }),
 }

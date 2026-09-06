@@ -20,6 +20,18 @@ export function useRawMaterials(query = {}) {
   })
 }
 
+// Server-side search/filter/pagination, plus a totalValue aggregate that
+// covers the whole filtered set (not just the current page) - the "Total
+// raw material amount" summary needs the latter, see RawMaterials.jsx.
+export function usePaginatedRawMaterials(query = {}) {
+  const params = { ...query, page: query.page ?? 1, pageSize: query.pageSize ?? 10 }
+
+  return useQuery({
+    queryKey: rawMaterialKeys.list(params),
+    queryFn: () => rawMaterialApi.list(params),
+  })
+}
+
 // Lazy by design - a material's lot history is only fetched once its row
 // is expanded, not for every row up front on page load.
 export function useRawMaterialLots(materialId, range = {}, { enabled = true } = {}) {

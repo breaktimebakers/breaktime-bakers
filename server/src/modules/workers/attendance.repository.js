@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import { v7 as uuidv7 } from "uuid";
 import { db } from "../../db/index.js";
 import { workerAttendance } from "./workerAttendance.schema.js";
@@ -26,12 +26,39 @@ export const listAllAttendance = async () => {
   return db.select(attendanceSelection).from(workerAttendance);
 };
 
-export const listAttendanceForWorker = async (workerId) => {
-  return db
+const buildWorkerAttendanceConditions = (workerId, { status } = {}) => {
+  const conditions = [eq(workerAttendance.workerId, workerId)];
+
+  if (status) conditions.push(eq(workerAttendance.status, status));
+
+  return and(...conditions);
+};
+
+// Called with no second argument (or {}), this stays byte-for-byte
+// identical to its pre-pagination behavior - the worker detail page's
+// calendar and payroll estimate both rely on that, see attendance.service.js.
+export const listAttendanceForWorker = async (workerId, { status, page, pageSize = 10 } = {}) => {
+  const statement = db
     .select(attendanceSelection)
     .from(workerAttendance)
-    .where(eq(workerAttendance.workerId, workerId))
-    .orderBy(desc(workerAttendance.date));
+    .where(buildWorkerAttendanceConditions(workerId, { status }))
+    // A unique tie-breaker prevents equal dates moving between pages.
+    .orderBy(desc(workerAttendance.date), desc(workerAttendance.id));
+
+  if (page !== undefined) {
+    return statement.limit(pageSize).offset((page - 1) * pageSize);
+  }
+
+  return statement;
+};
+
+export const countAttendanceForWorker = async (workerId, { status } = {}) => {
+  const [result] = await db
+    .select({ total: count() })
+    .from(workerAttendance)
+    .where(buildWorkerAttendanceConditions(workerId, { status }));
+
+  return result.total;
 };
 
 const findEntry = async (workerId, date) => {

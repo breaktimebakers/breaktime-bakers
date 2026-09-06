@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, gte, ilike, lte, sql } from "drizzle-orm";
+import { and, asc, count, eq, gt, gte, ilike, lte, sql } from "drizzle-orm";
 import { v7 as uuidv7 } from "uuid";
 import { db } from "../../db/index.js";
 import { httpError } from "../../utils/httpError.js";
@@ -60,11 +60,15 @@ const materialSelection = {
   nextLotRate: nextLotRateSql.as("next_lot_rate"),
 };
 
-export const listRawMaterials = async ({ search, filter, from, to } = {}) => {
+// Treat LIKE wildcards as literal characters, matching the UI's substring
+// search - same escaping as order.repository.js's search.
+const escapeLikePattern = (value) => `%${value.replace(/[\\%_]/g, "\\$&")}%`;
+
+const buildMaterialConditions = ({ search, filter, from, to } = {}) => {
   const conditions = [eq(rawMaterials.isArchived, false)];
 
   if (search) {
-    conditions.push(ilike(rawMaterials.name, `%${search}%`));
+    conditions.push(ilike(rawMaterials.name, escapeLikePattern(search)));
   }
 
   if (filter === "custom" && (from || to)) {
@@ -82,20 +86,55 @@ export const listRawMaterials = async ({ search, filter, from, to } = {}) => {
     )`);
   }
 
-  const rows = await db
-    .select(materialSelection)
-    .from(rawMaterials)
-    .where(and(...conditions))
-    .orderBy(asc(rawMaterials.name));
-
-  // Low-stock is a comparison between two computed/stored values per row,
-  // not something worth a HAVING clause for a list this size - filtering
-  // in JS keeps the query simple.
+  // stockQtySql/lowStockAt are both plain per-row values (a correlated
+  // scalar subquery and a stored column), not aggregates - safe to
+  // compare directly in WHERE, no HAVING/GROUP BY needed. This used to be
+  // a post-fetch JS `.filter()`, which broke the moment pagination's
+  // LIMIT/OFFSET was applied before that filter ran - a "low stock" page
+  // 2 could silently omit or duplicate rows relative to what a plain,
+  // unpaginated fetch showed.
   if (filter === "low") {
-    return rows.filter((row) => row.stockQty < row.lowStockAt);
+    conditions.push(sql`(${stockQtySql}) < ${rawMaterials.lowStockAt}`);
   }
 
-  return rows;
+  return conditions;
+};
+
+export const listRawMaterials = async ({ search, filter, from, to, page, pageSize = 10 } = {}) => {
+  const statement = db
+    .select(materialSelection)
+    .from(rawMaterials)
+    .where(and(...buildMaterialConditions({ search, filter, from, to })))
+    // A unique tie-breaker prevents equal names moving between pages.
+    .orderBy(asc(rawMaterials.name), asc(rawMaterials.id));
+
+  if (page !== undefined) {
+    return statement.limit(pageSize).offset((page - 1) * pageSize);
+  }
+
+  return statement;
+};
+
+export const countRawMaterials = async (query = {}) => {
+  const [result] = await db
+    .select({ total: count() })
+    .from(rawMaterials)
+    .where(and(...buildMaterialConditions(query)));
+
+  return result.total;
+};
+
+// Sum of every matching material's current stock value (stockQty *
+// nextLotRate), independent of pagination - the "Total raw material
+// amount" summary and the PDF/Excel export both need this to reflect the
+// whole filtered set, not just whatever page the table is currently on.
+export const getRawMaterialsTotalValue = async (query = {}) => {
+  const [result] = await db
+    .select({ total: sql`COALESCE(SUM((${stockQtySql}) * COALESCE((${nextLotRateSql}), 0)), 0)`.mapWith(Number) })
+    .from(rawMaterials)
+    .where(and(...buildMaterialConditions(query)));
+
+  return result.total;
 };
 
 export const findRawMaterialById = async (id) => {

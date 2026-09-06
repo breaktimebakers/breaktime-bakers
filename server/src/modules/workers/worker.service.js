@@ -1,6 +1,7 @@
 import { httpError } from "../../utils/httpError.js";
 import { createReadUrl } from "../../utils/objectStorage.js";
 import { todayIso } from "../../utils/dateRange.js";
+import { resolvePagination } from "../../utils/pagination.js";
 import * as workerRepo from "./worker.repository.js";
 
 const requireWorker = async (id) => {
@@ -22,9 +23,22 @@ const withSignedPhotoUrl = async (worker) => {
   return { ...rest, photoUrl: await createReadUrl(photoKey) };
 };
 
-export const listWorkers = async () => {
-  const list = await workerRepo.listWorkers();
-  return Promise.all(list.map(withSignedPhotoUrl));
+export const listWorkers = async (query = {}) => {
+  const { page, pageSize, ...filters } = query;
+
+  if (page === undefined) {
+    const list = await workerRepo.listWorkers(filters);
+    return { workers: await Promise.all(list.map(withSignedPhotoUrl)) };
+  }
+
+  const [totalItems, list] = await Promise.all([
+    workerRepo.countWorkers(filters),
+    workerRepo.listWorkers({ ...filters, page, pageSize }),
+  ]);
+  const pagination = resolvePagination(totalItems, { page, pageSize });
+  const workersList = await Promise.all(list.map(withSignedPhotoUrl));
+
+  return { workers: workersList, pagination };
 };
 
 export const getWorker = async (id) => withSignedPhotoUrl(await requireWorker(id));

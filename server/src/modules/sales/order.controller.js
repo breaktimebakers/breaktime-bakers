@@ -7,6 +7,13 @@ export const list = async (req, res) => {
   sendResponse(res, 200, "Orders fetched", result);
 };
 
+export const orderTakerStats = async (req, res) => {
+  const { orderTakerId, range } = req.validatedQuery;
+  const stats = await orderService.getOrderTakerStats(orderTakerId, range);
+
+  sendResponse(res, 200, "Order taker stats fetched", stats);
+};
+
 export const create = async (req, res) => {
   const order = await orderService.createOrder(req.body);
 

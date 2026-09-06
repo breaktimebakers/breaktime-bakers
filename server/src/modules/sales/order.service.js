@@ -1,5 +1,5 @@
 import { httpError } from "../../utils/httpError.js";
-import { resolveDateRange, todayIso } from "../../utils/dateRange.js";
+import { resolveDateRange, todayIso, daysAgoIso } from "../../utils/dateRange.js";
 import { resolvePagination } from "../../utils/pagination.js";
 import * as orderRepo from "./order.repository.js";
 import * as areaRepo from "./area.repository.js";
@@ -62,6 +62,40 @@ export const listOrders = async (query) => {
   const orders = await orderRepo.listOrders({ ...filters, ...pagination });
 
   return { orders, pagination, orderTakerCounts };
+};
+
+// Everything the order-taker detail page's stat cards and charts need,
+// computed as SQL aggregates over this taker's *entire* history -
+// independent of whatever page/filter the orders table below them is
+// currently showing, so paginating that table can never silently change
+// what these numbers mean.
+export const getOrderTakerStats = async (orderTakerId, rangeDays) => {
+  const week = resolveDateRange({ filter: "week" });
+  const chartFrom = daysAgoIso(rangeDays - 1);
+  const chartTo = todayIso();
+
+  const [totalOrders, weekOrders, topProduct, dailyRows, storeRows] = await Promise.all([
+    orderRepo.countOrders({ orderTakerId }),
+    orderRepo.countOrders({ orderTakerId, ...week }),
+    orderRepo.getTopProductForOrderTaker(orderTakerId),
+    orderRepo.getDailyOrderCountsForOrderTaker(orderTakerId, chartFrom, chartTo),
+    orderRepo.getStoreOrderCountsForOrderTaker(orderTakerId),
+  ]);
+
+  const countByDate = new Map(dailyRows.map((row) => [row.date, row.total]));
+  const dailyCounts = [];
+  for (let i = rangeDays - 1; i >= 0; i--) {
+    const date = daysAgoIso(i);
+    dailyCounts.push({ date, count: countByDate.get(date) || 0 });
+  }
+
+  return {
+    totalOrders,
+    weekOrders,
+    topProduct: topProduct || "—",
+    dailyCounts,
+    storeCounts: storeRows.map((row) => ({ name: row.storeName, value: row.total })),
+  };
 };
 
 // An order taker can only take orders for the area they're actually

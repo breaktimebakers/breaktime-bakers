@@ -1,4 +1,4 @@
-export { useWorkers, useWorker, useAttendanceByDate, useWorkerAttendance, useAllAttendance, workerKeys, attendanceKeys } from './useWorkers'
+export { useWorkers, usePaginatedWorkers, useWorker, useAttendanceByDate, useWorkerAttendance, usePaginatedWorkerAttendance, useAllAttendance, workerKeys, attendanceKeys } from './useWorkers'
 export {
   useCreateWorker,
   useUpdateWorker,

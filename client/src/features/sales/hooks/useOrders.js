@@ -26,11 +26,25 @@ export function useOrders(query = {}, { enabled = true } = {}) {
   })
 }
 
-export function usePaginatedOrders(query = {}) {
+// `enabled` mirrors useOrders' - hold off firing while a required date
+// input is incomplete or invalid, see useOrders.js above.
+export function usePaginatedOrders(query = {}, { enabled = true } = {}) {
   const params = { ...query, page: query.page ?? 1, pageSize: query.pageSize ?? 10 }
 
   return useQuery({
     queryKey: orderKeys.list(params),
     queryFn: () => orderApi.list(params),
+    enabled,
+  })
+}
+
+// Stat cards + both charts on the order taker detail page - one lightweight
+// aggregate query covering this taker's entire history, independent of
+// whatever page/filter the orders table on that same page is showing.
+export function useOrderTakerStats(orderTakerId, range) {
+  return useQuery({
+    queryKey: ['orders', 'orderTakerStats', orderTakerId, range],
+    queryFn: () => orderApi.getOrderTakerStats(orderTakerId, range),
+    enabled: Boolean(orderTakerId),
   })
 }

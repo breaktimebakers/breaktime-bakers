@@ -2,9 +2,9 @@ import { sendResponse } from "../../utils/apiResponse.js";
 import * as rawMaterialService from "./rawMaterial.service.js";
 
 export const list = async (req, res) => {
-  const rawMaterialsList = await rawMaterialService.listRawMaterials(req.validatedQuery);
+  const result = await rawMaterialService.listRawMaterials(req.validatedQuery);
 
-  sendResponse(res, 200, "Raw materials fetched", { rawMaterials: rawMaterialsList });
+  sendResponse(res, 200, "Raw materials fetched", result);
 };
 
 export const getOne = async (req, res) => {

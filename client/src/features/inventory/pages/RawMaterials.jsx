@@ -1,16 +1,19 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Search, Pencil, Plus, Trash2, PackagePlus, PackageX, ChevronDown, AlertTriangle, FileText } from 'lucide-react'
 import {
-  useRawMaterials,
+  usePaginatedRawMaterials,
   useRawMaterialLots,
   useDeleteRawMaterial,
 } from '@/features/inventory/hooks'
-import { Button, ConfirmModal, EmptyState, ExportMenu, FileViewerModal, PageHeader, inputClass } from '@/components/shared'
+import { rawMaterialApi } from '@/features/inventory/api/rawMaterialApi'
+import { Button, ConfirmModal, EmptyState, ExportMenu, FileViewerModal, PageHeader, Pagination, inputClass } from '@/components/shared'
 import { exportPDF, exportExcel, formatCurrency, formatDate } from '@/utils'
 import { AddMaterialModal } from '../components/AddMaterialModal'
 import { EditMaterialModal } from '../components/EditMaterialModal'
 import { RestockModal } from '../components/RestockModal'
 import { MarkWastageModal } from '../components/MarkWastageModal'
+
+const PAGE_SIZE = 10
 
 // A material's lot history is fetched lazily (see LotHistory below), so a
 // row that's never been expanded never issues that request.
@@ -100,7 +103,20 @@ export default function RawMaterials() {
     to: filter === 'custom' ? customTo || undefined : undefined,
   }), [search, filter, customFrom, customTo])
 
-  const { data: materials = [], isLoading, isError } = useRawMaterials(query)
+  // Resets to page 1 whenever the search/filter actually changes -
+  // otherwise narrowing the filter while sitting on page 3 could land on
+  // a page past the new (smaller) result set. Same pattern as
+  // OrderTakersList.jsx/OrdersOverview.jsx.
+  const paginationResetKey = JSON.stringify(query)
+  const [pageState, setPageState] = useState({ key: paginationResetKey, page: 1 })
+  const requestedPage = pageState.key === paginationResetKey ? pageState.page : 1
+  if (pageState.key !== paginationResetKey) setPageState({ key: paginationResetKey, page: 1 })
+  const setPage = (nextPage) => setPageState({ key: paginationResetKey, page: nextPage })
+
+  const { data, isLoading, isError } = usePaginatedRawMaterials({ ...query, page: requestedPage, pageSize: PAGE_SIZE })
+  const materials = data?.rawMaterials || []
+  const { page = requestedPage, totalPages = 1, totalItems = 0 } = data?.pagination || {}
+
   const deleteRawMaterial = useDeleteRawMaterial()
 
   const confirmDelete = async () => {
@@ -112,35 +128,43 @@ export default function RawMaterials() {
       // the confirmation open so the admin can retry or cancel.
     }
   }
-  const totalRawMaterialAmount = materials.reduce(
-    (total, material) => total + Number(material.stockQty || 0) * Number(material.nextLotRate || 0),
-    0,
-  )
 
-  const handleExportPDF = () => {
+  // Exports cover every material matching the current filter, not just
+  // the page on screen - fetched fresh (unpaginated) at export time
+  // rather than kept around in memory for the table view.
+  const fetchAllFilteredMaterials = async () => {
+    const { rawMaterials: all } = await rawMaterialApi.list(query)
+    return all
+  }
+
+  const handleExportPDF = async () => {
+    const all = await fetchAllFilteredMaterials()
+    const total = all.reduce((sum, m) => sum + Number(m.stockQty || 0) * Number(m.nextLotRate || 0), 0)
     exportPDF({
       title: 'Raw Materials',
       subtitle: 'Break Times Bakery',
       columns: ['Material', 'Unit', 'Stock', 'Low-stock at', 'Next lot rate', 'Amount'],
-      rows: materials.map((m) => {
+      rows: all.map((m) => {
         const amount = Number(m.stockQty || 0) * Number(m.nextLotRate || 0)
         return [m.name, m.unit, m.stockQty, m.lowStockAt, formatCurrency(m.nextLotRate || 0), formatCurrency(amount)]
       }),
-      summaryRows: [{ label: 'Total raw material amount', value: formatCurrency(totalRawMaterialAmount) }],
+      summaryRows: [{ label: 'Total raw material amount', value: formatCurrency(total) }],
       filename: 'raw-materials.pdf',
     })
   }
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
+    const all = await fetchAllFilteredMaterials()
+    const total = all.reduce((sum, m) => sum + Number(m.stockQty || 0) * Number(m.nextLotRate || 0), 0)
     exportExcel({
       title: 'Raw Materials',
       subtitle: 'Break Times Bakery',
       columns: ['Material', 'Unit', 'Stock', 'Low-stock at', 'Next lot rate', 'Amount'],
-      rows: materials.map((m) => {
+      rows: all.map((m) => {
         const rate = Number(m.nextLotRate || 0)
         const amount = Number(m.stockQty || 0) * rate
         return [m.name, m.unit, m.stockQty, m.lowStockAt, rate, amount]
       }),
-      summaryRows: [{ label: 'Total raw material amount', value: totalRawMaterialAmount }],
+      summaryRows: [{ label: 'Total raw material amount', value: total }],
       sheetName: 'Raw Materials',
       filename: 'raw-materials.xlsx',
     })
@@ -175,12 +199,12 @@ export default function RawMaterials() {
             <input type="date" className={`${inputClass} max-w-[160px]`} value={customTo} onChange={(e) => setCustomTo(e.target.value)} />
           </div>
         )}
-        <p className="text-xs text-espresso/50">{isLoading ? 'Loading…' : `${materials.length} ${materials.length === 1 ? 'item' : 'items'}`}</p>
+        <p className="text-xs text-espresso/50">{isLoading ? 'Loading…' : `${totalItems} ${totalItems === 1 ? 'item' : 'items'}`}</p>
       </div>
 
       {isError ? (
         <EmptyState icon={AlertTriangle} title="Could not load raw materials" description="Something went wrong talking to the server. Try refreshing." />
-      ) : !isLoading && materials.length === 0 ? (
+      ) : !isLoading && totalItems === 0 ? (
         <EmptyState icon={PackagePlus} title="No materials found" description="Try adjusting your search or filters." />
       ) : (
         <>
@@ -238,6 +262,7 @@ export default function RawMaterials() {
                 })}
               </tbody>
             </table>
+            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={totalItems} pageSize={PAGE_SIZE} />
           </div>
 
           {/* Mobile cards */}
@@ -272,6 +297,9 @@ export default function RawMaterials() {
                 </div>
               )
             })}
+          </div>
+          <div className="mt-3 rounded-bakery border border-espresso/8 bg-proof-cream shadow-bakery md:hidden">
+            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={totalItems} pageSize={PAGE_SIZE} />
           </div>
         </>
       )}

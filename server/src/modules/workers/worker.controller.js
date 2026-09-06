@@ -2,9 +2,9 @@ import { sendResponse } from "../../utils/apiResponse.js";
 import * as workerService from "./worker.service.js";
 
 export const list = async (req, res) => {
-  const workers = await workerService.listWorkers();
+  const result = await workerService.listWorkers(req.validatedQuery);
 
-  sendResponse(res, 200, "Workers fetched", { workers });
+  sendResponse(res, 200, "Workers fetched", result);
 };
 
 export const getOne = async (req, res) => {

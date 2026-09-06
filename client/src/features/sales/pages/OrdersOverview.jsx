@@ -1,11 +1,10 @@
 import { useState, useMemo, Fragment } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
 import { Plus, Filter, ChevronDown, ChevronRight, ClipboardList } from 'lucide-react'
-import { useOrders, useAllStores, useAreas, useUpdateOrderStatus } from '@/features/sales/hooks'
+import { usePaginatedOrders, useAllStores, useAreas, useUpdateOrderStatus } from '@/features/sales/hooks'
 import { useWorkers } from '@/features/workers/hooks'
 import { useReadyStock } from '@/features/inventory/hooks'
 import { Button, EmptyState, PageHeader, Pagination, inputClass } from '@/components/shared'
-import { usePagination } from '@/hooks'
 import { ORDER_STATUS } from '@/constants/orderStatus'
 import { formatDateShort, isReversedRange } from '@/utils'
 import { StatusDropdown } from '../components/StatusDropdown'
@@ -77,11 +76,22 @@ export default function OrdersOverview() {
     return q
   }, [dateMode, specificDate, customFrom, customTo, areaId, statusFilter, productFilter, storeFilter, otFilter])
 
-  const { data: orders = [], isLoading, isError } = useOrders(query, { enabled: dateInputReady })
-  const updateOrderStatus = useUpdateOrderStatus()
+  // Resets to page 1 whenever any filter actually changes - otherwise
+  // narrowing the filter while sitting on page 5 could land on a page
+  // past the new (smaller) result set. Same pattern as OrderTakersList.jsx.
+  const paginationResetKey = JSON.stringify(query)
+  const [pageState, setPageState] = useState({ key: paginationResetKey, page: 1 })
+  const requestedPage = pageState.key === paginationResetKey ? pageState.page : 1
+  if (pageState.key !== paginationResetKey) setPageState({ key: paginationResetKey, page: 1 })
+  const setPage = (nextPage) => setPageState({ key: paginationResetKey, page: nextPage })
 
-  const { page, setPage, totalPages, start, end } = usePagination(orders.length, PAGE_SIZE)
-  const paged = orders.slice(start, end)
+  const { data, isLoading, isError } = usePaginatedOrders(
+    { ...query, page: requestedPage, pageSize: PAGE_SIZE },
+    { enabled: dateInputReady },
+  )
+  const orders = data?.orders || []
+  const { page = requestedPage, totalPages = 1, totalItems = 0 } = data?.pagination || {}
+  const updateOrderStatus = useUpdateOrderStatus()
 
   const clearFilters = () => {
     setDateMode('today'); setSpecificDate(''); setCustomFrom(''); setCustomTo(''); setStatusFilter('all'); setProductFilter('all'); setStoreFilter('all'); setOtFilter('all')
@@ -149,7 +159,7 @@ export default function OrdersOverview() {
 
       {/* Summary */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <h2 className="font-display text-lg font-semibold text-espresso">{orders.length} {orders.length === 1 ? 'order' : 'orders'}</h2>
+        <h2 className="font-display text-lg font-semibold text-espresso">{totalItems} {totalItems === 1 ? 'order' : 'orders'}</h2>
         {summaryParts.length > 0 && (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-oven-amber/10 px-3 py-1 text-xs text-espresso/70">
             Showing: {summaryParts.join(' · ')}
@@ -166,7 +176,7 @@ export default function OrdersOverview() {
         <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading orders...</p>
       ) : isError ? (
         <EmptyState icon={ClipboardList} title="Could not load orders" description="Something went wrong fetching orders. Try refreshing." />
-      ) : orders.length === 0 ? (
+      ) : totalItems === 0 ? (
         <EmptyState icon={ClipboardList} title="No orders found" description="Try adjusting your filters." />
       ) : (
         <div className="overflow-hidden rounded-bakery border border-espresso/8 bg-proof-cream shadow-bakery">
@@ -185,7 +195,7 @@ export default function OrdersOverview() {
                 </tr>
               </thead>
               <tbody>
-                {paged.map((o) => {
+                {orders.map((o) => {
                   const store = stores.find((s) => s.id === o.storeId)
                   const area = areas.find((a) => a.id === store?.areaId)
                   const cfg = ORDER_STATUS[o.status]
@@ -238,7 +248,7 @@ export default function OrdersOverview() {
               </tbody>
             </table>
           </div>
-          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={orders.length} pageSize={PAGE_SIZE} />
+          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={totalItems} pageSize={PAGE_SIZE} />
         </div>
       )}
 

@@ -2,13 +2,12 @@ import { useState, useMemo } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { MapPin, Plus, ClipboardList, Calendar, ShoppingBag, Search } from 'lucide-react'
-import { useAreas, useAllStores, useOrders, useScheduleToday } from '@/features/sales/hooks'
+import { useAreas, useAllStores, usePaginatedOrders, useOrderTakerStats, useScheduleToday } from '@/features/sales/hooks'
 import { useWorker } from '@/features/workers/hooks'
 import { ORDER_STATUS } from '@/constants/orderStatus'
 import { AddPersonOrderModal } from '../components/AddPersonOrderModal'
 import { Button, EmptyState, PageHeader, Pagination, SortIcon, StatCard, inputClass } from '@/components/shared'
-import { usePagination } from '@/hooks'
-import { todayISO, daysAgoISO, isWithinLastNDays } from '@/utils'
+import { isReversedRange } from '@/utils'
 
 const chartColors = ['#C97A2B', '#E8D5B7', '#8C9A6B', '#7A4A5C', '#D4A24C', '#B5C4A8']
 const PAGE_SIZE = 8
@@ -19,9 +18,6 @@ export default function OrderTakerDetail() {
   const { data: areas = [] } = useAreas()
   const { data: stores = [] } = useAllStores()
   const { data: todaySchedule } = useScheduleToday()
-  // Scoped server-side to this order taker - not the full order history
-  // filtered client-side.
-  const { data: personOrders = [] } = useOrders({ filter: 'all', orderTakerId: personId })
   const [range, setRange] = useState('7')
   const [addOpen, setAddOpen] = useState(false)
 
@@ -49,71 +45,60 @@ export default function OrderTakerDetail() {
     return areas.find((a) => a.id === areaId)
   }, [areas, todaySchedule, personId])
 
-  const weekOrders = useMemo(() => personOrders.filter((o) => isWithinLastNDays(o.orderDate, 7)), [personOrders])
-
-  const topProduct = useMemo(() => {
-    const counts = {}
-    personOrders.forEach((o) => (o.items || []).forEach((it) => { counts[it.productName] = (counts[it.productName] || 0) + it.quantity }))
-    return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || '—'
-  }, [personOrders])
-
-  const barData = useMemo(() => {
-    const days = parseInt(range)
-    const out = []
-    for (let i = days - 1; i >= 0; i--) {
-      const dateStr = daysAgoISO(i)
-      const label = new Date(`${dateStr}T00:00:00Z`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', timeZone: 'Asia/Kolkata' })
-      const count = personOrders.filter((o) => o.orderDate === dateStr).length
-      out.push({ day: label, orders: count })
-    }
-    return out
-  }, [personOrders, range])
-
-  const pieData = useMemo(() => {
-    const counts = {}
-    personOrders.forEach((o) => {
-      const store = stores.find((s) => s.id === o.storeId)
-      const name = store?.dealerName || 'Unknown'
-      counts[name] = (counts[name] || 0) + 1
-    })
-    return Object.entries(counts).map(([name, value]) => ({ name, value }))
-  }, [personOrders, stores])
+  // Stat cards + both charts come from one lightweight SQL aggregate over
+  // this taker's entire history (see order.service.js: getOrderTakerStats)
+  // - independent of whatever page/filter the orders table below is
+  // currently showing, so paginating that table can never change these.
+  const { data: stats } = useOrderTakerStats(personId, Number(range))
+  const barData = useMemo(
+    () => (stats?.dailyCounts || []).map((d) => ({
+      day: new Date(`${d.date}T00:00:00Z`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', timeZone: 'Asia/Kolkata' }),
+      orders: d.count,
+    })),
+    [stats],
+  )
+  const pieData = stats?.storeCounts || []
   const totalPie = pieData.reduce((s, d) => s + d.value, 0) || 1
 
-  // Table data with filters + sort
-  const filteredOrders = useMemo(() => {
-    let list = personOrders.map((o) => {
-      const store = stores.find((s) => s.id === o.storeId)
-      const area = areas.find((a) => a.id === store?.areaId)
-      const items = o.items || []
-      const productsLabel = items.length === 0 ? '—' : items.length === 1 ? items[0].productName : `${items[0].productName} +${items.length - 1} more`
-      const totalQty = items.reduce((s, it) => s + it.quantity, 0)
-      return { ...o, storeName: store?.dealerName || '—', areaName: area?.name || '—', productsLabel, totalQty }
-    })
-    if (search) {
-      const q = search.toLowerCase()
-      list = list.filter((o) => o.storeName.toLowerCase().includes(q) || o.productsLabel.toLowerCase().includes(q) || o.id.toLowerCase().includes(q))
-    }
-    if (statusFilter !== 'all') list = list.filter((o) => o.status === statusFilter)
-    if (dateMode === 'today') list = list.filter((o) => o.orderDate === todayISO())
-    if (dateMode === 'week') list = list.filter((o) => isWithinLastNDays(o.orderDate, 7))
-    if (dateMode === 'specific' && specificDate) list = list.filter((o) => o.orderDate === specificDate)
-    if (dateMode === 'custom') {
-      if (customFrom) list = list.filter((o) => o.orderDate >= customFrom)
-      if (customTo) list = list.filter((o) => o.orderDate <= customTo)
-    }
-    list.sort((a, b) => {
-      let av = a[sortKey], bv = b[sortKey]
-      if (sortKey === 'totalQty') { av = Number(av) || 0; bv = Number(bv) || 0 }
-      if (av < bv) return sortDir === 'asc' ? -1 : 1
-      if (av > bv) return sortDir === 'asc' ? 1 : -1
-      return 0
-    })
-    return list
-  }, [personOrders, stores, areas, search, statusFilter, dateMode, specificDate, customFrom, customTo, sortKey, sortDir])
+  // A date input mid-selection or backwards must not fire a query - see
+  // OrdersOverview.jsx for the same reasoning.
+  const dateInputIncomplete = dateMode === 'specific' && !specificDate
+  const dateRangeInvalid = dateMode === 'custom' && isReversedRange(customFrom, customTo)
+  const dateInputReady = !dateInputIncomplete && !dateRangeInvalid
 
-  const { page, setPage, totalPages, start, end } = usePagination(filteredOrders.length, PAGE_SIZE)
-  const paged = filteredOrders.slice(start, end)
+  const query = useMemo(() => {
+    const q = { orderTakerId: personId, status: statusFilter, search: search.trim() || undefined, sortKey, sortDir }
+    if (dateMode === 'today') q.filter = 'today'
+    else if (dateMode === 'week') q.filter = 'week'
+    else if (dateMode === 'specific') { q.filter = 'custom'; q.from = specificDate; q.to = specificDate }
+    else if (dateMode === 'custom') { q.filter = 'custom'; if (customFrom) q.from = customFrom; if (customTo) q.to = customTo }
+    else q.filter = 'all'
+    return q
+  }, [personId, dateMode, specificDate, customFrom, customTo, statusFilter, search, sortKey, sortDir])
+
+  // Server-side pagination, sort, search and date/status filtering -
+  // resets to page 1 whenever any filter/sort actually changes, same
+  // pattern as OrderTakersList.jsx.
+  const paginationResetKey = JSON.stringify(query)
+  const [pageState, setPageState] = useState({ key: paginationResetKey, page: 1 })
+  const requestedPage = pageState.key === paginationResetKey ? pageState.page : 1
+  if (pageState.key !== paginationResetKey) setPageState({ key: paginationResetKey, page: 1 })
+  const setPage = (nextPage) => setPageState({ key: paginationResetKey, page: nextPage })
+
+  const { data, isLoading, isError } = usePaginatedOrders(
+    { ...query, page: requestedPage, pageSize: PAGE_SIZE },
+    { enabled: dateInputReady },
+  )
+  const { page = requestedPage, totalPages = 1, totalItems = 0 } = data?.pagination || {}
+
+  const tableRows = useMemo(() => (data?.orders || []).map((o) => {
+    const store = stores.find((s) => s.id === o.storeId)
+    const area = areas.find((a) => a.id === store?.areaId)
+    const items = o.items || []
+    const productsLabel = items.length === 0 ? '—' : items.length === 1 ? items[0].productName : `${items[0].productName} +${items.length - 1} more`
+    const totalQty = items.reduce((s, it) => s + it.quantity, 0)
+    return { ...o, storeName: store?.dealerName || '—', areaName: area?.name || '—', productsLabel, totalQty }
+  }), [data, stores, areas])
 
   const clearTableFilters = () => { setDateMode('all'); setSpecificDate(''); setCustomFrom(''); setCustomTo(''); setStatusFilter('all'); setSearch('') }
   const anyTableFilter = dateMode !== 'all' || statusFilter !== 'all' || search
@@ -150,9 +135,9 @@ export default function OrderTakerDetail() {
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-        <StatCard label="Total orders" value={personOrders.length} icon={ClipboardList} chipColor="bg-sourdough/50 text-espresso" />
-        <StatCard label="Orders this week" value={weekOrders.length} icon={Calendar} chipColor="bg-olive-herb/30 text-olive-herb" />
-        <StatCard label="Most ordered product" value={topProduct} icon={ShoppingBag} chipColor="bg-oven-amber/15 text-oven-amber" />
+        <StatCard label="Total orders" value={stats?.totalOrders ?? '—'} icon={ClipboardList} chipColor="bg-sourdough/50 text-espresso" />
+        <StatCard label="Orders this week" value={stats?.weekOrders ?? '—'} icon={Calendar} chipColor="bg-olive-herb/30 text-olive-herb" />
+        <StatCard label="Most ordered product" value={stats?.topProduct ?? '—'} icon={ShoppingBag} chipColor="bg-oven-amber/15 text-oven-amber" />
       </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2 sm:gap-6">
@@ -221,8 +206,8 @@ export default function OrderTakerDetail() {
             </select>
             {dateMode === 'specific' && <input type="date" className={`${inputClass} lg:w-36`} value={specificDate} onChange={(e) => setSpecificDate(e.target.value)} />}
             {dateMode === 'custom' && <>
-              <input type="date" className={`${inputClass} lg:w-36`} value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} />
-              <input type="date" className={`${inputClass} lg:w-36`} value={customTo} onChange={(e) => setCustomTo(e.target.value)} />
+              <input type="date" aria-invalid={dateRangeInvalid} className={`${inputClass} lg:w-36`} value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} />
+              <input type="date" aria-invalid={dateRangeInvalid} className={`${inputClass} lg:w-36`} value={customTo} onChange={(e) => setCustomTo(e.target.value)} />
             </>}
             <div className="inline-flex rounded-full bg-crust p-0.5">
               {['all', 'undelivered', 'delivered'].map((s) => (
@@ -231,12 +216,20 @@ export default function OrderTakerDetail() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <p className="text-xs text-espresso/50">{filteredOrders.length} {filteredOrders.length === 1 ? 'order' : 'orders'}</p>
+            <p className="text-xs text-espresso/50">{totalItems} {totalItems === 1 ? 'order' : 'orders'}</p>
             {anyTableFilter && <button onClick={clearTableFilters} className="text-xs text-oven-amber hover:underline">Clear filters</button>}
           </div>
         </div>
 
-        {filteredOrders.length === 0 ? (
+        {dateInputIncomplete ? (
+          <EmptyState icon={Search} title="Pick a date" description="Choose a specific date above to see its orders." />
+        ) : dateRangeInvalid ? (
+          <EmptyState icon={Search} title="Invalid date range" description="The start date must be before the end date." />
+        ) : isLoading ? (
+          <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading orders...</p>
+        ) : isError ? (
+          <EmptyState icon={Search} title="Could not load orders" description="Something went wrong fetching orders. Try refreshing." />
+        ) : totalItems === 0 ? (
           <EmptyState icon={Search} title="No orders found" description="Try adjusting your filters." />
         ) : (
           <>
@@ -257,7 +250,7 @@ export default function OrderTakerDetail() {
                     </tr>
                   </thead>
                   <tbody>
-                    {paged.map((o) => {
+                    {tableRows.map((o) => {
                       const sc = ORDER_STATUS[o.status]
                       return (
                         <tr key={o.id} className="border-b border-espresso/8 last:border-0 hover:bg-crust/20">
@@ -273,12 +266,12 @@ export default function OrderTakerDetail() {
                   </tbody>
                 </table>
               </div>
-              <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={filteredOrders.length} pageSize={PAGE_SIZE} />
+              <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={totalItems} pageSize={PAGE_SIZE} />
             </div>
 
             {/* Mobile cards */}
             <div className="grid gap-3 md:hidden">
-              {paged.map((o) => {
+              {tableRows.map((o) => {
                 const sc = ORDER_STATUS[o.status]
                 return (
                   <div key={o.id} className="rounded-bakery border border-espresso/8 bg-proof-cream p-4 shadow-bakery">
@@ -300,7 +293,7 @@ export default function OrderTakerDetail() {
                 )
               })}
               <div className="rounded-bakery border border-espresso/8 bg-proof-cream shadow-bakery">
-                <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={filteredOrders.length} pageSize={PAGE_SIZE} />
+                <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={totalItems} pageSize={PAGE_SIZE} />
               </div>
             </div>
           </>

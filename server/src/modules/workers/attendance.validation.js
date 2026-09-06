@@ -1,9 +1,12 @@
 import { z } from "zod";
 import { isoDateSchema as isoDate } from "../../utils/isoDate.js";
+import { paginationQueryShape } from "../../utils/pagination.js";
 
 export const listAttendanceQuerySchema = z.object({
+  ...paginationQueryShape,
   date: isoDate.optional(),
   workerId: z.string().min(1).optional(),
+  status: z.enum(["present", "absent", "half_day", "week_off"]).optional(),
 });
 
 export const markAttendanceSchema = z.object({

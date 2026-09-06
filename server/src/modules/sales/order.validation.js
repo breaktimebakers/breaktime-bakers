@@ -28,6 +28,13 @@ export const orderIdParamSchema = z.object({
   id: z.string().min(1),
 });
 
+// Only 7 or 30 - matches the two toggle options on the order-taker
+// detail page's "Orders per day" chart; not an arbitrary lookback window.
+export const orderTakerStatsQuerySchema = z.object({
+  orderTakerId: z.string().min(1),
+  range: z.coerce.number().refine((n) => n === 7 || n === 30, "range must be 7 or 30").optional().default(7),
+});
+
 const orderItemLineSchema = z.object({
   productId: z.string().min(1),
   quantity: z.coerce.number().positive("Quantity must be greater than 0"),

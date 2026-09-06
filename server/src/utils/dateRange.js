@@ -39,7 +39,10 @@ const shiftDays = ({ year, month, day }, delta) => {
 
 const dayOfWeek = ({ year, month, day }) => new Date(Date.UTC(year, month - 1, day)).getUTCDay();
 
-const daysAgoIso = (n) => toIsoDate(shiftDays(istParts(new Date()), -n));
+// n days before today (Asia/Kolkata) as YYYY-MM-DD - exported for callers
+// that need to build a specific day-by-day range themselves (e.g.
+// zero-filling a per-day chart), not just resolveDateRange's fixed set.
+export const daysAgoIso = (n) => toIsoDate(shiftDays(istParts(new Date()), -n));
 
 // today: just today. week: the last 7 days including today. custom:
 // exactly what was passed. all/anything else: unbounded ({}).

@@ -2,9 +2,9 @@ import { sendResponse } from "../../utils/apiResponse.js";
 import * as attendanceService from "./attendance.service.js";
 
 export const list = async (req, res) => {
-  const attendance = await attendanceService.listAttendance(req.validatedQuery);
+  const result = await attendanceService.listAttendance(req.validatedQuery);
 
-  sendResponse(res, 200, "Attendance fetched", { attendance });
+  sendResponse(res, 200, "Attendance fetched", result);
 };
 
 export const mark = async (req, res) => {

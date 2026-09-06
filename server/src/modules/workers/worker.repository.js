@@ -1,4 +1,4 @@
-import { asc, eq, sql } from "drizzle-orm";
+import { and, asc, count, eq, ilike, or, sql } from "drizzle-orm";
 import { v7 as uuidv7 } from "uuid";
 import { db } from "../../db/index.js";
 import { workers } from "./worker.schema.js";
@@ -33,8 +33,51 @@ const workerSelection = {
   roles: rolesSql,
 };
 
-export const listWorkers = async () => {
-  return db.select(workerSelection).from(workers).orderBy(asc(workers.name));
+const buildWorkerConditions = ({ search, status, roles } = {}) => {
+  const conditions = [];
+
+  if (status && status !== "all") conditions.push(eq(workers.status, status));
+
+  if (roles && roles.length) {
+    conditions.push(
+      sql`EXISTS (
+        SELECT 1 FROM worker_roles wr
+        WHERE wr.worker_id = ${workers.id} AND wr.role IN (${sql.join(roles.map((role) => sql`${role}`), sql`, `)})
+      )`,
+    );
+  }
+
+  if (search) {
+    // Treat LIKE wildcards as literal characters, matching the UI's substring search.
+    const pattern = `%${search.replace(/[\\%_]/g, "\\$&")}%`;
+    conditions.push(or(ilike(workers.name, pattern), ilike(workers.phone, pattern)));
+  }
+
+  return conditions.length ? and(...conditions) : undefined;
+};
+
+export const listWorkers = async ({ search, status, roles, page, pageSize = 10 } = {}) => {
+  const statement = db
+    .select(workerSelection)
+    .from(workers)
+    .where(buildWorkerConditions({ search, status, roles }))
+    // A unique tie-breaker prevents equal names moving between pages.
+    .orderBy(asc(workers.name), asc(workers.id));
+
+  if (page !== undefined) {
+    return statement.limit(pageSize).offset((page - 1) * pageSize);
+  }
+
+  return statement;
+};
+
+export const countWorkers = async ({ search, status, roles } = {}) => {
+  const [result] = await db
+    .select({ total: count() })
+    .from(workers)
+    .where(buildWorkerConditions({ search, status, roles }));
+
+  return result.total;
 };
 
 export const findWorkerById = async (id) => {

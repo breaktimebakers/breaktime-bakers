@@ -51,6 +51,7 @@ export const ENDPOINTS = {
     create: '/orders',
     updateStatus: (id) => `/orders/${id}/status`,
     fulfill: (id) => `/orders/${id}/fulfill`,
+    orderTakerStats: '/orders/order-taker-stats',
   },
   workers: {
     list: '/workers',

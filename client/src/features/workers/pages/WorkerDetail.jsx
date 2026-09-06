@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
 import { Pencil, UserCircle, CalendarDays, Wallet, Plus } from 'lucide-react'
-import { useWorker, useWorkerAttendance, useUpdateWorker, useMarkWorkerLeft, useReactivateWorker, useMarkAttendance, useClearAttendance, useWorkerAdvances } from '@/features/workers/hooks'
-import { Button, EmptyState, PageHeader, MonthFilterBar } from '@/components/shared'
+import { useWorker, useWorkerAttendance, usePaginatedWorkerAttendance, useUpdateWorker, useMarkWorkerLeft, useReactivateWorker, useMarkAttendance, useClearAttendance, useWorkerAdvances } from '@/features/workers/hooks'
+import { Button, EmptyState, PageHeader, MonthFilterBar, Pagination } from '@/components/shared'
 import { RoleBadge, roleConfig } from '../components/RoleBadge'
 import { AadhaarDisplay } from '../components/AadhaarField'
 import { WorkerAvatar } from '../components/PhotoCapture'
@@ -68,12 +68,22 @@ export default function WorkerDetail() {
     return workerAdvances.filter((a) => a.date.startsWith(mStr))
   }, [workerAdvances, advanceMonth])
 
-  // Filtered attendance list (for list view)
-  const filteredAttendance = useMemo(() => {
-    let list = [...workerAttendance].sort((a, b) => b.date.localeCompare(a.date))
-    if (attStatusFilter !== 'all') list = list.filter((a) => a.status === attStatusFilter)
-    return list
-  }, [workerAttendance, attStatusFilter])
+  // List view is server-paginated/filtered independently of workerAttendance
+  // above - that full unpaginated fetch stays reserved for the calendar and
+  // the payroll estimate, both of which must keep seeing every entry.
+  const PAGE_SIZE = 8
+  const paginationResetKey = attStatusFilter
+  const [pageState, setPageState] = useState({ key: paginationResetKey, page: 1 })
+  const requestedPage = pageState.key === paginationResetKey ? pageState.page : 1
+  if (pageState.key !== paginationResetKey) setPageState({ key: paginationResetKey, page: 1 })
+  const setAttPage = (nextPage) => setPageState({ key: paginationResetKey, page: nextPage })
+  const { data: attendancePage } = usePaginatedWorkerAttendance(workerId, {
+    page: requestedPage,
+    pageSize: PAGE_SIZE,
+    status: attStatusFilter === 'all' ? undefined : attStatusFilter,
+  })
+  const pagedAttendance = attendancePage?.attendance || []
+  const { page: attPage = requestedPage, totalPages: attTotalPages = 1, totalItems: attTotalItems = 0 } = attendancePage?.pagination || {}
 
   if (isLoading) return <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading worker…</p>
   if (isError || !worker) return <EmptyState icon={UserCircle} title="Worker not found" description="This worker does not exist." />
@@ -255,30 +265,33 @@ export default function WorkerDetail() {
             </div>
           ) : (
             <div className="overflow-hidden rounded-bakery border border-espresso/8 bg-proof-cream shadow-bakery">
-              {filteredAttendance.length === 0 ? (
+              {pagedAttendance.length === 0 ? (
                 <EmptyState icon={CalendarDays} title="No entries" description="No attendance records match this filter." />
               ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-espresso/10 bg-crust/30 text-left">
-                      <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Date</th>
-                      <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Status</th>
-                      <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Overtime</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredAttendance.map((a) => {
-                      const cfg = statusConfig[a.status]
-                      return (
-                        <tr key={a.id} className="border-b border-espresso/8 last:border-0">
-                          <td className="px-4 py-3 text-espresso/80">{new Date(a.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
-                          <td className="px-4 py-3"><span className={`inline-flex items-center gap-1.5 text-xs font-medium ${cfg.fill.replace('bg-', 'text-').split(' ')[0]}`}><span className={`h-2 w-2 rounded-full ${cfg.dot}`} />{cfg.label}</span></td>
-                          <td className="px-4 py-3 font-mono text-espresso/70">{a.overtimeHours > 0 ? `${a.overtimeHours}h` : '—'}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
+                <>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-espresso/10 bg-crust/30 text-left">
+                        <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Date</th>
+                        <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Status</th>
+                        <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Overtime</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pagedAttendance.map((a) => {
+                        const cfg = statusConfig[a.status]
+                        return (
+                          <tr key={a.id} className="border-b border-espresso/8 last:border-0">
+                            <td className="px-4 py-3 text-espresso/80">{new Date(a.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                            <td className="px-4 py-3"><span className={`inline-flex items-center gap-1.5 text-xs font-medium ${cfg.fill.replace('bg-', 'text-').split(' ')[0]}`}><span className={`h-2 w-2 rounded-full ${cfg.dot}`} />{cfg.label}</span></td>
+                            <td className="px-4 py-3 font-mono text-espresso/70">{a.overtimeHours > 0 ? `${a.overtimeHours}h` : '—'}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                  <Pagination page={attPage} totalPages={attTotalPages} onPageChange={setAttPage} totalItems={attTotalItems} pageSize={PAGE_SIZE} />
+                </>
               )}
             </div>
           )}

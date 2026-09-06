@@ -141,6 +141,43 @@ export const countOrdersByOrderTaker = () => db
   .from(orders)
   .groupBy(orders.orderTakerId);
 
+// The order-taker detail page's stat cards/charts summarize this taker's
+// *entire* order history, independently of whatever page the orders table
+// below them is currently on - these are plain SQL aggregates rather than
+// something derived by paging through every order in JS.
+
+// All-time most-ordered product by total quantity - a single GROUP BY,
+// not a full order/item history fetched just to sum it client-side.
+export const getTopProductForOrderTaker = async (orderTakerId) => {
+  const [row] = await db
+    .select({ productName: products.name, totalQty: sql`SUM(${orderItems.quantity})`.mapWith(Number) })
+    .from(orderItems)
+    .innerJoin(orders, eq(orderItems.orderId, orders.id))
+    .innerJoin(products, eq(orderItems.productId, products.id))
+    .where(eq(orders.orderTakerId, orderTakerId))
+    .groupBy(products.name)
+    .orderBy(desc(sql`SUM(${orderItems.quantity})`))
+    .limit(1);
+
+  return row?.productName ?? null;
+};
+
+// One row per calendar day that had at least one order in [from, to] -
+// the caller zero-fills the days with none (see order.service.js).
+export const getDailyOrderCountsForOrderTaker = (orderTakerId, from, to) => db
+  .select({ date: orders.orderDate, total: count() })
+  .from(orders)
+  .where(and(eq(orders.orderTakerId, orderTakerId), gte(orders.orderDate, from), lte(orders.orderDate, to)))
+  .groupBy(orders.orderDate);
+
+// All-time order count per store this taker has ever sold to.
+export const getStoreOrderCountsForOrderTaker = (orderTakerId) => db
+  .select({ storeName: stores.dealerName, total: count() })
+  .from(orders)
+  .innerJoin(stores, eq(orders.storeId, stores.id))
+  .where(eq(orders.orderTakerId, orderTakerId))
+  .groupBy(stores.dealerName);
+
 export const findOrderById = async (id) => {
   const rows = await db.select(orderSelection).from(orders).where(eq(orders.id, id));
 

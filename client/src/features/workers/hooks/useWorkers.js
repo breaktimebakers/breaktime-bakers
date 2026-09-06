@@ -4,6 +4,7 @@ import { workerApi, attendanceApi } from '../api/workerApi'
 export const workerKeys = {
   all: ['workers'],
   list: ['workers', 'list'],
+  paginatedList: (query = {}) => ['workers', 'list', query],
   detail: (id) => ['workers', id],
 }
 
@@ -12,6 +13,7 @@ export const attendanceKeys = {
   allList: ['attendance', 'all'],
   byDate: (date) => ['attendance', 'date', date],
   byWorker: (workerId) => ['attendance', 'worker', workerId],
+  paginatedByWorker: (workerId, query = {}) => ['attendance', 'worker', workerId, 'list', query],
 }
 
 export function useWorkers() {
@@ -21,6 +23,18 @@ export function useWorkers() {
       const { workers } = await workerApi.list()
       return workers
     },
+  })
+}
+
+// Server-side searched/filtered/paginated roster - what WorkersList reads.
+// Keep useWorkers() above untouched (unpaginated, full roster) for callers
+// that need every worker (attendance overview, order-taker dropdowns, etc).
+export function usePaginatedWorkers(query = {}) {
+  const params = { ...query, page: query.page ?? 1, pageSize: query.pageSize ?? 10 }
+
+  return useQuery({
+    queryKey: workerKeys.paginatedList(params),
+    queryFn: () => workerApi.list(params),
   })
 }
 
@@ -57,6 +71,20 @@ export function useWorkerAttendance(workerId) {
       const { attendance } = await attendanceApi.listByWorker(workerId)
       return attendance
     },
+    enabled: !!workerId,
+  })
+}
+
+// Server-paginated/filtered slice of one worker's history - what the
+// worker detail page's attendance "List view" reads. Kept separate from
+// useWorkerAttendance above, which stays unpaginated for the calendar and
+// payroll estimate on that same page - do not repurpose this for either.
+export function usePaginatedWorkerAttendance(workerId, { page = 1, pageSize = 10, status } = {}) {
+  const params = { page, pageSize, status }
+
+  return useQuery({
+    queryKey: attendanceKeys.paginatedByWorker(workerId, params),
+    queryFn: () => attendanceApi.listByWorker(workerId, params),
     enabled: !!workerId,
   })
 }

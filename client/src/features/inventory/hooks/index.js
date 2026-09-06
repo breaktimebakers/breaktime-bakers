@@ -1,4 +1,4 @@
-export { useRawMaterials, useRawMaterialLots, rawMaterialKeys } from './useRawMaterials'
+export { useRawMaterials, usePaginatedRawMaterials, useRawMaterialLots, rawMaterialKeys } from './useRawMaterials'
 export {
   useCreateRawMaterial,
   useUpdateRawMaterial,
