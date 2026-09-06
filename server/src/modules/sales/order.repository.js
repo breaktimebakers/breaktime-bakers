@@ -1,12 +1,17 @@
 import { and, asc, count, desc, eq, gte, ilike, lte, ne, or, sql } from "drizzle-orm";
 import { v7 as uuidv7 } from "uuid";
 import { db } from "../../db/index.js";
+import { httpError } from "../../utils/httpError.js";
 import { todayIso } from "../../utils/dateRange.js";
 import { orders } from "./order.schema.js";
 import { orderItems } from "./orderItem.schema.js";
 import { stores } from "./store.schema.js";
 import { areas } from "./area.schema.js";
 import { workers } from "../workers/worker.schema.js";
+import { products } from "../inventory/product.schema.js";
+import { readyStockMovements } from "../inventory/readyStockMovement.schema.js";
+
+const startOfDay = (isoDateStr) => new Date(`${isoDateStr}T00:00:00.000Z`);
 
 // Line items, aggregated per order - a single order can carry several
 // products (see orderItem.schema.js). productName/unit are joined in here
@@ -181,18 +186,78 @@ export const updateOrderStatus = async (id, status) => {
   return findOrderById(id);
 };
 
+// Stock leaves the bakery the moment a quantity is recorded as fulfilled -
+// independent of order status (in_transit/shipped/delivered all just
+// describe the order's paperwork state). Each call is a full snapshot of
+// fulfilledQty per line (enforced in order.service.js), so what actually
+// moves stock is the *delta* against what was already recorded - this is
+// what makes resubmitting the same value a no-op, an increase draw down
+// only the extra amount, and a correction downward hand quantity back.
 export const fulfillOrder = async (id, { status, fulfillmentDate, notes, items }) => {
   await db.transaction(async (tx) => {
+    // Row-locks this order's items for the rest of the transaction, same
+    // reasoning as consumeFifo in batch.repository.js - two concurrent
+    // fulfillment requests for the SAME order can't both read the same
+    // "before" fulfilledQty and jointly miscompute the delta.
+    const currentItems = await tx
+      .select({ id: orderItems.id, productId: orderItems.productId, fulfilledQty: orderItems.fulfilledQty })
+      .from(orderItems)
+      .where(eq(orderItems.orderId, id))
+      .for("update");
+
+    const currentById = new Map(currentItems.map((item) => [item.id, item]));
+
     await tx
       .update(orders)
       .set({ status, fulfillmentDate: fulfillmentDate || null, notes: notes || null, updatedAt: new Date() })
       .where(eq(orders.id, id));
 
-    for (const line of items) {
+    const occurredAt = fulfillmentDate ? startOfDay(fulfillmentDate) : new Date();
+
+    // Sorted by productId so two different orders' fulfillments that
+    // happen to share a product always lock it in the same order -
+    // otherwise two transactions could deadlock each other the way
+    // sortedIngredients avoids in batch.repository.js.
+    const lines = items
+      .map((line) => ({ ...line, current: currentById.get(line.itemId) }))
+      .sort((a, b) => a.current.productId.localeCompare(b.current.productId));
+
+    for (const line of lines) {
+      const { current } = line;
+      const delta = line.fulfilledQty - current.fulfilledQty;
+
       await tx
         .update(orderItems)
         .set({ fulfilledQty: line.fulfilledQty, updatedAt: new Date() })
         .where(and(eq(orderItems.id, line.itemId), eq(orderItems.orderId, id)));
+
+      if (delta === 0) continue;
+
+      // Locks the product row so two different orders drawing on the same
+      // product at once can't both read the same available balance and
+      // jointly oversell it - the second transaction blocks here until the
+      // first commits, then sees the already-deducted total.
+      await tx.select({ id: products.id }).from(products).where(eq(products.id, current.productId)).for("update");
+
+      if (delta > 0) {
+        const [{ available }] = await tx
+          .select({ available: sql`COALESCE(SUM(${readyStockMovements.quantity}), 0)`.mapWith(Number) })
+          .from(readyStockMovements)
+          .where(eq(readyStockMovements.productId, current.productId));
+
+        if (delta > available) {
+          throw httpError(409, `Not enough ready stock - short by ${delta - available}`, "INSUFFICIENT_STOCK");
+        }
+      }
+
+      await tx.insert(readyStockMovements).values({
+        id: uuidv7(),
+        productId: current.productId,
+        orderItemId: line.itemId,
+        quantity: -delta,
+        reason: "sale",
+        occurredAt,
+      });
     }
   });
 

@@ -19,10 +19,17 @@ export const readyStockMovements = pgTable(
 
     batchId: varchar("batch_id", { length: 36 }).references(() => batches.id, { onDelete: "set null" }),
 
+    // Traces a "sale" movement back to the order line that produced it.
+    // Not a DB-level FK - order_items lives in the sales module, and
+    // inventory doesn't otherwise depend on it - but it's enough for
+    // traceability/joins from the sales side. Nullable for every other
+    // reason, same as batchId.
+    orderItemId: varchar("order_item_id", { length: 36 }),
+
     quantity: numeric("quantity", { precision: 12, scale: 3, mode: "number" }).notNull(),
 
     // Free text, not a DB enum, matching how `unit` is handled elsewhere
-    // in this schema - "production" for now; "sale" / "adjustment" /
+    // in this schema - "production" / "sale" for now; "adjustment" /
     // "wastage" are the obvious future values, added without a migration.
     reason: varchar("reason", { length: 20 }).notNull(),
 
