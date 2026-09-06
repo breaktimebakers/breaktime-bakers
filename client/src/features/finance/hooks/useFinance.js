@@ -8,6 +8,7 @@ import { useMarkSalaryPaid, useMarkSalaryUnpaid, useBulkMarkSalaryPaid } from '.
 import { useExpenses } from './useExpenses'
 import { useTaxEntries } from './useTaxEntries'
 import { seedCustomerPayments, seedSupplierPaymentStatus } from '../data/seedFinance'
+import { todayISO } from '@/utils'
 
 const KEYS = {
   customerPayments: ['local', 'finance', 'customerPayments'],
@@ -59,7 +60,7 @@ export function useFinance() {
       if (c.id !== id) return c
       const newAmountPaid = (c.amountPaid || 0) + Number(partialAmount)
       const isFullyPaid = newAmountPaid >= c.amount
-      const todayStr = new Date().toISOString().slice(0, 10)
+      const todayStr = todayISO()
       return {
         ...c,
         amountPaid: isFullyPaid ? c.amount : newAmountPaid,
@@ -71,7 +72,7 @@ export function useFinance() {
   }
 
   const markCustomerPaymentPaid = (id) => {
-    const todayStr = new Date().toISOString().slice(0, 10)
+    const todayStr = todayISO()
     setLocalData(queryClient, KEYS.customerPayments, (p) => p.map((c) => {
       if (c.id !== id) return c
       const remaining = c.amount - (c.amountPaid || 0)
@@ -86,7 +87,7 @@ export function useFinance() {
   }
 
   const markLotPaid = (lotId) => {
-    setLocalData(queryClient, KEYS.supplierPaymentStatus, (p) => ({ ...p, [lotId]: { status: 'paid', paidDate: new Date().toISOString().slice(0, 10) } }))
+    setLocalData(queryClient, KEYS.supplierPaymentStatus, (p) => ({ ...p, [lotId]: { status: 'paid', paidDate: todayISO() } }))
   }
 
   // Get salary for a worker for a given month, using attendance + dailySalaryFromMonthly
@@ -129,15 +130,21 @@ export function useFinance() {
   // Paid/Unpaid totals below walk for every worker to decide which
   // months' net payable still counts as owed.
   const monthsSinceJoining = (worker, nowYear, nowMonth) => {
-    const start = new Date(worker.joiningDate)
-    let y = start.getFullYear()
-    let m = start.getMonth()
+    // joiningDate/leftDate are "YYYY-MM-DD" strings - parsed directly
+    // rather than via `new Date(str)`, which the JS spec parses as UTC
+    // midnight; calling the local `.getFullYear()`/`.getMonth()` on that
+    // afterwards can silently shift the joining month back by a day (and
+    // therefore a whole month, right at a month boundary) for anyone not
+    // in a UTC+0 timezone.
+    const [startY, startM] = worker.joiningDate.split('-').map(Number)
+    let y = startY
+    let m = startM - 1
     let endY = nowYear
     let endM = nowMonth
     if (worker.status === 'left' && worker.leftDate) {
-      const left = new Date(worker.leftDate)
-      endY = left.getFullYear()
-      endM = left.getMonth()
+      const [leftY, leftM] = worker.leftDate.split('-').map(Number)
+      endY = leftY
+      endM = leftM - 1
     }
     const months = []
     while (y < endY || (y === endY && m <= endM)) {
@@ -176,9 +183,8 @@ export function useFinance() {
   // month - that's the entire "rollover" behavior, no separate
   // carry-forward step needed.
   const getUnpaidTotal = () => {
-    const now = new Date()
-    const nowYear = now.getFullYear()
-    const nowMonth = now.getMonth()
+    const [nowYear, nowMonthOneIndexed] = todayISO().split('-').map(Number)
+    const nowMonth = nowMonthOneIndexed - 1
     let unpaid = 0
     workers.forEach((w) => {
       monthsSinceJoining(w, nowYear, nowMonth).forEach(({ year, month }) => {

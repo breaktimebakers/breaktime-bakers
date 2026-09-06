@@ -5,6 +5,7 @@ import { expenseCategories } from '@/features/finance/data/seedFinance'
 import { uploadExpenseBill } from '@/lib/uploadExpenseBill'
 import { Button, EmptyState, Field, FileViewerModal, Modal, ReceiptDropzone, PageHeader, inputClass } from '@/components/shared'
 import { CategoryPill, getCategoryIcon } from '../components/CategoryPill'
+import { todayISO, daysAgoISO } from '@/utils'
 
 const periodFilters = [
   { key: 'today', label: 'Today' },
@@ -19,15 +20,13 @@ export default function Expenses() {
   const deleteExpense = useDeleteExpense()
   const [modalOpen, setModalOpen] = useState(false)
   const [period, setPeriod] = useState('month')
-  const [form, setForm] = useState({ category: 'Electricity', amount: '', date: new Date().toISOString().slice(0, 10), note: '', bill: null })
+  const [form, setForm] = useState({ category: 'Electricity', amount: '', date: todayISO(), note: '', bill: null })
   const [error, setError] = useState('')
   const [viewingBill, setViewingBill] = useState(null)
 
   const now = new Date()
-  const todayStr = now.toISOString().slice(0, 10)
-  const weekAgo = new Date(now)
-  weekAgo.setDate(weekAgo.getDate() - 7)
-  const weekAgoStr = weekAgo.toISOString().slice(0, 10)
+  const todayStr = todayISO()
+  const weekAgoStr = daysAgoISO(6)
   const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
   const filtered = useMemo(() => {
@@ -63,7 +62,7 @@ export default function Expenses() {
       const billKey = form.bill instanceof File ? await uploadExpenseBill(form.bill) : undefined
 
       await createExpense.mutateAsync({ category: form.category, amount: form.amount, date: form.date, note: form.note || undefined, billKey })
-      setForm({ category: 'Electricity', amount: '', date: new Date().toISOString().slice(0, 10), note: '', bill: null })
+      setForm({ category: 'Electricity', amount: '', date: todayISO(), note: '', bill: null })
       setModalOpen(false)
     } catch (err) {
       setError(err.message || 'Could not add expense.')

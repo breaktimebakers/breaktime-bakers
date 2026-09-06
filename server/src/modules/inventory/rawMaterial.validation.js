@@ -1,13 +1,14 @@
 import { z } from "zod";
+import { isoDateSchema as isoDate, withDateRangeCheck } from "../../utils/isoDate.js";
 
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
-
-export const listRawMaterialsQuerySchema = z.object({
-  search: z.string().trim().min(1).optional(),
-  filter: z.enum(["all", "low", "custom"]).optional().default("all"),
-  from: isoDate.optional(),
-  to: isoDate.optional(),
-});
+export const listRawMaterialsQuerySchema = withDateRangeCheck(
+  z.object({
+    search: z.string().trim().min(1).optional(),
+    filter: z.enum(["all", "low", "custom"]).optional().default("all"),
+    from: isoDate.optional(),
+    to: isoDate.optional(),
+  }),
+);
 
 export const rawMaterialIdParamSchema = z.object({
   id: z.string().min(1),
@@ -35,11 +36,13 @@ export const updateRawMaterialSchema = z.object({
 // default entirely (see listLotsForMaterial) - it's for the wastage
 // lot-picker, which needs every lot with remaining stock regardless of
 // purchase date.
-export const listLotsQuerySchema = z.object({
-  from: isoDate.optional(),
-  to: isoDate.optional(),
-  inStock: z.coerce.boolean().optional(),
-});
+export const listLotsQuerySchema = withDateRangeCheck(
+  z.object({
+    from: isoDate.optional(),
+    to: isoDate.optional(),
+    inStock: z.coerce.boolean().optional(),
+  }),
+);
 
 export const createLotSchema = z.object({
   qty: z.coerce.number().positive("Quantity must be greater than 0"),

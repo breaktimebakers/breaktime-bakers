@@ -1,16 +1,17 @@
 import { z } from "zod";
-
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
+import { isoDateSchema as isoDate, withDateRangeCheck } from "../../utils/isoDate.js";
 
 // filter defaults to "today" - see resolveBatchDateRange in
 // batch.service.js. "custom" uses from/to as-is; "week"/"all" are
 // available but never the default, since the list would otherwise grow
 // unbounded (or at least noisy) as production accumulates over time.
-export const listBatchesQuerySchema = z.object({
-  filter: z.enum(["today", "week", "custom", "all"]).optional().default("today"),
-  from: isoDate.optional(),
-  to: isoDate.optional(),
-});
+export const listBatchesQuerySchema = withDateRangeCheck(
+  z.object({
+    filter: z.enum(["today", "week", "custom", "all"]).optional().default("today"),
+    from: isoDate.optional(),
+    to: isoDate.optional(),
+  }),
+);
 
 export const batchIdParamSchema = z.object({
   id: z.string().min(1),

@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { v7 as uuidv7 } from "uuid";
 import { db } from "../../db/index.js";
+import { todayIso } from "../../utils/dateRange.js";
 import { workerSalaryPayments } from "./salaryPayment.schema.js";
 
 const paymentSelection = {
@@ -23,7 +24,7 @@ export const listAllPayments = async () => {
 };
 
 const upsertOne = async (tx, { workerId, year, month, amountPaid }) => {
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = todayIso();
 
   await tx
     .insert(workerSalaryPayments)

@@ -3,6 +3,7 @@ import { Truck, UserRound, Route, ArrowRight, CircleCheck, CircleDot } from 'luc
 import { useDelivery } from '@/features/delivery/hooks'
 import { useSales } from '@/features/sales/hooks'
 import { PageHeader } from '@/components/shared'
+import { todayISO } from '@/utils'
 
 function StatCard({ label, value, icon: Icon, chipColor }) {
   return (
@@ -29,7 +30,7 @@ function NavCard({ to, icon: Icon, title, description, linkLabel }) {
 export default function DeliveryOverview() {
   const { drivers, trips } = useDelivery()
   const { orders } = useSales()
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayISO()
   const tripsToday = trips.filter((t) => t.date === today)
   const todayOrders = orders.filter((o) => tripsToday.flatMap((t) => t.orderIds).includes(o.id))
   const pending = todayOrders.filter((o) => o.status !== 'delivered').length

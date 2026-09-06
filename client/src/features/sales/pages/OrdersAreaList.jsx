@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router'
 import { MapPin, ArrowRight, ClipboardList } from 'lucide-react'
 import { useAreas, useAllStores, useOrders } from '@/features/sales/hooks'
 import { EmptyState, PageHeader } from '@/components/shared'
+import { todayISO } from '@/utils'
 
 function StatCard({ label, value, icon: Icon, chipColor }) {
   return (
@@ -27,7 +28,10 @@ export default function OrdersAreaList() {
   // the same full order history, unlike OrdersOverview's list which
   // defaults to (and mostly stays on) just today's orders.
   const { data: orders = [], isLoading, isError } = useOrders({ filter: 'all' })
-  const todayStr = new Date().toISOString().slice(0, 10)
+  // orderDate is stamped server-side as an Asia/Kolkata calendar date
+  // (see server/src/utils/dateRange.js) - comparing against a UTC-based
+  // "today" here would disagree with it right around midnight IST.
+  const todayStr = todayISO()
 
   const todaysOrders = useMemo(() => orders.filter((o) => o.orderDate === todayStr), [orders, todayStr])
 

@@ -1,6 +1,5 @@
 import { z } from "zod";
-
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
+import { isoDateSchema as isoDate } from "../../utils/isoDate.js";
 
 export const taxEntryIdParamSchema = z.object({
   id: z.string().min(1),

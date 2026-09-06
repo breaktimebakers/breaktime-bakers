@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-
-const todayISO = () => new Date().toISOString().slice(0, 10)
+import { todayISO, isWithinLastNDays } from '@/utils'
 
 export function useDateRangeFilter(initialMode = 'all') {
   const [dateMode, setDateMode] = useState(initialMode)
@@ -17,8 +16,11 @@ export function useDateRangeFilter(initialMode = 'all') {
 
   const matchesDate = useCallback((date) => {
     if (dateMode === 'today') return date === todayISO()
-    if (dateMode === 'week') return (new Date() - new Date(date)) / 86400000 <= 7
-    if (dateMode === 'specific') return !specificDate || date === specificDate
+    if (dateMode === 'week') return isWithinLastNDays(date, 7)
+    // No date chosen yet - match nothing rather than silently falling
+    // back to "show everything", which would look like the filter isn't
+    // working at all.
+    if (dateMode === 'specific') return Boolean(specificDate) && date === specificDate
     if (dateMode === 'custom') {
       if (customFrom && date < customFrom) return false
       if (customTo && date > customTo) return false

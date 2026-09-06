@@ -7,6 +7,7 @@ import { useSales } from '@/features/sales/hooks'
 import { Button, EmptyState, PageHeader } from '@/components/shared'
 import { TripCard } from '../components/TripCard'
 import { AssignDriverAreasModal } from '../components/AssignDriverAreasModal'
+import { daysAgoISO } from '@/utils'
 
 function StatCard({ label, value, icon: Icon, chipColor }) {
   return (
@@ -39,9 +40,9 @@ export default function DriverDetail() {
     const days = parseInt(range)
     const out = []
     for (let i = days - 1; i >= 0; i--) {
-      const d = new Date(); d.setDate(d.getDate() - i)
-      const label = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
-      const dayTrips = driverTrips.filter((t) => t.date === d.toISOString().slice(0, 10))
+      const dateStr = daysAgoISO(i)
+      const label = new Date(`${dateStr}T00:00:00Z`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', timeZone: 'Asia/Kolkata' })
+      const dayTrips = driverTrips.filter((t) => t.date === dateStr)
       const stops = dayTrips.flatMap((t) => t.orderIds).map((oid) => orders.find((o) => o.id === oid)).filter((o) => o?.status === 'delivered').length
       out.push({ day: label, stops })
     }

@@ -1,6 +1,5 @@
 import { z } from "zod";
-
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
+import { isoDateSchema as isoDate, withDateRangeCheck } from "../../utils/isoDate.js";
 
 // Same shape/semantics as batch.validation.js's listBatchesQuerySchema.
 // The filter picks WHICH products appear (did this product have any
@@ -8,11 +7,13 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
 // all-time current stock, never window-scoped - but price IS scoped to
 // `to`: the price on the most recent production batch as of that date,
 // not today's live price. See readyStock.repository.js: priceAsOfSql.
-export const listReadyStockQuerySchema = z.object({
-  filter: z.enum(["today", "week", "custom", "all"]).optional().default("today"),
-  from: isoDate.optional(),
-  to: isoDate.optional(),
-});
+export const listReadyStockQuerySchema = withDateRangeCheck(
+  z.object({
+    filter: z.enum(["today", "week", "custom", "all"]).optional().default("today"),
+    from: isoDate.optional(),
+    to: isoDate.optional(),
+  }),
+);
 
 export const productIdParamSchema = z.object({
   id: z.string().min(1),
@@ -21,7 +22,9 @@ export const productIdParamSchema = z.object({
 // from/to default to the current calendar month when both are omitted -
 // see resolveMonthRange in readyStock.service.js. Same shape as
 // rawMaterial.validation.js's listLotsQuerySchema.
-export const listStockHistoryQuerySchema = z.object({
-  from: isoDate.optional(),
-  to: isoDate.optional(),
-});
+export const listStockHistoryQuerySchema = withDateRangeCheck(
+  z.object({
+    from: isoDate.optional(),
+    to: isoDate.optional(),
+  }),
+);

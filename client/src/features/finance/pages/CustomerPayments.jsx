@@ -5,6 +5,7 @@ import { useFinance } from '@/features/finance/hooks'
 import { useSales } from '@/features/sales/hooks'
 import { Button, Field, Modal, PageHeader, StatCard, inputClass } from '@/components/shared'
 import { PaidBadge } from '../components/PaidBadge'
+import { todayISO } from '@/utils'
 
 export function PaymentEntryRow({ c, onRecordPayment, onMarkPaid }) {
   const balance = c.amount - (c.amountPaid || 0)
@@ -101,7 +102,7 @@ export function AddPaymentModal({ open, onClose, onSubmit, stores, areas, prefil
     buyerType: prefillStoreId ? 'store' : 'store',
     storeId: prefillStoreId || '',
     amount: '',
-    date: new Date().toISOString().slice(0, 10),
+    date: todayISO(),
   }))
 
   const handleSubmit = () => {
@@ -116,7 +117,7 @@ export function AddPaymentModal({ open, onClose, onSubmit, stores, areas, prefil
       buyerName = store?.dealerName || form.buyerName
     }
     onSubmit({ buyerName, buyerType: form.buyerType, storeId, areaId, amount: form.amount, date: form.date })
-    setForm({ buyerName: '', buyerType: 'store', storeId: prefillStoreId || '', amount: '', date: new Date().toISOString().slice(0, 10) })
+    setForm({ buyerName: '', buyerType: 'store', storeId: prefillStoreId || '', amount: '', date: todayISO() })
     onClose()
   }
 

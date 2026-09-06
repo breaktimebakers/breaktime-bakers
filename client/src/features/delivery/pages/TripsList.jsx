@@ -5,6 +5,7 @@ import { useSales } from '@/features/sales/hooks'
 import { Button, EmptyState, PageHeader, inputClass } from '@/components/shared'
 import { TripCard } from '../components/TripCard'
 import { CreateTripModal } from '../components/CreateTripModal'
+import { todayISO, isWithinLastNDays } from '@/utils'
 
 export default function TripsList() {
   const { trips, drivers } = useDelivery()
@@ -18,8 +19,8 @@ export default function TripsList() {
     return trips.filter((t) => {
       if (driverFilter !== 'all' && t.driverId !== driverFilter) return false
       if (areaFilter !== 'all' && t.areaId !== areaFilter) return false
-      if (filter === 'today' && t.date !== new Date().toISOString().slice(0, 10)) return false
-      if (filter === 'week') { const d = new Date(t.date); if ((new Date() - d) / 86400000 > 7) return false }
+      if (filter === 'today' && t.date !== todayISO()) return false
+      if (filter === 'week' && !isWithinLastNDays(t.date, 7)) return false
       return true
     }).sort((a, b) => new Date(b.date) - new Date(a.date))
   }, [trips, filter, driverFilter, areaFilter])

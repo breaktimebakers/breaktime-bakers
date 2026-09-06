@@ -4,6 +4,7 @@ import { CalendarCheck, Search, Check, X, Clock } from 'lucide-react'
 import { useWorkers, useAttendanceByDate, useAllAttendance, useMarkAttendance, useClearAttendance } from '@/features/workers/hooks'
 import { dayNames, weekStartOf } from '@/features/workers/utils'
 import { Button, EmptyState, Field, PageHeader, inputClass } from '@/components/shared'
+import { todayISO, dayOfWeekOf } from '@/utils'
 import { RoleBadge } from '../components/RoleBadge'
 import { WorkerAvatar } from '../components/PhotoCapture'
 
@@ -17,7 +18,7 @@ const statusConfig = {
 }
 
 export default function WorkerAttendance() {
-  const todayStr = new Date().toISOString().slice(0, 10)
+  const todayStr = todayISO()
   const { data: workers = [] } = useWorkers()
   const { data: attendance = [] } = useAttendanceByDate(todayStr)
   const { data: allAttendance = [] } = useAllAttendance()
@@ -28,7 +29,7 @@ export default function WorkerAttendance() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [overtimeModal, setOvertimeModal] = useState(null)
 
-  const todayDow = dayNames[new Date().getDay()]
+  const todayDow = dayNames[dayOfWeekOf(todayStr)]
 
   const filtered = useMemo(() => {
     let list = workers.filter((w) => w.status === 'active')

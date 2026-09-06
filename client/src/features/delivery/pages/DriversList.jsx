@@ -5,6 +5,7 @@ import { useDelivery } from '@/features/delivery/hooks'
 import { useSales } from '@/features/sales/hooks'
 import { Button, PageHeader } from '@/components/shared'
 import { AssignDriverAreasModal } from '../components/AssignDriverAreasModal'
+import { isWithinLastNDays } from '@/utils'
 
 export default function DriversList() {
   const { drivers, trips } = useDelivery()
@@ -19,7 +20,7 @@ export default function DriversList() {
         {drivers.map((d) => {
           const assignedAreas = areas.filter((a) => d.assignedAreaIds.includes(a.id))
           const driverTrips = trips.filter((t) => t.driverId === d.id)
-          const weekTrips = driverTrips.filter((t) => { const dt = new Date(t.date); return (new Date() - dt) / 86400000 <= 7 })
+          const weekTrips = driverTrips.filter((t) => isWithinLastNDays(t.date, 7))
           const completedStops = driverTrips.flatMap((t) => t.orderIds).map((oid) => orders.find((o) => o.id === oid)).filter((o) => o?.status === 'delivered').length
           return (
             <Link key={d.id} to="/delivery/drivers/$driverId" params={{ driverId: d.id }} className="group rounded-bakery border border-espresso/8 bg-proof-cream p-5 shadow-bakery transition-all hover:-translate-y-0.5 hover:shadow-bakery-lg">

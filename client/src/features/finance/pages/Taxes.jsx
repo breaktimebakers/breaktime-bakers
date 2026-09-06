@@ -3,6 +3,7 @@ import { Plus, Trash2, Landmark, Paperclip, AlertCircle } from 'lucide-react'
 import { useTaxEntries, useCreateTaxEntry, useDeleteTaxEntry } from '@/features/finance/hooks'
 import { uploadTaxBill } from '@/lib/uploadTaxBill'
 import { Button, EmptyState, Field, FileViewerModal, Modal, ReceiptDropzone, PageHeader, inputClass, MonthFilterBar } from '@/components/shared'
+import { todayISO } from '@/utils'
 
 export default function Taxes() {
   const { data: taxEntries = [], isLoading, isError } = useTaxEntries()
@@ -12,7 +13,7 @@ export default function Taxes() {
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth())
   const [modalOpen, setModalOpen] = useState(false)
-  const [form, setForm] = useState({ amount: '', date: new Date().toISOString().slice(0, 10), note: '', bill: null })
+  const [form, setForm] = useState({ amount: '', date: todayISO(), note: '', bill: null })
   const [error, setError] = useState('')
   const [viewingBill, setViewingBill] = useState(null)
 
@@ -33,7 +34,7 @@ export default function Taxes() {
       const billKey = form.bill instanceof File ? await uploadTaxBill(form.bill) : undefined
 
       await createTaxEntry.mutateAsync({ amount: form.amount, date: form.date, note: form.note || undefined, billKey })
-      setForm({ amount: '', date: new Date().toISOString().slice(0, 10), note: '', bill: null })
+      setForm({ amount: '', date: todayISO(), note: '', bill: null })
       setModalOpen(false)
     } catch (err) {
       setError(err.message || 'Could not add tax entry.')

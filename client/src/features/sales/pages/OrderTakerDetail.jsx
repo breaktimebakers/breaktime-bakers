@@ -8,6 +8,7 @@ import { ORDER_STATUS } from '@/constants/orderStatus'
 import { AddPersonOrderModal } from '../components/AddPersonOrderModal'
 import { Button, EmptyState, PageHeader, Pagination, SortIcon, StatCard, inputClass } from '@/components/shared'
 import { usePagination } from '@/hooks'
+import { todayISO, daysAgoISO, isWithinLastNDays } from '@/utils'
 
 const chartColors = ['#C97A2B', '#E8D5B7', '#8C9A6B', '#7A4A5C', '#D4A24C', '#B5C4A8']
 const PAGE_SIZE = 8
@@ -48,7 +49,7 @@ export default function OrderTakerDetail() {
     return areas.find((a) => a.id === areaId)
   }, [areas, todaySchedule, personId])
 
-  const weekOrders = useMemo(() => personOrders.filter((o) => { const d = new Date(o.orderDate); return (new Date() - d) / 86400000 <= 7 }), [personOrders])
+  const weekOrders = useMemo(() => personOrders.filter((o) => isWithinLastNDays(o.orderDate, 7)), [personOrders])
 
   const topProduct = useMemo(() => {
     const counts = {}
@@ -60,9 +61,8 @@ export default function OrderTakerDetail() {
     const days = parseInt(range)
     const out = []
     for (let i = days - 1; i >= 0; i--) {
-      const d = new Date(); d.setDate(d.getDate() - i)
-      const label = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
-      const dateStr = d.toISOString().slice(0, 10)
+      const dateStr = daysAgoISO(i)
+      const label = new Date(`${dateStr}T00:00:00Z`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', timeZone: 'Asia/Kolkata' })
       const count = personOrders.filter((o) => o.orderDate === dateStr).length
       out.push({ day: label, orders: count })
     }
@@ -95,8 +95,8 @@ export default function OrderTakerDetail() {
       list = list.filter((o) => o.storeName.toLowerCase().includes(q) || o.productsLabel.toLowerCase().includes(q) || o.id.toLowerCase().includes(q))
     }
     if (statusFilter !== 'all') list = list.filter((o) => o.status === statusFilter)
-    if (dateMode === 'today') list = list.filter((o) => o.orderDate === new Date().toISOString().slice(0, 10))
-    if (dateMode === 'week') list = list.filter((o) => { const d = new Date(o.orderDate); return (new Date() - d) / 86400000 <= 7 })
+    if (dateMode === 'today') list = list.filter((o) => o.orderDate === todayISO())
+    if (dateMode === 'week') list = list.filter((o) => isWithinLastNDays(o.orderDate, 7))
     if (dateMode === 'specific' && specificDate) list = list.filter((o) => o.orderDate === specificDate)
     if (dateMode === 'custom') {
       if (customFrom) list = list.filter((o) => o.orderDate >= customFrom)
@@ -146,7 +146,7 @@ export default function OrderTakerDetail() {
         ) : (
           <span className="text-xs text-espresso/40">Not scheduled today</span>
         )}
-        <Link to="/sales/orders/order-takers/schedule" className="text-xs font-medium text-oven-amber hover:underline">Edit schedule</Link>
+        <Link to="/sales/orders/order-takers/schedule" className="text-xs font-medium text-oven-amber hover:underline">Assign area</Link>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">

@@ -1,5 +1,6 @@
 import { httpError } from "../../utils/httpError.js";
 import { createReadUrl } from "../../utils/objectStorage.js";
+import { todayIso } from "../../utils/dateRange.js";
 import * as workerRepo from "./worker.repository.js";
 
 const requireWorker = async (id) => {
@@ -39,7 +40,7 @@ export const updateWorker = async (id, body) => {
 export const markLeft = async (id) => {
   await requireWorker(id);
 
-  const leftDate = new Date().toISOString().slice(0, 10);
+  const leftDate = todayIso();
   return withSignedPhotoUrl(await workerRepo.setWorkerLeaveStatus(id, { status: "left", leftDate }));
 };
 

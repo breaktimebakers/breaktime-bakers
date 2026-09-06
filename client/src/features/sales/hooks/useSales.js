@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useLocalQuery, setLocalData } from '@/lib/localStore'
 import { seedAreas, seedStores, seedOrderTakers, seedOrders } from '../data/seedSales'
+import { todayISO } from '@/utils'
 
 const KEYS = {
   areas: ['local', 'sales', 'areas'],
@@ -32,7 +33,7 @@ export function useSales() {
 
   const addOrder = (data) => {
     const id = 'o' + Date.now()
-    setLocalData(queryClient, KEYS.orders, (p) => [{ id, storeId: data.storeId, orderTakerId: data.orderTakerId, product: data.product, quantity: Number(data.quantity), status: 'in_transit', date: new Date().toISOString().slice(0, 10), fulfilledQty: 0, fulfillmentDate: null, notes: '' }, ...p])
+    setLocalData(queryClient, KEYS.orders, (p) => [{ id, storeId: data.storeId, orderTakerId: data.orderTakerId, product: data.product, quantity: Number(data.quantity), status: 'in_transit', date: todayISO(), fulfilledQty: 0, fulfillmentDate: null, notes: '' }, ...p])
   }
 
   const updateOrderStatus = (id, status) => {

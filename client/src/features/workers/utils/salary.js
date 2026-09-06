@@ -1,15 +1,14 @@
 export const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
-// Sunday-start week a date falls in, as an ISO date string (that week's
-// Sunday). Used to group attendance entries by week so a "week_off"
-// entry on one day can identify/suppress the default weekOffDay for the
-// rest of that same week - see AttendanceCalendar.jsx and
-// WorkerAttendance.jsx.
-export function weekStartOf(dateStr) {
-  const d = new Date(dateStr)
-  d.setDate(d.getDate() - d.getDay())
-  return d.toISOString().slice(0, 10)
-}
+// Sunday-start week a date falls in - used to group attendance entries by
+// week so a "week_off" entry on one day can identify/suppress the default
+// weekOffDay for the rest of that same week - see AttendanceCalendar.jsx
+// and WorkerAttendance.jsx. Defined in dateCalc.js (parses the date-only
+// string directly rather than via `new Date(dateStr)`, which the old
+// version here did - that parses as UTC midnight, and calling the local
+// `.getDay()`/`.getDate()` on it afterwards silently shifts the result by
+// a day for anyone not in a UTC+0 timezone).
+export { weekStartOf } from '@/utils'
 
 export function countWeekdaysInMonth(year, month, weekOffDay) {
   let count = 0

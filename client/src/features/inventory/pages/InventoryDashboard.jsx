@@ -3,7 +3,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, 
 import { Layers, AlertTriangle, PackageCheck, Boxes } from 'lucide-react'
 import { useRawMaterials, useBatches, useReadyStock } from '@/features/inventory/hooks'
 import { PageHeader } from '@/components/shared'
-import { formatCurrency } from '@/utils'
+import { formatCurrency, daysAgoISO } from '@/utils'
 
 function StatCard({ label, value, icon: Icon, chipColor, detail, danger }) {
   return (
@@ -45,10 +45,8 @@ export default function InventoryDashboard() {
   const barData = (() => {
     const days = []
     for (let i = 6; i >= 0; i--) {
-      const d = new Date()
-      d.setDate(d.getDate() - i)
-      const label = d.toLocaleDateString('en-IN', { weekday: 'short' })
-      const dateStr = d.toISOString().slice(0, 10)
+      const dateStr = daysAgoISO(i)
+      const label = new Date(`${dateStr}T00:00:00Z`).toLocaleDateString('en-IN', { weekday: 'short', timeZone: 'Asia/Kolkata' })
       const total = thisWeekBatches
         .filter((b) => b.producedAt.slice(0, 10) === dateStr)
         .reduce((s, b) => s + b.quantityProduced, 0)

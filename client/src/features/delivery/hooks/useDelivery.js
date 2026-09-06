@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useLocalQuery, setLocalData } from '@/lib/localStore'
 import { useSales } from '@/features/sales/hooks'
 import { seedDrivers, seedTrips } from '../data/seedDelivery'
+import { todayISO } from '@/utils'
 
 const KEYS = {
   drivers: ['local', 'delivery', 'drivers'],
@@ -30,7 +31,7 @@ export function useDelivery() {
     setLocalData(queryClient, KEYS.trips, (p) => [{
       id,
       driverId: data.driverId,
-      date: data.date || new Date().toISOString().slice(0, 10),
+      date: data.date || todayISO(),
       areaId: data.areaId,
       storeIds: uniqueStoreIds,
       orderIds: data.orderIds,
