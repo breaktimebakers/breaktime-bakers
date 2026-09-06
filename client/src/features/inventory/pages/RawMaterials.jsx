@@ -6,7 +6,7 @@ import {
   useDeleteRawMaterial,
 } from '@/features/inventory/hooks'
 import { rawMaterialApi } from '@/features/inventory/api/rawMaterialApi'
-import { Button, ConfirmModal, EmptyState, ExportMenu, FileViewerModal, PageHeader, Pagination, inputClass } from '@/components/shared'
+import { Button, ConfirmModal, EmptyState, ErrorState, ExportMenu, FileViewerModal, PageHeader, Pagination, inputClass } from '@/components/shared'
 import { exportPDF, exportExcel, formatCurrency, formatDate } from '@/utils'
 import { AddMaterialModal } from '../components/AddMaterialModal'
 import { EditMaterialModal } from '../components/EditMaterialModal'
@@ -18,10 +18,10 @@ const PAGE_SIZE = 10
 // A material's lot history is fetched lazily (see LotHistory below), so a
 // row that's never been expanded never issues that request.
 function LotHistory({ material, onViewReceipt, onMarkWastage }) {
-  const { data: lots = [], isLoading, isError } = useRawMaterialLots(material.id)
+  const { data: lots = [], isLoading, isError, isFetching, refetch } = useRawMaterialLots(material.id)
 
+  if (isError) return <ErrorState description="Could not load purchase history." onRetry={refetch} retrying={isFetching} />
   if (isLoading) return <p className="px-4 py-3 text-xs text-espresso/40">Loading purchase history…</p>
-  if (isError) return <p className="px-4 py-3 text-xs text-cherry-compote">Could not load purchase history.</p>
   if (lots.length === 0) return <p className="px-4 py-3 text-xs text-espresso/40">No lots purchased this month.</p>
 
   return (
@@ -113,7 +113,7 @@ export default function RawMaterials() {
   if (pageState.key !== paginationResetKey) setPageState({ key: paginationResetKey, page: 1 })
   const setPage = (nextPage) => setPageState({ key: paginationResetKey, page: nextPage })
 
-  const { data, isLoading, isError } = usePaginatedRawMaterials({ ...query, page: requestedPage, pageSize: PAGE_SIZE })
+  const { data, isLoading, isError, isFetching, refetch } = usePaginatedRawMaterials({ ...query, page: requestedPage, pageSize: PAGE_SIZE })
   const materials = data?.rawMaterials || []
   const { page = requestedPage, totalPages = 1, totalItems = 0 } = data?.pagination || {}
 
@@ -203,7 +203,7 @@ export default function RawMaterials() {
       </div>
 
       {isError ? (
-        <EmptyState icon={AlertTriangle} title="Could not load raw materials" description="Something went wrong talking to the server. Try refreshing." />
+        <ErrorState description="Could not load raw materials." onRetry={refetch} retrying={isFetching} />
       ) : !isLoading && totalItems === 0 ? (
         <EmptyState icon={PackagePlus} title="No materials found" description="Try adjusting your search or filters." />
       ) : (

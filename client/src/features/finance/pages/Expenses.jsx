@@ -3,7 +3,7 @@ import { Plus, Trash2, Receipt, Paperclip, AlertCircle } from 'lucide-react'
 import { useExpenses, useCreateExpense, useDeleteExpense } from '@/features/finance/hooks'
 import { expenseCategories } from '@/features/finance/data/seedFinance'
 import { uploadExpenseBill } from '@/lib/uploadExpenseBill'
-import { Button, EmptyState, Field, FileViewerModal, Modal, ReceiptDropzone, PageHeader, inputClass } from '@/components/shared'
+import { Button, EmptyState, ErrorState, Field, FileViewerModal, Modal, ReceiptDropzone, PageHeader, inputClass } from '@/components/shared'
 import { CategoryPill, getCategoryIcon } from '../components/CategoryPill'
 import { todayISO, daysAgoISO } from '@/utils'
 
@@ -15,7 +15,7 @@ const periodFilters = [
 ]
 
 export default function Expenses() {
-  const { data: expenses = [], isLoading, isError } = useExpenses()
+  const { data: expenses = [], isLoading, isError, isFetching, refetch } = useExpenses()
   const createExpense = useCreateExpense()
   const deleteExpense = useDeleteExpense()
   const [modalOpen, setModalOpen] = useState(false)
@@ -128,10 +128,10 @@ export default function Expenses() {
       )}
 
       {/* Expense entries list */}
-      {isLoading ? (
+      {isError ? (
+        <ErrorState description="Could not load expenses." onRetry={refetch} retrying={isFetching} />
+      ) : isLoading ? (
         <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading expenses...</p>
-      ) : isError ? (
-        <EmptyState icon={Receipt} title="Could not load expenses" description="Something went wrong fetching expenses. Try refreshing." />
       ) : filtered.length === 0 ? (
         <EmptyState icon={Receipt} title="No expenses found" description="Add an expense to get started." />
       ) : (

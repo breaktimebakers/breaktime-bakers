@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Plus, Search, Pencil, Trash2, Eye, Users, LayoutGrid, Table as TableIcon } from 'lucide-react'
 import { usePaginatedWorkers, useDeleteWorker } from '@/features/workers/hooks'
-import { Button, EmptyState, Modal, PageHeader, Pagination, inputClass } from '@/components/shared'
+import { Button, EmptyState, ErrorState, Modal, PageHeader, Pagination, inputClass } from '@/components/shared'
 import { RoleBadge, roleConfig } from '../components/RoleBadge'
 
 import { WorkerAvatar } from '../components/PhotoCapture'
@@ -29,7 +29,7 @@ export default function WorkersList() {
   if (pageState.key !== paginationResetKey) setPageState({ key: paginationResetKey, page: 1 })
   const setPage = (nextPage) => setPageState({ key: paginationResetKey, page: nextPage })
 
-  const { data, isLoading, isError } = usePaginatedWorkers({
+  const { data, isLoading, isError, isFetching, refetch } = usePaginatedWorkers({
     page: requestedPage,
     pageSize: PAGE_SIZE,
     search: search.trim() || undefined,
@@ -79,10 +79,10 @@ export default function WorkersList() {
         <p className="mt-3 text-xs text-espresso/50">{totalItems} {totalItems === 1 ? 'worker' : 'workers'}</p>
       </div>
 
-      {isLoading ? (
+      {isError ? (
+        <ErrorState description="Could not load workers." onRetry={refetch} retrying={isFetching} />
+      ) : isLoading ? (
         <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading workers...</p>
-      ) : isError ? (
-        <EmptyState icon={Users} title="Could not load workers" description="Something went wrong fetching workers. Try refreshing." />
       ) : totalItems === 0 ? (
         <EmptyState icon={Users} title="No workers found" description="Add a worker or adjust your filters." />
       ) : view === 'cards' ? (

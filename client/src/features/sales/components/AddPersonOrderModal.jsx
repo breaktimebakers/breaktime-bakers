@@ -2,20 +2,32 @@ import { useState } from 'react'
 import { X, AlertCircle } from 'lucide-react'
 import { useAreas, useAllStores, useCreateOrder, useScheduleToday } from '../hooks'
 import { useReadyStock } from '@/features/inventory/hooks'
-import { Button, Field, Modal, inputClass } from '@/components/shared'
+import { Button, ErrorState, Field, Modal, inputClass } from '@/components/shared'
 
 const makeEmptyForm = () => ({ storeId: '', notes: '', items: [] })
 
 export function AddPersonOrderModal({ open, onClose, person }) {
   const createOrder = useCreateOrder()
-  const { data: areas = [] } = useAreas()
-  const { data: stores = [] } = useAllStores()
-  const { data: todaySchedule } = useScheduleToday()
+  const areasQuery = useAreas()
+  const storesQuery = useAllStores()
+  const scheduleQuery = useScheduleToday()
   // "all" - see AddOrderModal.jsx for why this can't use the hook's own
   // "today" default.
-  const { data: products = [] } = useReadyStock({ filter: 'all' })
+  const productsQuery = useReadyStock({ filter: 'all' })
+  const { data: areas = [] } = areasQuery
+  const { data: stores = [] } = storesQuery
+  const { data: todaySchedule } = scheduleQuery
+  const { data: products = [] } = productsQuery
   const [form, setForm] = useState(makeEmptyForm)
   const [error, setError] = useState('')
+
+  // See AddOrderModal.jsx - same reasoning for gating on every picker
+  // query together rather than just the mutation's own pending state.
+  const pickerQueries = [areasQuery, storesQuery, scheduleQuery, productsQuery]
+  const pickersLoading = pickerQueries.some((q) => q.isLoading)
+  const pickersError = pickerQueries.some((q) => q.isError)
+  const pickersFetching = pickerQueries.some((q) => q.isFetching)
+  const retryPickers = () => pickerQueries.forEach((q) => q.refetch())
 
   // Whichever single area this person is actually scheduled to today -
   // see order.service.js's matching server-side check, which rejects an
@@ -28,6 +40,7 @@ export function AddPersonOrderModal({ open, onClose, person }) {
   const updateLine = (i, field, val) => setForm((f) => ({ ...f, items: f.items.map((ln, idx) => idx === i ? { ...ln, [field]: val } : ln) }))
 
   const submit = async () => {
+    if (pickersLoading || pickersError) return
     if (!form.storeId || !person) return
 
     const items = form.items
@@ -56,7 +69,12 @@ export function AddPersonOrderModal({ open, onClose, person }) {
   const busy = createOrder.isPending
 
   return (
-    <Modal open={open} onClose={onClose} eyebrow="Order takers" title={`Add order for ${person.name}`} footer={<><Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button><Button onClick={submit} disabled={busy}>{busy ? 'Adding…' : 'Add order'}</Button></>}>
+    <Modal open={open} onClose={onClose} eyebrow="Order takers" title={`Add order for ${person.name}`} footer={<><Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button><Button onClick={submit} disabled={busy || pickersLoading || pickersError}>{busy ? 'Adding…' : 'Add order'}</Button></>}>
+      {pickersError ? (
+        <ErrorState description="Could not load stores, today's schedule, or products needed to add an order." onRetry={retryPickers} retrying={pickersFetching} />
+      ) : pickersLoading ? (
+        <p role="status" className="py-8 text-center text-sm text-espresso/50">Loading order form…</p>
+      ) : (
       <div className="grid gap-3">
         <Field label="Store (today's area only)" required>
           {todayAreaId ? (
@@ -101,6 +119,7 @@ export function AddPersonOrderModal({ open, onClose, person }) {
           </div>
         )}
       </div>
+      )}
     </Modal>
   )
 }

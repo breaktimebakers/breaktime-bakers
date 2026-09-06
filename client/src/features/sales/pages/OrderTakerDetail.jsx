@@ -6,7 +6,7 @@ import { useAreas, useAllStores, usePaginatedOrders, useOrderTakerStats, useSche
 import { useWorker } from '@/features/workers/hooks'
 import { ORDER_STATUS } from '@/constants/orderStatus'
 import { AddPersonOrderModal } from '../components/AddPersonOrderModal'
-import { Button, EmptyState, PageHeader, Pagination, SortIcon, StatCard, inputClass } from '@/components/shared'
+import { Button, EmptyState, ErrorState, PageHeader, Pagination, SortIcon, StatCard, inputClass } from '@/components/shared'
 import { isReversedRange } from '@/utils'
 
 const chartColors = ['#C97A2B', '#E8D5B7', '#8C9A6B', '#7A4A5C', '#D4A24C', '#B5C4A8']
@@ -15,9 +15,12 @@ const PAGE_SIZE = 8
 export default function OrderTakerDetail() {
   const { personId } = useParams({ strict: false })
   const { data: person, isLoading: personLoading, isError: personError } = useWorker(personId)
-  const { data: areas = [] } = useAreas()
-  const { data: stores = [] } = useAllStores()
-  const { data: todaySchedule } = useScheduleToday()
+  const areasQuery = useAreas()
+  const storesQuery = useAllStores()
+  const scheduleQuery = useScheduleToday()
+  const { data: areas = [] } = areasQuery
+  const { data: stores = [] } = storesQuery
+  const { data: todaySchedule } = scheduleQuery
   const [range, setRange] = useState('7')
   const [addOpen, setAddOpen] = useState(false)
 
@@ -40,6 +43,11 @@ export default function OrderTakerDetail() {
   // undefined during the loading state, so each memo guards for that
   // rather than the component early-returning before them (see
   // WorkerDetail.jsx for the same reasoning).
+  // A failed areas/stores/schedule fetch must not silently read as "not
+  // scheduled today" - that's a real, distinct answer this page can't
+  // actually confirm without the data.
+  const scheduleQueries = [areasQuery, storesQuery, scheduleQuery]
+  const scheduleUnknown = scheduleQueries.some((q) => q.isError)
   const todayArea = useMemo(() => {
     const areaId = (todaySchedule?.assignments || []).find((a) => a.workerId === personId)?.areaId
     return areas.find((a) => a.id === areaId)
@@ -49,7 +57,8 @@ export default function OrderTakerDetail() {
   // this taker's entire history (see order.service.js: getOrderTakerStats)
   // - independent of whatever page/filter the orders table below is
   // currently showing, so paginating that table can never change these.
-  const { data: stats } = useOrderTakerStats(personId, Number(range))
+  const statsQuery = useOrderTakerStats(personId, Number(range))
+  const { data: stats, isLoading: statsLoading, isError: statsError, isFetching: statsFetching, refetch: refetchStats } = statsQuery
   const barData = useMemo(
     () => (stats?.dailyCounts || []).map((d) => ({
       day: new Date(`${d.date}T00:00:00Z`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', timeZone: 'Asia/Kolkata' }),
@@ -123,10 +132,12 @@ export default function OrderTakerDetail() {
         <span className="text-espresso">{person.name}</span>
       </div>
 
-      <PageHeader eyebrow="Sales / Order taker" title={person.name} description={todayArea ? `Covering ${todayArea.name} today` : 'Not scheduled to any area today'} actions={<Button onClick={() => setAddOpen(true)}><Plus className="h-4 w-4" /> Add order on behalf</Button>} />
+      <PageHeader eyebrow="Sales / Order taker" title={person.name} description={scheduleUnknown ? 'Could not check today’s schedule' : todayArea ? `Covering ${todayArea.name} today` : 'Not scheduled to any area today'} actions={<Button onClick={() => setAddOpen(true)}><Plus className="h-4 w-4" /> Add order on behalf</Button>} />
 
       <div className="mb-4 flex flex-wrap items-center gap-1.5">
-        {todayArea ? (
+        {scheduleUnknown ? (
+          <span className="text-xs text-cherry-compote">Could not load today&apos;s schedule</span>
+        ) : todayArea ? (
           <span className="inline-flex items-center gap-1 rounded-full bg-espresso/5 px-2.5 py-1 text-xs text-espresso/70"><MapPin className="h-3 w-3" />Today: {todayArea.name}</span>
         ) : (
           <span className="text-xs text-espresso/40">Not scheduled today</span>
@@ -134,7 +145,11 @@ export default function OrderTakerDetail() {
         <Link to="/sales/orders/order-takers/schedule" className="text-xs font-medium text-oven-amber hover:underline">Assign area</Link>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+      {statsError && (
+        <ErrorState description="Could not load this order taker's stats." onRetry={refetchStats} retrying={statsFetching} />
+      )}
+      {statsLoading && <p role="status" className="mb-3 text-sm text-espresso/50">Loading stats…</p>}
+      <div aria-busy={statsFetching} className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
         <StatCard label="Total orders" value={stats?.totalOrders ?? '—'} icon={ClipboardList} chipColor="bg-sourdough/50 text-espresso" />
         <StatCard label="Orders this week" value={stats?.weekOrders ?? '—'} icon={Calendar} chipColor="bg-olive-herb/30 text-olive-herb" />
         <StatCard label="Most ordered product" value={stats?.topProduct ?? '—'} icon={ShoppingBag} chipColor="bg-oven-amber/15 text-oven-amber" />

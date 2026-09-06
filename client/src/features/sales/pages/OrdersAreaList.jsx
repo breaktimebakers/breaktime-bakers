@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { Link } from '@tanstack/react-router'
 import { MapPin, ArrowRight, ClipboardList } from 'lucide-react'
 import { useAreas, useAllStores, useOrders } from '@/features/sales/hooks'
-import { EmptyState, PageHeader } from '@/components/shared'
+import { EmptyState, ErrorState, PageHeader } from '@/components/shared'
 import { todayISO } from '@/utils'
 
 function StatCard({ label, value, icon: Icon, chipColor }) {
@@ -22,12 +22,21 @@ function StatCard({ label, value, icon: Icon, chipColor }) {
 }
 
 export default function OrdersAreaList() {
-  const { data: areas = [] } = useAreas()
-  const { data: stores = [] } = useAllStores()
+  const areasQuery = useAreas()
+  const storesQuery = useAllStores()
   // Unscoped by date - "today" and "pending" are both computed here from
   // the same full order history, unlike OrdersOverview's list which
   // defaults to (and mostly stays on) just today's orders.
-  const { data: orders = [], isLoading, isError } = useOrders({ filter: 'all' })
+  const ordersQuery = useOrders({ filter: 'all' })
+  const { data: areas = [] } = areasQuery
+  const { data: stores = [] } = storesQuery
+  const { data: orders = [] } = ordersQuery
+
+  const pageQueries = [areasQuery, storesQuery, ordersQuery]
+  const pageLoading = pageQueries.some((q) => q.isLoading)
+  const pageError = pageQueries.some((q) => q.isError)
+  const pageFetching = pageQueries.some((q) => q.isFetching)
+  const retryPage = () => pageQueries.forEach((q) => q.refetch())
   // orderDate is stamped server-side as an Asia/Kolkata calendar date
   // (see server/src/utils/dateRange.js) - comparing against a UTC-based
   // "today" here would disagree with it right around midnight IST.
@@ -59,10 +68,10 @@ export default function OrdersAreaList() {
       </div>
 
       <h2 className="mb-3 font-display text-lg font-semibold text-espresso">Areas</h2>
-      {isLoading ? (
+      {pageError ? (
+        <ErrorState description="Could not load orders." onRetry={retryPage} retrying={pageFetching} />
+      ) : pageLoading ? (
         <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading orders...</p>
-      ) : isError ? (
-        <EmptyState icon={MapPin} title="Could not load orders" description="Something went wrong fetching orders. Try refreshing." />
       ) : areaStats.length === 0 ? (
         <EmptyState icon={MapPin} title="No areas" description="Add areas to see order breakdowns." />
       ) : (

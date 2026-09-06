@@ -2,11 +2,11 @@ import { useState, useMemo } from 'react'
 import { Plus, Trash2, Landmark, Paperclip, AlertCircle } from 'lucide-react'
 import { useTaxEntries, useCreateTaxEntry, useDeleteTaxEntry } from '@/features/finance/hooks'
 import { uploadTaxBill } from '@/lib/uploadTaxBill'
-import { Button, EmptyState, Field, FileViewerModal, Modal, ReceiptDropzone, PageHeader, inputClass, MonthFilterBar } from '@/components/shared'
+import { Button, EmptyState, ErrorState, Field, FileViewerModal, Modal, ReceiptDropzone, PageHeader, inputClass, MonthFilterBar } from '@/components/shared'
 import { todayISO } from '@/utils'
 
 export default function Taxes() {
-  const { data: taxEntries = [], isLoading, isError } = useTaxEntries()
+  const { data: taxEntries = [], isLoading, isError, isFetching, refetch } = useTaxEntries()
   const createTaxEntry = useCreateTaxEntry()
   const deleteTaxEntry = useDeleteTaxEntry()
   const now = new Date()
@@ -60,10 +60,10 @@ export default function Taxes() {
         <p className="mt-1 font-mono text-3xl font-bold text-espresso">₹{totalAmount.toLocaleString('en-IN')}</p>
       </div>
 
-      {isLoading ? (
+      {isError ? (
+        <ErrorState description="Could not load tax entries." onRetry={refetch} retrying={isFetching} />
+      ) : isLoading ? (
         <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading tax entries...</p>
-      ) : isError ? (
-        <EmptyState icon={Landmark} title="Could not load tax entries" description="Something went wrong fetching tax entries. Try refreshing." />
       ) : filtered.length === 0 ? (
         <EmptyState icon={Landmark} title="No tax entries this month" description="Add a tax entry to get started." />
       ) : (

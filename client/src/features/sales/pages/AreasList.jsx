@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Plus, MapPin, ArrowRight, Store, LayoutGrid, Table as TableIcon, FolderInput } from 'lucide-react'
 import { useAreas, useCreateArea, useUnassignedStores, useBulkAssignStores } from '@/features/sales/hooks'
-import { Button, EmptyState, Field, Modal, PageHeader, inputClass } from '@/components/shared'
+import { Button, EmptyState, ErrorState, Field, Modal, PageHeader, inputClass } from '@/components/shared'
 
 function AddAreaModal({ open, onClose }) {
   const createArea = useCreateArea()
@@ -145,7 +145,7 @@ function AssignUnassignedStoresModal({ open, onClose, stores }) {
 }
 
 export default function AreasList() {
-  const { data: areas = [], isLoading, isError } = useAreas()
+  const { data: areas = [], isLoading, isError, isFetching, refetch } = useAreas()
   const [addOpen, setAddOpen] = useState(false)
   const [view, setView] = useState('cards')
 
@@ -155,10 +155,10 @@ export default function AreasList() {
 
       <UnassignedStoresBanner />
 
-      {isLoading ? (
+      {isError ? (
+        <ErrorState description="Could not load areas." onRetry={refetch} retrying={isFetching} />
+      ) : isLoading ? (
         <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading areas...</p>
-      ) : isError ? (
-        <EmptyState icon={MapPin} title="Could not load areas" description="Something went wrong fetching sales territories. Try refreshing." />
       ) : areas.length === 0 ? (
         <EmptyState icon={MapPin} title="No areas yet" description="Add a sales territory to get started." />
       ) : (

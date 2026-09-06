@@ -3,23 +3,38 @@ import { X, AlertCircle } from 'lucide-react'
 import { useAreas, useAllStores, useCreateOrder, useScheduleToday } from '../hooks'
 import { useWorkers } from '@/features/workers/hooks'
 import { useReadyStock } from '@/features/inventory/hooks'
-import { Button, Field, Modal, inputClass } from '@/components/shared'
+import { Button, ErrorState, Field, Modal, inputClass } from '@/components/shared'
 
 const makeEmptyForm = () => ({ storeId: '', orderTakerId: '', notes: '', items: [] })
 
 export function AddOrderModal({ open, onClose, areaId }) {
   const createOrder = useCreateOrder()
-  const { data: areas = [] } = useAreas()
-  const { data: stores = [] } = useAllStores()
-  const { data: workers = [] } = useWorkers()
-  const { data: todaySchedule } = useScheduleToday()
+  const areasQuery = useAreas()
+  const storesQuery = useAllStores()
+  const workersQuery = useWorkers()
+  const scheduleQuery = useScheduleToday()
   // "all" - not the hook's own "today" default, which is right for the
   // Ready Stock page itself (what was produced today) but wrong here: an
   // order's product picker needs every currently-available product,
   // regardless of when it was last produced.
-  const { data: products = [] } = useReadyStock({ filter: 'all' })
+  const productsQuery = useReadyStock({ filter: 'all' })
+  const { data: areas = [] } = areasQuery
+  const { data: stores = [] } = storesQuery
+  const { data: workers = [] } = workersQuery
+  const { data: todaySchedule } = scheduleQuery
+  const { data: products = [] } = productsQuery
   const [form, setForm] = useState(makeEmptyForm)
   const [error, setError] = useState('')
+
+  // Every picker in this form depends on these five queries - submitting
+  // while any is still loading (incomplete options) or failed (missing
+  // options) risks either an incomplete selection or a request the
+  // server will reject. Gate on all of them together.
+  const pickerQueries = [areasQuery, storesQuery, workersQuery, scheduleQuery, productsQuery]
+  const pickersLoading = pickerQueries.some((q) => q.isLoading)
+  const pickersError = pickerQueries.some((q) => q.isError)
+  const pickersFetching = pickerQueries.some((q) => q.isFetching)
+  const retryPickers = () => pickerQueries.forEach((q) => q.refetch())
 
   const todayAreaByWorker = Object.fromEntries((todaySchedule?.assignments || []).map((a) => [a.workerId, a.areaId]))
   const activeMarketers = workers.filter((w) => w.status === 'active' && w.roles.includes('marketer'))
@@ -42,6 +57,7 @@ export function AddOrderModal({ open, onClose, areaId }) {
   const updateLine = (i, field, val) => setForm((f) => ({ ...f, items: f.items.map((ln, idx) => idx === i ? { ...ln, [field]: val } : ln) }))
 
   const submit = async () => {
+    if (pickersLoading || pickersError) return
     if (!form.storeId || !form.orderTakerId) return
 
     const items = form.items
@@ -68,7 +84,12 @@ export function AddOrderModal({ open, onClose, areaId }) {
   const busy = createOrder.isPending
 
   return (
-    <Modal open={open} onClose={onClose} eyebrow="Sales / Orders" title="Add order" footer={<><Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button><Button onClick={submit} disabled={busy}>{busy ? 'Adding…' : 'Add order'}</Button></>}>
+    <Modal open={open} onClose={onClose} eyebrow="Sales / Orders" title="Add order" footer={<><Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button><Button onClick={submit} disabled={busy || pickersLoading || pickersError}>{busy ? 'Adding…' : 'Add order'}</Button></>}>
+      {pickersError ? (
+        <ErrorState description="Could not load stores, order takers, or products needed to add an order." onRetry={retryPickers} retrying={pickersFetching} />
+      ) : pickersLoading ? (
+        <p role="status" className="py-8 text-center text-sm text-espresso/50">Loading order form…</p>
+      ) : (
       <div className="grid gap-3">
         <Field label="Store" required>
           <select className={inputClass} value={form.storeId} onChange={(e) => selectStore(e.target.value)}>
@@ -120,6 +141,7 @@ export function AddOrderModal({ open, onClose, areaId }) {
           </div>
         )}
       </div>
+      )}
     </Modal>
   )
 }

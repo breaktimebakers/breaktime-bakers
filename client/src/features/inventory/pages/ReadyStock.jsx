@@ -2,17 +2,17 @@ import { useState, useMemo } from 'react'
 import { PackageCheck, ChevronDown } from 'lucide-react'
 import { useReadyStock, useProductStockHistory } from '@/features/inventory/hooks'
 import { readyStockApi } from '@/features/inventory/api/readyStockApi'
-import { EmptyState, ExportMenu, PageHeader, inputClass } from '@/components/shared'
+import { EmptyState, ErrorState, ExportMenu, PageHeader, inputClass } from '@/components/shared'
 import { exportPDF, exportExcel, formatCurrency, formatDate } from '@/utils'
 import { toast } from '@/lib/toast'
 
 // A product's incoming stock history is fetched lazily (only once its row
 // is expanded), same pattern as LotHistory in RawMaterials.jsx.
 function StockHistory({ product }) {
-  const { data: history = [], isLoading, isError } = useProductStockHistory(product.id)
+  const { data: history = [], isLoading, isError, isFetching, refetch } = useProductStockHistory(product.id)
 
+  if (isError) return <ErrorState description="Could not load stock history." onRetry={refetch} retrying={isFetching} />
   if (isLoading) return <p className="px-4 py-3 text-xs text-espresso/40">Loading stock history…</p>
-  if (isError) return <p className="px-4 py-3 text-xs text-cherry-compote">Could not load stock history.</p>
   if (history.length === 0) return <p className="px-4 py-3 text-xs text-espresso/40">No batches produced this month.</p>
 
   return (
@@ -51,7 +51,7 @@ export default function ReadyStock() {
     to: filter === 'custom' ? customTo || undefined : undefined,
   }), [filter, customFrom, customTo])
 
-  const { data: readyStock = [], isLoading, isError } = useReadyStock(query)
+  const { data: readyStock = [], isLoading, isError, isFetching, refetch } = useReadyStock(query)
 
   // Every listed product's stock history (this month, same default as the
   // expandable row view), fetched fresh at export time rather than reusing
@@ -121,10 +121,10 @@ export default function ReadyStock() {
         )}
       </div>
 
-      {isLoading ? (
+      {isError ? (
+        <ErrorState description="Could not load ready stock." onRetry={refetch} retrying={isFetching} />
+      ) : isLoading ? (
         <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading ready stock…</p>
-      ) : isError ? (
-        <EmptyState icon={PackageCheck} title="Could not load ready stock" description="Something went wrong fetching finished goods. Try refreshing." />
       ) : readyStock.length === 0 ? (
         <EmptyState icon={PackageCheck} title="No ready stock" description="Finished goods will appear here after production batches are added." />
       ) : (

@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
 import { Pencil, UserCircle, CalendarDays, Wallet, Plus } from 'lucide-react'
 import { useWorker, useWorkerAttendance, usePaginatedWorkerAttendance, useUpdateWorker, useMarkWorkerLeft, useReactivateWorker, useMarkAttendance, useClearAttendance, useWorkerAdvances } from '@/features/workers/hooks'
-import { Button, EmptyState, PageHeader, MonthFilterBar, Pagination } from '@/components/shared'
+import { Button, EmptyState, ErrorState, PageHeader, MonthFilterBar, Pagination } from '@/components/shared'
 import { RoleBadge, roleConfig } from '../components/RoleBadge'
 import { AadhaarDisplay } from '../components/AadhaarField'
 import { WorkerAvatar } from '../components/PhotoCapture'
@@ -17,7 +17,7 @@ export default function WorkerDetail() {
   const { workerId } = useParams({ strict: false })
   const { data: worker, isLoading, isError } = useWorker(workerId)
   const { data: workerAttendance = [] } = useWorkerAttendance(workerId)
-  const { data: workerAdvances = [] } = useWorkerAdvances(workerId)
+  const { data: workerAdvances = [], isLoading: advancesLoading, isError: advancesError, isFetching: advancesFetching, refetch: refetchAdvances } = useWorkerAdvances(workerId)
   const updateWorker = useUpdateWorker()
   const markLeftMutation = useMarkWorkerLeft()
   const reactivateMutation = useReactivateWorker()
@@ -77,7 +77,13 @@ export default function WorkerDetail() {
   const requestedPage = pageState.key === paginationResetKey ? pageState.page : 1
   if (pageState.key !== paginationResetKey) setPageState({ key: paginationResetKey, page: 1 })
   const setAttPage = (nextPage) => setPageState({ key: paginationResetKey, page: nextPage })
-  const { data: attendancePage } = usePaginatedWorkerAttendance(workerId, {
+  const {
+    data: attendancePage,
+    isLoading: attListLoading,
+    isError: attListError,
+    isFetching: attListFetching,
+    refetch: refetchAttList,
+  } = usePaginatedWorkerAttendance(workerId, {
     page: requestedPage,
     pageSize: PAGE_SIZE,
     status: attStatusFilter === 'all' ? undefined : attStatusFilter,
@@ -235,7 +241,13 @@ export default function WorkerDetail() {
                 month={advanceMonth.month}
                 onChange={(y, m) => setAdvanceMonth({ year: y, month: m })}
               />
-              <AdvanceList advances={advancesForSelectedMonth} />
+              {advancesError ? (
+                <ErrorState description="Could not load advances." onRetry={refetchAdvances} retrying={advancesFetching} />
+              ) : advancesLoading ? (
+                <p role="status" className="px-1 py-4 text-center text-sm text-espresso/40">Loading advances…</p>
+              ) : (
+                <AdvanceList advances={advancesForSelectedMonth} />
+              )}
             </div>
           </div>
         </div>
@@ -265,7 +277,11 @@ export default function WorkerDetail() {
             </div>
           ) : (
             <div className="overflow-hidden rounded-bakery border border-espresso/8 bg-proof-cream shadow-bakery">
-              {pagedAttendance.length === 0 ? (
+              {attListError ? (
+                <ErrorState description="Could not load attendance records." onRetry={refetchAttList} retrying={attListFetching} />
+              ) : attListLoading ? (
+                <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading attendance…</p>
+              ) : pagedAttendance.length === 0 ? (
                 <EmptyState icon={CalendarDays} title="No entries" description="No attendance records match this filter." />
               ) : (
                 <>

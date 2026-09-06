@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Plus, CookingPot, LayoutGrid, Table as TableIcon } from 'lucide-react'
 import { useBatches } from '@/features/inventory/hooks'
-import { Button, EmptyState, ExportMenu, PageHeader, Pagination, inputClass } from '@/components/shared'
+import { Button, EmptyState, ErrorState, ExportMenu, PageHeader, Pagination, inputClass } from '@/components/shared'
 import { usePagination } from '@/hooks'
 import { exportPDF, exportExcel, formatCurrency, formatDate } from '@/utils'
 import { AddBatchModal } from '../components/AddBatchModal'
@@ -21,7 +21,7 @@ export default function InProcess() {
     to: filter === 'custom' ? customTo || undefined : undefined,
   }), [filter, customFrom, customTo])
 
-  const { data: batches = [], isLoading, isError } = useBatches(query)
+  const { data: batches = [], isLoading, isError, isFetching, refetch } = useBatches(query)
 
   const { page, setPage, totalPages, start, end } = usePagination(batches.length, PAGE_SIZE)
   const paged = batches.slice(start, end)
@@ -64,10 +64,10 @@ export default function InProcess() {
         </div>
       </div>
 
-      {isLoading ? (
+      {isError ? (
+        <ErrorState description="Could not load production batches." onRetry={refetch} retrying={isFetching} />
+      ) : isLoading ? (
         <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading batches…</p>
-      ) : isError ? (
-        <EmptyState icon={CookingPot} title="Could not load batches" description="Something went wrong fetching production batches. Try refreshing." />
       ) : batches.length === 0 ? (
         <EmptyState icon={CookingPot} title="No batches found" description="Add a production batch to see it here." />
       ) : view === 'cards' ? (

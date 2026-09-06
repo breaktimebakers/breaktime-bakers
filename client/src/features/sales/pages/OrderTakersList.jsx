@@ -5,15 +5,26 @@ import { ArrowLeft, CalendarDays, ChevronDown, ChevronRight, MapPin, Search } fr
 import { useAreas, usePaginatedOrders, useScheduleToday } from '@/features/sales/hooks'
 import { useWorkers } from '@/features/workers/hooks'
 import { ORDER_STATUS } from '@/constants/orderStatus'
-import { Button, EmptyState, PageHeader, Pagination, SortIcon, inputClass } from '@/components/shared'
+import { Button, EmptyState, ErrorState, PageHeader, Pagination, SortIcon, inputClass } from '@/components/shared'
 
 const PAGE_SIZE = 10
 
 export default function OrderTakersList() {
-  const { data: workers = [] } = useWorkers()
-  const { data: areas = [] } = useAreas()
-  const { data: todaySchedule } = useScheduleToday()
+  const workersQuery = useWorkers()
+  const areasQuery = useAreas()
+  const scheduleQuery = useScheduleToday()
+  const { data: workers = [] } = workersQuery
+  const { data: areas = [] } = areasQuery
+  const { data: todaySchedule } = scheduleQuery
   const orderTakers = useMemo(() => workers.filter((w) => w.roles.includes('marketer')), [workers])
+
+  // These three feed the cards section only - the table below has its own
+  // independent isLoading/isError via usePaginatedOrders.
+  const cardQueries = [workersQuery, areasQuery, scheduleQuery]
+  const cardsLoading = cardQueries.some((q) => q.isLoading)
+  const cardsError = cardQueries.some((q) => q.isError)
+  const cardsFetching = cardQueries.some((q) => q.isFetching)
+  const retryCards = () => cardQueries.forEach((q) => q.refetch())
   const todayAreaByWorker = useMemo(
     () => Object.fromEntries((todaySchedule?.assignments || []).map((a) => [a.workerId, a.areaId])),
     [todaySchedule],
@@ -99,7 +110,11 @@ export default function OrderTakersList() {
       />
 
       {/* Cards */}
-      {orderTakers.length === 0 ? (
+      {cardsError ? (
+        <ErrorState description="Could not load order takers." onRetry={retryCards} retrying={cardsFetching} />
+      ) : cardsLoading ? (
+        <p role="status" className="px-1 py-8 text-center text-sm text-espresso/40">Loading order takers…</p>
+      ) : orderTakers.length === 0 ? (
         <EmptyState icon={Search} title="No order takers yet" description="Give a worker the marketer role to see them here." />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
 import { Store, Phone, MapPin, Plus, Navigation, Pencil, LayoutGrid, Table as TableIcon, CheckSquare, X, FolderMinus } from 'lucide-react'
 import { useArea, useStores, useCreateStore, useUpdateStore, useUpdateStoreStatus, useBulkUnassignStores } from '@/features/sales/hooks'
-import { Button, EmptyState, Field, Modal, PageHeader, inputClass } from '@/components/shared'
+import { Button, EmptyState, ErrorState, Field, Modal, PageHeader, inputClass } from '@/components/shared'
 import { StoreLocationPicker } from '@/features/sales/components/StoreLocationPicker'
 import { AreaStoresMap } from '@/features/sales/components/AreaStoresMap'
 
@@ -132,7 +132,7 @@ function StoreFormModal({ open, onClose, areaId, store }) {
 export default function AreaDetail() {
   const { areaId } = useParams({ strict: false })
   const { data: area, isLoading: areaLoading, isError: areaError } = useArea(areaId)
-  const { data: stores = [], isLoading: storesLoading } = useStores(areaId)
+  const { data: stores = [], isLoading: storesLoading, isError: storesError, isFetching: storesFetching, refetch: refetchStores } = useStores(areaId)
   const [modalOpen, setModalOpen] = useState(false)
   const [editStore, setEditStore] = useState(null)
   const [view, setView] = useState('cards')
@@ -206,7 +206,9 @@ export default function AreaDetail() {
         </div>
       )}
 
-      {storesLoading ? (
+      {storesError ? (
+        <ErrorState description="Could not load stores for this area." onRetry={refetchStores} retrying={storesFetching} />
+      ) : storesLoading ? (
         <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading stores…</p>
       ) : stores.length === 0 ? (
         <EmptyState icon={Store} title="No stores yet" description="Add a store to this area." />
