@@ -67,8 +67,7 @@ export const listOrders = async (query) => {
 // An order taker can only take orders for the area they're actually
 // scheduled to today (server's today, matching the orderDate the order
 // itself gets stamped with) - see schedule.service.js for how "today's
-// area" is resolved (an override for the date if one exists, else the
-// worker's recurring weekly route).
+// area" is resolved from the assignment for this exact date.
 const requireScheduledForStoreToday = async (workerId, store) => {
   if (!store.areaId) {
     throw httpError(400, "This store has no area assigned yet", "STORE_UNASSIGNED");
@@ -100,11 +99,59 @@ export const createOrder = async (body) => {
 export const updateOrderStatus = async (id, status) => {
   await requireOrder(id);
 
+  // Defense in depth - the route's Zod schema already excludes "delivered"
+  // from this endpoint, but this keeps the rule true even if this service
+  // fn is ever called from somewhere else.
+  if (status === "delivered") {
+    throw httpError(400, "Mark an order delivered via order fulfillment, not this endpoint", "USE_FULFILL_ENDPOINT");
+  }
+
   return orderRepo.updateOrderStatus(id, status);
 };
 
 export const fulfillOrder = async (id, body) => {
-  await requireOrder(id);
+  const order = await requireOrder(id);
+  const { status, fulfillmentDate, items } = body;
+
+  const orderItemsById = new Map(order.items.map((item) => [item.id, item]));
+
+  // A fulfillment request is a full snapshot: every line on the order must
+  // be present exactly once (dedup already enforced by the schema), no
+  // more, no less - this is what rules out a request whose items belong to
+  // a different order silently updating zero rows while the parent order's
+  // status/date still move.
+  if (items.length !== order.items.length) {
+    throw httpError(400, "Fulfillment must include every item on the order, exactly once", "ITEM_SET_MISMATCH");
+  }
+
+  // Fulfilled quantity is allowed to exceed what was ordered (e.g. rounding
+  // up to a packable unit, or genuinely sending extra) - only that each
+  // submitted item actually belongs to this order is enforced here.
+  for (const line of items) {
+    if (!orderItemsById.has(line.itemId)) {
+      throw httpError(400, `Item ${line.itemId} does not belong to this order`, "UNKNOWN_ORDER_ITEM");
+    }
+  }
+
+  if (fulfillmentDate) {
+    if (fulfillmentDate < order.orderDate) {
+      throw httpError(400, "Fulfillment date cannot be before the order date", "FULFILLMENT_BEFORE_ORDER_DATE");
+    }
+
+    if (fulfillmentDate > todayIso()) {
+      throw httpError(400, "Fulfillment date cannot be in the future", "FULFILLMENT_IN_FUTURE");
+    }
+  }
+
+  // Partial fulfillment is allowed to be closed out as delivered (e.g.
+  // stock ran short) - fulfilledQty is stored exactly as submitted, never
+  // auto-topped-up to the ordered quantity, so "delivered" never silently
+  // implies "fully fulfilled". It does require that *something* was
+  // actually fulfilled, and (enforced at the schema level) a fulfillment
+  // date.
+  if (status === "delivered" && items.every((line) => line.fulfilledQty === 0)) {
+    throw httpError(400, "Cannot mark an order delivered with no fulfilled quantity", "ZERO_FULFILLMENT");
+  }
 
   return orderRepo.fulfillOrder(id, body);
 };

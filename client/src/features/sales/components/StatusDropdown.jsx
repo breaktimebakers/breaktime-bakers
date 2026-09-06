@@ -61,7 +61,10 @@ export function StatusDropdown({ order, onUpdate }) {
           style={{ position: 'fixed', top: coords.top, right: coords.right }}
           className="z-50 w-36 overflow-hidden rounded-bakery border border-espresso/10 bg-proof-cream shadow-bakery-lg"
         >
-          {Object.entries(ORDER_STATUS).map(([key, sc]) => (
+          {/* "Delivered" is deliberately excluded - the server now requires
+              fulfillment date + per-item quantities for that transition,
+              which this menu doesn't collect. Use the "Fill" button instead. */}
+          {Object.entries(ORDER_STATUS).filter(([key]) => key !== 'delivered').map(([key, sc]) => (
             <button
               key={key}
               onClick={() => { onUpdate(key); setOpen(false) }}
