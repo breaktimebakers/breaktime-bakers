@@ -12,6 +12,9 @@ import {
   createLotSchema,
   lotWastageParamSchema,
   createWastageSchema,
+  listAllLotsQuerySchema,
+  lotPaymentParamSchema,
+  updateLotPaymentSchema,
 } from "./rawMaterial.validation.js";
 import * as rawMaterialController from "./rawMaterial.controller.js";
 
@@ -20,6 +23,21 @@ const router = Router();
 router.use(requireAuth, requireRole("admin"));
 
 router.get("/", validateQuery(listRawMaterialsQuerySchema), asyncHandler(rawMaterialController.list));
+
+// Supplier Payments (Finance) - lots across every material. Registered
+// before "/:id" so "lots" is never swallowed as a raw material id.
+router.get(
+  "/lots",
+  validateQuery(listAllLotsQuerySchema),
+  asyncHandler(rawMaterialController.listAllLots),
+);
+
+router.patch(
+  "/lots/:lotId/payment",
+  validate(lotPaymentParamSchema, "params"),
+  validate(updateLotPaymentSchema),
+  asyncHandler(rawMaterialController.updateLotPayment),
+);
 
 router.get(
   "/:id",

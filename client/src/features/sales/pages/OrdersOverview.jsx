@@ -1,5 +1,5 @@
 import { useState, useMemo, Fragment } from 'react'
-import { Link, useParams } from '@tanstack/react-router'
+import { Link, useParams, useSearch } from '@tanstack/react-router'
 import { Plus, Filter, ChevronDown, ChevronRight, ClipboardList } from 'lucide-react'
 import { usePaginatedOrders, useAllStores, useAreas, useUpdateOrderStatus } from '@/features/sales/hooks'
 import { useWorkers } from '@/features/workers/hooks'
@@ -16,6 +16,10 @@ const PAGE_SIZE = 8
 
 export default function OrdersOverview() {
   const { areaId } = useParams({ strict: false })
+  // Deep-link params from the Delivery Status table ("View orders" on a
+  // row) - read once on mount to seed the filters below, same idea as
+  // Login.jsx's sessionExpired search param.
+  const { storeId: linkedStoreId, date: linkedDate } = useSearch({ strict: false })
   const { data: areas = [] } = useAreas()
   const { data: stores = [] } = useAllStores()
   const { data: workers = [] } = useWorkers()
@@ -35,15 +39,19 @@ export default function OrdersOverview() {
   const [fillOrder, setFillOrder] = useState(null)
 
   // Defaults to "today" - matches the backend's own default and the
-  // requirement that Orders shows only today's orders unless asked for more.
-  const [dateMode, setDateMode] = useState('today')
-  const [specificDate, setSpecificDate] = useState('')
+  // requirement that Orders shows only today's orders unless asked for
+  // more - unless a linked date came in from Delivery Status, in which
+  // case that specific date wins instead.
+  const [dateMode, setDateMode] = useState(linkedDate ? 'specific' : 'today')
+  const [specificDate, setSpecificDate] = useState(linkedDate || '')
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [productFilter, setProductFilter] = useState('all')
-  const [moreOpen, setMoreOpen] = useState(false)
-  const [storeFilter, setStoreFilter] = useState('all')
+  // Starts open when a linked store came in, so the pre-applied filter is
+  // visible rather than hidden behind the collapsed "More filters" panel.
+  const [moreOpen, setMoreOpen] = useState(Boolean(linkedStoreId))
+  const [storeFilter, setStoreFilter] = useState(linkedStoreId || 'all')
   const [otFilter, setOtFilter] = useState('all')
 
   const moreActive = storeFilter !== 'all' || otFilter !== 'all'
@@ -181,12 +189,13 @@ export default function OrdersOverview() {
       ) : (
         <div className="overflow-hidden rounded-bakery border border-espresso/8 bg-proof-cream shadow-bakery">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[700px] text-sm">
+            <table className="w-full min-w-[800px] text-sm">
               <thead>
                 <tr className="border-b border-espresso/10 bg-crust/30 text-left">
                   <th scope="col" className="w-10 px-2 py-3"><span className="sr-only">Order products</span></th>
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Store</th>
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Area</th>
+                  <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Order Taker</th>
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Products</th>
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Qty</th>
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Status</th>
@@ -222,6 +231,7 @@ export default function OrdersOverview() {
                         </td>
                         <td className="px-4 py-3 font-medium text-espresso">{store?.dealerName}</td>
                         <td className="px-4 py-3 text-espresso/60">{area?.name}</td>
+                        <td className="px-4 py-3 text-espresso/70">{o.otName}</td>
                         <td className="px-4 py-3 text-espresso/80">
                           {items.length === 0 ? '—' : items.length === 1 ? items[0].productName : `${items[0].productName} +${items.length - 1} more`}
                         </td>
@@ -237,7 +247,7 @@ export default function OrdersOverview() {
                       </tr>
                       {isExpanded && (
                         <tr className="border-b border-espresso/8 bg-crust/20 last:border-0">
-                          <td colSpan={8} className="px-4 py-4">
+                          <td colSpan={9} className="px-4 py-4">
                             <OrderProductsTable order={{ ...o, storeName: store?.dealerName, totalQty }} id={`area-order-products-${o.id}`} />
                           </td>
                         </tr>

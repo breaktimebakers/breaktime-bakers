@@ -5,6 +5,7 @@ export const rawMaterialKeys = {
   all: ['raw-materials'],
   list: (query = {}) => ['raw-materials', 'list', query],
   lots: (id, range = {}) => ['raw-materials', id, 'lots', range],
+  allLots: (range = {}) => ['raw-materials', 'lots', range],
 }
 
 export function useRawMaterials(query = {}) {
@@ -42,5 +43,19 @@ export function useRawMaterialLots(materialId, range = {}, { enabled = true } = 
       return lots
     },
     enabled: enabled && !!materialId,
+  })
+}
+
+// Lots across every material for a date range - the Supplier Payments
+// (Finance) table's data source. range defaults to the current calendar
+// month server-side (resolveMonthRange) when both from/to are omitted, so
+// a bare call in September only returns September's purchases.
+export function useAllLots(range = {}) {
+  return useQuery({
+    queryKey: rawMaterialKeys.allLots(range),
+    queryFn: async () => {
+      const { lots } = await rawMaterialApi.allLots(range)
+      return lots
+    },
   })
 }

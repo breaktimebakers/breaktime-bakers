@@ -1,0 +1,453 @@
+// Break Time Bakers - full database schema
+// Generated from server/src/modules/**/*.schema.js (Drizzle ORM, Postgres)
+// Paste this whole file into https://dbdiagram.io to render it.
+//
+// Every Ref below at the bottom was cross-checked against a `grep -rn
+// ".references(" --include=*.schema.js` over the whole server codebase -
+// 26 real (DB-enforced) foreign keys total, plus 2 documented app-level
+// links that are NOT real foreign keys (see the two "logical link" notes
+// at the very end) - don't mistake those two for enforced constraints.
+
+//////////////////////////////////////////////////////////////////
+// AUTH
+//////////////////////////////////////////////////////////////////
+
+Table users {
+  id varchar(36) [pk]
+  name varchar(100) [not null]
+  email varchar(255) [not null, unique]
+  password varchar(255) [not null]
+  role varchar(30) [not null, default: 'admin']
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  Note: 'role is plain varchar (not a pg enum) - this DB may be shared with other, separately deployed codebases later.'
+}
+
+Table sessions {
+  id varchar(36) [pk]
+  user_id varchar(36) [not null]
+  token_hash varchar(64) [not null, note: 'hash of the currently-valid refresh token; rotates every refresh']
+  user_agent varchar(255)
+  ip_address varchar(45)
+  expires_at timestamp [not null]
+  revoked_at timestamp
+  created_at timestamp [not null, default: `now()`]
+  last_used_at timestamp [not null, default: `now()`]
+}
+
+//////////////////////////////////////////////////////////////////
+// SALES (areas, stores, orders)
+//////////////////////////////////////////////////////////////////
+
+Table areas {
+  id varchar(36) [pk]
+  name varchar(150) [not null, unique]
+  city varchar(100) [not null]
+  pincode varchar(10) [not null]
+  is_archived boolean [not null, default: false]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+}
+
+Table stores {
+  id varchar(36) [pk]
+  area_id varchar(36) [note: 'nullable - "unassigned" store']
+  dealer_name varchar(150) [not null]
+  shop_name varchar(150)
+  dealer_phone varchar(20)
+  store_type varchar(20) [not null, note: 'Shop / Canteen / Other']
+  address varchar(500)
+  lat decimal(9,6)
+  lng decimal(9,6)
+  is_active boolean [not null, default: true]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    area_id
+  }
+}
+
+Table orders {
+  id varchar(36) [pk]
+  store_id varchar(36) [not null]
+  order_taker_id varchar(36) [not null, note: 'FK to workers - must hold the "marketer" role (app-level rule, not FK-enforced)']
+  status varchar(20) [not null, default: 'in_transit', note: 'in_transit / shipped / delivered']
+  order_date date [not null]
+  fulfillment_date date
+  notes varchar(1000)
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    order_date
+    store_id
+    order_taker_id
+  }
+}
+
+Table order_items {
+  id varchar(36) [pk]
+  order_id varchar(36) [not null]
+  product_id varchar(36) [not null]
+  quantity decimal(12,3) [not null]
+  fulfilled_qty decimal(12,3) [not null, default: 0]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    order_id
+    product_id
+    (order_id, product_id) [unique, note: 'one line per product per order - combine quantities instead of duplicating']
+  }
+}
+
+//////////////////////////////////////////////////////////////////
+// INVENTORY (raw materials -> production -> ready stock)
+//////////////////////////////////////////////////////////////////
+
+Table raw_materials {
+  id varchar(36) [pk]
+  name varchar(100) [not null, unique]
+  unit varchar(20) [not null]
+  low_stock_at decimal(12,3) [not null, default: 0]
+  is_archived boolean [not null, default: false, note: '"delete" in the UI - hard delete would break lot/consumption history']
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  Note: 'stockQty is NEVER a stored column - always SUM(remaining_qty) across material_lots, computed at read time (FIFO costing).'
+}
+
+Table vendors {
+  id varchar(36) [pk]
+  name varchar(150) [not null, unique]
+  phone varchar(20)
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+}
+
+Table material_lots {
+  id varchar(36) [pk]
+  raw_material_id varchar(36) [not null]
+  vendor_id varchar(36) [note: 'nullable - a lot can be logged before the vendor is known']
+  original_qty decimal(12,3) [not null, note: 'immutable - what was actually bought']
+  remaining_qty decimal(12,3) [not null, note: 'decremented by FIFO consumption']
+  unit_cost decimal(12,2) [not null]
+  purchase_date date [not null]
+  is_paid boolean [not null, default: false, note: 'Supplier Payments - paid/outstanding for this purchase']
+  paid_date date
+  receipt_key varchar(500) [note: 'R2 object key, never a public URL']
+  created_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (raw_material_id, purchase_date)
+  }
+}
+
+Table material_lot_wastages {
+  id varchar(36) [pk]
+  lot_id varchar(36) [not null]
+  raw_material_id varchar(36) [not null, note: 'denormalized off lot_id, avoids a join for per-material reporting']
+  expense_id varchar(36) [not null, note: 'the linked expense is the source of truth for date/note; deleting it cascades this row']
+  qty decimal(12,3) [not null]
+  cost_at_wastage decimal(12,2) [not null, note: 'snapshot at time of wastage, never recalculated']
+  created_at timestamp [not null, default: `now()`]
+
+  indexes {
+    raw_material_id
+  }
+}
+
+Table products {
+  id varchar(36) [pk]
+  name varchar(150) [not null, unique]
+  unit varchar(20) [not null]
+  price_per_unit decimal(12,2) [note: 'CURRENT price only, refreshed as a side effect of batches - never treat as historical']
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+}
+
+Table batches {
+  id varchar(36) [pk]
+  product_name varchar(150) [not null, note: 'plain text, no FK to products - upsertProductByName matches/creates by this name']
+  quantity_produced decimal(12,3) [not null]
+  unit varchar(20) [not null]
+  price_per_unit decimal(12,2) [note: 'HISTORICAL price at production time - this is the real price-history record']
+  produced_at timestamp [not null]
+  created_at timestamp [not null, default: `now()`]
+}
+
+Table batch_lot_consumptions {
+  id varchar(36) [pk]
+  batch_id varchar(36) [not null]
+  lot_id varchar(36) [not null]
+  raw_material_id varchar(36) [not null, note: 'denormalized off lot_id']
+  qty_consumed decimal(12,3) [not null]
+  cost_at_consumption decimal(12,2) [not null, note: 'snapshot, never recalculated']
+
+  indexes {
+    batch_id
+    raw_material_id
+  }
+
+  Note: 'FIFO audit trail - which lots a batch drew from and at what cost. One batch can span multiple lots.'
+}
+
+Table ready_stock_movements {
+  id varchar(36) [pk]
+  product_id varchar(36) [not null]
+  batch_id varchar(36) [note: 'nullable - not every movement traces to a batch']
+  order_item_id varchar(36) [note: 'NOT a real DB foreign key - see logical-link note at bottom of file']
+  quantity decimal(12,3) [not null, note: 'signed: + for stock added, - for stock removed']
+  reason varchar(20) [not null, note: 'production / sale (adjustment, wastage reserved for later)']
+  occurred_at timestamp [not null]
+  created_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (product_id, occurred_at)
+  }
+
+  Note: 'availableQty is NEVER stored on products - always SUM(quantity) here, computed at read time.'
+}
+
+//////////////////////////////////////////////////////////////////
+// WORKERS (roster, attendance, payroll, scheduling)
+//////////////////////////////////////////////////////////////////
+
+Table workers {
+  id varchar(36) [pk]
+  name varchar(100) [not null]
+  address varchar(500)
+  phone varchar(20)
+  aadhaar_number varchar(20)
+  photo_key varchar(500) [note: 'R2 object key']
+  joining_date date [not null]
+  left_date date [note: 'null while still employed']
+  status varchar(20) [not null, default: 'active', note: 'active / left']
+  monthly_salary decimal(12,2) [not null]
+  overtime_rate decimal(12,2) [not null, default: 0]
+  shift_start varchar(5) [not null]
+  shift_end varchar(5) [not null]
+  week_off_day varchar(10) [not null]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    status
+  }
+}
+
+Table worker_roles {
+  id varchar(36) [pk]
+  worker_id varchar(36) [not null]
+  role varchar(20) [not null, note: 'chef / labour / delivery / marketer']
+
+  indexes {
+    worker_id
+    role
+    (worker_id, role) [unique]
+  }
+
+  Note: 'A worker can hold more than one role (e.g. chef + marketer).'
+}
+
+Table worker_attendance {
+  id varchar(36) [pk]
+  worker_id varchar(36) [not null]
+  date date [not null]
+  status varchar(20) [not null, note: 'present / absent / half_day / week_off']
+  overtime_hours decimal(5,2) [not null, default: 0]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    worker_id
+    (worker_id, date) [unique, note: 'one entry per worker per day - re-marking updates, never inserts a duplicate']
+  }
+}
+
+Table worker_advances {
+  id varchar(36) [pk]
+  worker_id varchar(36) [not null]
+  date date [not null]
+  amount decimal(12,2) [not null]
+  note varchar(500)
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    worker_id
+  }
+
+  Note: 'Add + delete only, never edited - same ledger pattern as expenses.'
+}
+
+Table worker_salary_payments {
+  id varchar(36) [pk]
+  worker_id varchar(36) [not null]
+  year integer [not null]
+  month integer [not null, note: '0-11, matching JS Date#getMonth()']
+  amount_paid decimal(12,2) [not null, note: 'snapshot at the moment marked paid']
+  paid_date date [not null]
+  created_at timestamp [not null, default: `now()`]
+
+  indexes {
+    worker_id
+    (worker_id, year, month) [unique]
+  }
+
+  Note: 'Presence of a row = that month is paid. Absence = unpaid (still counted in the running Unpaid total). Un-marking is a delete, not a status flip.'
+}
+
+Table worker_area_override {
+  id varchar(36) [pk]
+  worker_id varchar(36) [not null]
+  date date [not null]
+  area_id varchar(36) [note: 'nullable']
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    worker_id
+    date
+    (worker_id, date) [unique]
+  }
+
+  Note: 'Daily area assignment for order takers. Table/column names are legacy ("override") but this is now the only assignment mechanism - worker_weekly_area below is retained but no longer read/written.'
+}
+
+Table worker_weekly_area {
+  id varchar(36) [pk]
+  worker_id varchar(36) [not null]
+  weekday varchar(10) [not null]
+  area_id varchar(36) [note: 'nullable']
+
+  indexes {
+    worker_id
+    area_id
+    (worker_id, weekday) [unique]
+  }
+
+  Note: 'LEGACY / INACTIVE - retained only to preserve old rows across schema pushes. Daily scheduling no longer reads or writes this table.'
+}
+
+//////////////////////////////////////////////////////////////////
+// DELIVERY
+//////////////////////////////////////////////////////////////////
+
+Table driver_area_assignments {
+  id varchar(36) [pk]
+  driver_id varchar(36) [not null]
+  date date [not null]
+  area_id varchar(36) [not null]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (driver_id, date)
+    (area_id, date)
+    (driver_id, date, area_id) [unique]
+  }
+
+  Note: 'A driver can cover several areas on the same date - unlike worker_area_override (one nullable area per worker/date), this is a pure join table: row present = assigned.'
+}
+
+//////////////////////////////////////////////////////////////////
+// FINANCE
+//////////////////////////////////////////////////////////////////
+
+Table expenses {
+  id varchar(36) [pk]
+  category varchar(50) [not null]
+  amount decimal(12,2) [not null]
+  date date [not null]
+  note varchar(500)
+  bill_key varchar(500) [note: 'R2 object key']
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    date
+  }
+
+  Note: 'Add + delete only, never edited.'
+}
+
+Table tax_entries {
+  id varchar(36) [pk]
+  amount decimal(12,2) [not null]
+  date date [not null]
+  note varchar(500)
+  bill_key varchar(500)
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    date
+  }
+
+  Note: 'Add + delete only, never edited.'
+}
+
+//////////////////////////////////////////////////////////////////
+// RELATIONSHIPS - all 26 real, DB-enforced foreign keys
+// (verified via: grep -rn ".references(" --include=*.schema.js)
+//////////////////////////////////////////////////////////////////
+
+// Auth
+Ref: sessions.user_id > users.id [delete: cascade]
+
+// Sales
+Ref: stores.area_id > areas.id [delete: restrict]
+Ref: orders.store_id > stores.id [delete: restrict]
+Ref: orders.order_taker_id > workers.id [delete: restrict]
+Ref: order_items.order_id > orders.id [delete: cascade]
+Ref: order_items.product_id > products.id [delete: restrict]
+
+// Inventory
+Ref: material_lots.raw_material_id > raw_materials.id [delete: restrict]
+Ref: material_lots.vendor_id > vendors.id [delete: set null]
+Ref: material_lot_wastages.lot_id > material_lots.id [delete: restrict]
+Ref: material_lot_wastages.raw_material_id > raw_materials.id [delete: restrict]
+Ref: material_lot_wastages.expense_id > expenses.id [delete: cascade]
+Ref: batch_lot_consumptions.batch_id > batches.id [delete: cascade]
+Ref: batch_lot_consumptions.lot_id > material_lots.id [delete: restrict]
+Ref: batch_lot_consumptions.raw_material_id > raw_materials.id [delete: restrict]
+Ref: ready_stock_movements.product_id > products.id [delete: restrict]
+Ref: ready_stock_movements.batch_id > batches.id [delete: set null]
+
+// Workers
+Ref: worker_roles.worker_id > workers.id [delete: cascade]
+Ref: worker_attendance.worker_id > workers.id [delete: cascade]
+Ref: worker_advances.worker_id > workers.id [delete: cascade]
+Ref: worker_salary_payments.worker_id > workers.id [delete: cascade]
+Ref: worker_area_override.worker_id > workers.id [delete: cascade]
+Ref: worker_area_override.area_id > areas.id [delete: no action]
+Ref: worker_weekly_area.worker_id > workers.id [delete: cascade]
+Ref: worker_weekly_area.area_id > areas.id [delete: no action]
+
+// Delivery
+Ref: driver_area_assignments.driver_id > workers.id [delete: cascade]
+Ref: driver_area_assignments.area_id > areas.id [delete: restrict]
+
+//////////////////////////////////////////////////////////////////
+// LOGICAL LINKS THAT ARE **NOT** REAL FOREIGN KEYS
+// (included above as plain columns, deliberately drawn with NO Ref
+// line in this file - do not add one; there is no DB constraint)
+//////////////////////////////////////////////////////////////////
+//
+// 1. ready_stock_movements.order_item_id -> order_items.id
+//    Traces a "sale" stock movement back to the order line that caused
+//    it, for traceability/joins from the sales side only. Not a DB FK
+//    because the inventory module otherwise has zero dependency on the
+//    sales module, and this is the one exception - kept app-level on
+//    purpose (see readyStockMovement.schema.js).
+//
+// 2. orders <-> driver_area_assignments (Delivery Status board)
+//    NOT a column-to-column reference at all - status.repository.js
+//    joins them at query time via a compound, indirect condition:
+//    orders.store_id -> stores.area_id == driver_area_assignments.area_id
+//    AND orders.order_date == driver_area_assignments.date.
+//    Two orders/assignments can "match" this way without any stored
+//    key linking them directly.

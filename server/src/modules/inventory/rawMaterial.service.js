@@ -1,6 +1,6 @@
 import { httpError } from "../../utils/httpError.js";
 import { createReadUrl } from "../../utils/objectStorage.js";
-import { resolveMonthRange } from "../../utils/dateRange.js";
+import { resolveMonthRange, todayIso } from "../../utils/dateRange.js";
 import { resolvePagination } from "../../utils/pagination.js";
 import * as rawMaterialRepo from "./rawMaterial.repository.js";
 
@@ -84,4 +84,24 @@ export const createWastage = async (rawMaterialId, lotId, body) => {
   // Refetched rather than hand-patched so the response reflects the new
   // stockQty/nextLotRate, both computed server-side from lots at read time.
   return rawMaterialRepo.findRawMaterialById(rawMaterialId);
+};
+
+// Supplier Payments (Finance) - lots across every material, defaulting to
+// the current calendar month exactly like listLots above, so a bare
+// GET /raw-materials/lots in September only returns September's purchases.
+export const listAllLots = async (query) => {
+  const range = resolveMonthRange(query);
+  const lots = await rawMaterialRepo.listAllLots(range);
+
+  return Promise.all(lots.map(withSignedReceiptUrl));
+};
+
+export const updateLotPayment = async (lotId, { isPaid }) => {
+  const lot = await rawMaterialRepo.setLotPaymentStatus(lotId, isPaid, todayIso());
+
+  if (!lot) {
+    throw httpError(404, "Lot not found");
+  }
+
+  return withSignedReceiptUrl(lot);
 };

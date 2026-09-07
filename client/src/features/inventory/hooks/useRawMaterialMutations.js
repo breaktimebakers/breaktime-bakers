@@ -68,3 +68,18 @@ export function useMarkWastage() {
     },
   })
 }
+
+// invalidateAll also covers the all-lots query (shares the ['raw-materials', ...] prefix).
+export function useUpdateLotPayment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ lotId, isPaid }) => rawMaterialApi.updateLotPayment(lotId, { isPaid }),
+    onSuccess: (_, { isPaid }) => {
+      invalidateAll(queryClient)
+      toast.success(isPaid ? 'Marked as paid' : 'Marked as outstanding')
+    },
+    onError: (err) => {
+      toast.error('Could not update payment status', { description: err.message })
+    },
+  })
+}

@@ -6,27 +6,7 @@ import { findUserByEmail } from "../modules/users/user.repository.js";
 
 const admins = [
   {
-    name: "Admin One",
-    email: "admin1@breaktimebakers.com",
-    password: "changeme1",
-  },
-  {
-    name: "Admin Two",
-    email: "admin2@breaktimebakers.com",
-    password: "changeme2",
-  },
-  {
-    name: "Admin Three",
-    email: "admin3@breaktimebakers.com",
-    password: "changeme3",
-  },
-  {
-    name: "Admin Four",
-    email: "admin4@breaktimebakers.com",
-    password: "changeme4",
-  },
-  {
-    name: "Admin Five",
+    name: "Admin",
     email: "admin@admin.com",
     password: "admin",
   },

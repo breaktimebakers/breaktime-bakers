@@ -48,3 +48,15 @@ export const createWastage = async (req, res) => {
 
   sendResponse(res, 201, "Marked as wastage", { rawMaterial });
 };
+
+export const listAllLots = async (req, res) => {
+  const lots = await rawMaterialService.listAllLots(req.validatedQuery);
+
+  sendResponse(res, 200, "Lots fetched", { lots });
+};
+
+export const updateLotPayment = async (req, res) => {
+  const lot = await rawMaterialService.updateLotPayment(req.params.lotId, req.body);
+
+  sendResponse(res, 200, "Payment status updated", { lot });
+};

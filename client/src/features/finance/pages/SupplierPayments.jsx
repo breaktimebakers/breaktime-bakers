@@ -1,25 +1,67 @@
-import { useState, useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Truck, Check, ChevronDown } from 'lucide-react'
-import { useFinance } from '@/features/finance/hooks'
-import { EmptyState, PageHeader, StatCard, MonthFilterBar } from '@/components/shared'
+import { useAllLots, useRawMaterialLots, useUpdateLotPayment } from '@/features/inventory/hooks'
+import { EmptyState, ErrorState, PageHeader, StatCard, MonthFilterBar } from '@/components/shared'
+import { todayISO } from '@/utils'
 import { PaidBadge } from '../components/PaidBadge'
 import { FragmentRow } from '../components/FragmentRow'
 import { ExpandedHistory } from '../components/ExpandedHistory'
 
+const monthRangeISO = (year, month) => {
+  const from = `${year}-${String(month + 1).padStart(2, '0')}-01`
+  const lastDay = new Date(year, month + 1, 0).getDate()
+  const to = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+  return { from, to }
+}
+
+const toRow = (lot, overrides = {}) => ({
+  lotId: lot.id,
+  rawMaterialId: lot.rawMaterialId,
+  vendor: lot.vendorName || 'Unknown vendor',
+  materialName: overrides.materialName ?? lot.materialName,
+  quantity: lot.originalQty,
+  unit: overrides.unit ?? lot.unit,
+  unitCost: lot.unitCost,
+  amount: lot.originalQty * lot.unitCost,
+  purchaseDate: lot.purchaseDate,
+  status: lot.isPaid ? 'paid' : 'outstanding',
+  paidDate: lot.paidDate,
+})
+
 export default function SupplierPayments() {
-  const { getSupplierPaymentRows, getMaterialPurchaseHistory, markLotPaid } = useFinance()
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth())
   const [expandedLotId, setExpandedLotId] = useState(null)
 
-  const rows = useMemo(() => getSupplierPaymentRows(year, month), [getSupplierPaymentRows, year, month])
+  const range = useMemo(() => monthRangeISO(year, month), [year, month])
+  const { data: lots = [], isLoading, isError, isFetching, refetch } = useAllLots(range)
+  const updateLotPayment = useUpdateLotPayment()
+
+  const rows = useMemo(() => lots.map((lot) => toRow(lot)), [lots])
+
+  const expandedRow = rows.find((r) => r.lotId === expandedLotId)
+  const { data: materialLots = [] } = useRawMaterialLots(
+    expandedRow?.rawMaterialId,
+    { to: todayISO() },
+    { enabled: !!expandedRow },
+  )
+  const history = expandedRow
+    ? materialLots
+      .filter((lot) => lot.id !== expandedRow.lotId)
+      .map((lot) => toRow(lot, { materialName: expandedRow.materialName, unit: expandedRow.unit }))
+      .sort((a, b) => new Date(b.purchaseDate) - new Date(a.purchaseDate))
+    : []
 
   const outstandingTotal = rows.filter((r) => r.status === 'outstanding').reduce((s, r) => s + r.amount, 0)
   const paidTotal = rows.filter((r) => r.status === 'paid').reduce((s, r) => s + r.amount, 0)
 
   const toggleExpand = (lotId) => {
     setExpandedLotId((prev) => (prev === lotId ? null : lotId))
+  }
+
+  const markPaid = (lotId) => {
+    updateLotPayment.mutate({ lotId, isPaid: true })
   }
 
   return (
@@ -33,7 +75,11 @@ export default function SupplierPayments() {
 
       <MonthFilterBar year={year} month={month} onChange={(y, m) => { setYear(y); setMonth(m) }} />
 
-      {rows.length === 0 ? (
+      {isError ? (
+        <ErrorState description="Could not load supplier purchases." onRetry={refetch} retrying={isFetching} />
+      ) : isLoading ? (
+        <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading purchases…</p>
+      ) : rows.length === 0 ? (
         <EmptyState icon={Truck} title="No purchases this month" description="Raw material lots purchased in this month will appear here." />
       ) : (
         <>
@@ -55,15 +101,14 @@ export default function SupplierPayments() {
               <tbody>
                 {rows.map((r) => {
                   const isExpanded = expandedLotId === r.lotId
-                  const history = isExpanded ? getMaterialPurchaseHistory(r.rawMaterialId, r.lotId) : []
                   return (
                     <FragmentRow
                       key={r.lotId}
                       row={r}
                       isExpanded={isExpanded}
-                      history={history}
+                      history={isExpanded ? history : []}
                       onToggle={() => toggleExpand(r.lotId)}
-                     
+                      onMarkPaid={() => markPaid(r.lotId)}
                     />
                   )
                 })}
@@ -75,7 +120,6 @@ export default function SupplierPayments() {
           <div className="flex flex-col gap-3 lg:hidden">
             {rows.map((r) => {
               const isExpanded = expandedLotId === r.lotId
-              const history = isExpanded ? getMaterialPurchaseHistory(r.rawMaterialId, r.lotId) : []
               return (
                 <div key={r.lotId} className="rounded-bakery border border-espresso/8 bg-proof-cream p-4 shadow-bakery">
                   <button onClick={() => toggleExpand(r.lotId)} className="flex w-full items-start justify-between">
@@ -95,7 +139,7 @@ export default function SupplierPayments() {
                       <PaidBadge status={r.status} />
                       {r.status === 'outstanding' && (
                         <button
-                          onClick={() => markLotPaid(r.lotId)}
+                          onClick={() => markPaid(r.lotId)}
                           className="inline-flex items-center gap-1 rounded-lg bg-matcha-glaze/15 px-2.5 py-1.5 text-xs font-medium text-matcha-glaze hover:bg-matcha-glaze/25"
                         >
                           <Check className="h-3.5 w-3.5" /> Mark Paid

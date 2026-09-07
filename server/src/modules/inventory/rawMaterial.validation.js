@@ -64,3 +64,21 @@ export const createWastageSchema = z.object({
   date: isoDate,
   note: z.string().trim().max(500).optional(),
 });
+
+// Supplier Payments (Finance) - lots across every material, not scoped to
+// one raw material id. from/to default to the current calendar month when
+// both are omitted - see resolveMonthRange in rawMaterial.service.js.
+export const listAllLotsQuerySchema = withDateRangeCheck(
+  z.object({
+    from: isoDate.optional(),
+    to: isoDate.optional(),
+  }),
+);
+
+export const lotPaymentParamSchema = z.object({
+  lotId: z.string().min(1),
+});
+
+export const updateLotPaymentSchema = z.object({
+  isPaid: z.boolean(),
+});

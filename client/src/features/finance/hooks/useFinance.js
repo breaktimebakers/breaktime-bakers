@@ -1,34 +1,28 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useLocalQuery, setLocalData } from '@/lib/localStore'
-import { useRawMaterials } from '@/features/inventory/hooks'
 import { useWorkers, useAllAttendance, useAllAdvances } from '@/features/workers/hooks'
 import { computeGrossSalaryForMonth, sumAdvancesForMonth } from '@/features/workers/utils'
 import { useSalaryPayments } from './useSalaryPayments'
 import { useMarkSalaryPaid, useMarkSalaryUnpaid, useBulkMarkSalaryPaid } from './useSalaryPaymentMutations'
 import { useExpenses } from './useExpenses'
 import { useTaxEntries } from './useTaxEntries'
-import { seedCustomerPayments, seedSupplierPaymentStatus } from '../data/seedFinance'
+import { seedCustomerPayments } from '../data/seedFinance'
 import { todayISO } from '@/utils'
 
 const KEYS = {
   customerPayments: ['local', 'finance', 'customerPayments'],
-  supplierPaymentStatus: ['local', 'finance', 'supplierPaymentStatus'],
 }
 
 export function useFinance() {
   const queryClient = useQueryClient()
-  // Raw materials come from the real backend (see useRawMaterials), which
-  // - unlike the old mock data - does NOT embed each material's lots in
-  // the list response (lots are a separate per-material fetch). Every
-  // read of `rm.lots` below is guarded to fall back to [] rather than
-  // crash. That makes supplier-payment rows, per-material purchase
-  // history, and the "raw materials used" P&L line read as empty/zero
-  // for now instead of reflecting real data - fetching lots across every
-  // material for an arbitrary (year, month) needs either a dedicated
-  // backend endpoint or a fetch keyed to whatever month the Finance UI
-  // has selected, which is a real feature to build, not a safe thing to
-  // improvise as a side effect of something else.
-  const { data: rawMaterials = [] } = useRawMaterials()
+  // Supplier Payments now reads real lots directly via useAllLots/
+  // useUpdateLotPayment (see SupplierPayments.jsx) - a dedicated
+  // GET /raw-materials/lots endpoint scoped to a date range. outstandingSupplier
+  // and the P&L "raw materials purchased/used" lines below are still
+  // pinned at 0 - they need a multi-month view (6 months at once for the
+  // trend chart) that hasn't been wired to the new endpoint yet, a real
+  // feature to build, not a safe thing to improvise as a side effect of
+  // something else.
   const { data: workers = [] } = useWorkers()
   // getSalaryForMonth/getProfitAndLoss below take an arbitrary (year,
   // month) per call - FinanceOverview's trend chart calls getProfitAndLoss
@@ -48,7 +42,6 @@ export function useFinance() {
   const bulkMarkSalaryPaidMutation = useBulkMarkSalaryPaid()
 
   const { data: customerPayments = [] } = useLocalQuery(KEYS.customerPayments, seedCustomerPayments)
-  const { data: supplierPaymentStatus = {} } = useLocalQuery(KEYS.supplierPaymentStatus, seedSupplierPaymentStatus)
 
   const addCustomerPayment = (data) => {
     const id = 'cp' + Date.now()
@@ -84,10 +77,6 @@ export function useFinance() {
         paidDate: todayStr,
       }
     }))
-  }
-
-  const markLotPaid = (lotId) => {
-    setLocalData(queryClient, KEYS.supplierPaymentStatus, (p) => ({ ...p, [lotId]: { status: 'paid', paidDate: todayISO() } }))
   }
 
   // Get salary for a worker for a given month, using attendance + dailySalaryFromMonthly
@@ -187,63 +176,15 @@ export function useFinance() {
     return unpaid
   }
 
-  // Flatten all lots purchased in a given month into rows
-  const getSupplierPaymentRows = (year, month) => {
-    const mStr = `${year}-${String(month + 1).padStart(2, '0')}`
-    const rows = []
-    rawMaterials.forEach((rm) => {
-      (rm.lots || []).forEach((lot) => {
-        if (lot.purchaseDate && lot.purchaseDate.startsWith(mStr)) {
-          const status = supplierPaymentStatus[lot.id] || { status: 'outstanding', paidDate: null }
-          rows.push({
-            lotId: lot.id,
-            rawMaterialId: rm.id,
-            vendor: lot.vendor || rm.name,
-            materialName: rm.name,
-            quantity: lot.quantity,
-            unit: rm.unit,
-            unitCost: lot.unitCost,
-            amount: lot.quantity * lot.unitCost,
-            purchaseDate: lot.purchaseDate,
-            status: status.status,
-            paidDate: status.paidDate,
-          })
-        }
-      })
-    })
-    return rows
-  }
-
-  // Get all lots for a given raw material (any month), excluding one lot, sorted newest first
-  const getMaterialPurchaseHistory = (rawMaterialId, excludeLotId) => {
-    const rm = rawMaterials.find((r) => r.id === rawMaterialId)
-    if (!rm) return []
-    return (rm.lots || [])
-      .filter((lot) => lot.id !== excludeLotId)
-      .map((lot) => {
-        const status = supplierPaymentStatus[lot.id] || { status: 'outstanding', paidDate: null }
-        return {
-          lotId: lot.id,
-          rawMaterialId: rm.id,
-          vendor: lot.vendor || rm.name,
-          materialName: rm.name,
-          quantity: lot.quantity,
-          unit: rm.unit,
-          unitCost: lot.unitCost,
-          amount: lot.quantity * lot.unitCost,
-          purchaseDate: lot.purchaseDate,
-          status: status.status,
-          paidDate: status.paidDate,
-        }
-      })
-      .sort((a, b) => new Date(b.purchaseDate) - new Date(a.purchaseDate))
-  }
-
-  // Sum of lot quantity × unitCost for lots purchased in that month
-  const getRawMaterialPurchasedTotal = (year, month) => {
-    const rows = getSupplierPaymentRows(year, month)
-    return rows.reduce((s, r) => s + r.amount, 0)
-  }
+  // Sum of lot originalQty × unitCost for lots purchased in that month.
+  // Supplier Payments itself now reads real per-month lots via useAllLots
+  // (a single month at a time, driven by that page's own filter) - this
+  // still needs the same data across an arbitrary (year, month), 6 months
+  // at once for FinanceOverview's trend chart, which useAllLots' single
+  // useQuery call per render can't do without a bigger refactor (see
+  // rawMaterials comment above). Pinned at 0 until that's wired.
+  // eslint-disable-next-line no-unused-vars
+  const getRawMaterialPurchasedTotal = (year, month) => 0
 
   // Sum of ingredient cost consumed by batches in that month. Batches are
   // real now (see useBatches in the inventory feature), but wiring an
@@ -275,19 +216,11 @@ export function useFinance() {
     return { sales, rawMaterialsPurchased, rawMaterialsUsed, salaries, expenses: expensesTotal, taxes, profit }
   }
 
-  // Outstanding totals (supplier + customer)
-  const outstandingSupplier = (() => {
-    let total = 0
-    rawMaterials.forEach((rm) => {
-      (rm.lots || []).forEach((lot) => {
-        const status = supplierPaymentStatus[lot.id]
-        if (!status || status.status === 'outstanding') {
-          total += lot.quantity * lot.unitCost
-        }
-      })
-    })
-    return total
-  })()
+  // Outstanding totals (supplier + customer). Supplier is pinned at 0 for
+  // the same reason as getRawMaterialPurchasedTotal above - this needs an
+  // unscoped (all lots, any month) fetch, not yet wired to the new
+  // per-month useAllLots endpoint.
+  const outstandingSupplier = 0
 
   const outstandingCustomer = customerPayments
     .filter((c) => c.status === 'outstanding')
@@ -332,9 +265,8 @@ export function useFinance() {
   }
 
   return {
-    expenses, customerPayments, taxEntries, supplierPaymentStatus,
+    expenses, customerPayments, taxEntries,
     addCustomerPayment, addPartialPayment, markCustomerPaymentPaid,
-    markLotPaid,
     getSalaryForMonth,
     getAdvancesForMonth,
     getNetPayable,
@@ -344,8 +276,6 @@ export function useFinance() {
     bulkMarkSalaryPaid,
     getPaidTotalForMonth,
     getUnpaidTotal,
-    getSupplierPaymentRows,
-    getMaterialPurchaseHistory,
     getRawMaterialPurchasedTotal,
     getRawMaterialUsedTotal,
     getProfitAndLoss,

@@ -240,6 +240,8 @@ const lotSelection = {
   remainingQty: materialLots.remainingQty,
   unitCost: materialLots.unitCost,
   purchaseDate: materialLots.purchaseDate,
+  isPaid: materialLots.isPaid,
+  paidDate: materialLots.paidDate,
   receiptKey: materialLots.receiptKey,
   createdAt: materialLots.createdAt,
 };
@@ -265,6 +267,43 @@ export const listLotsForMaterial = async (rawMaterialId, { from, to, inStock } =
     .leftJoin(vendors, eq(materialLots.vendorId, vendors.id))
     .where(and(...conditions))
     .orderBy(asc(materialLots.purchaseDate));
+};
+
+// Same fields as lotSelection plus the material's own name/unit, since
+// this query spans every material rather than being scoped to one -
+// Supplier Payments needs to show which material each lot was for.
+const allLotsSelection = {
+  ...lotSelection,
+  materialName: rawMaterials.name,
+  unit: rawMaterials.unit,
+};
+
+// Every lot purchased in [from, to], across all materials - the Supplier
+// Payments table's data source. Always date-bounded (unlike
+// listLotsForMaterial's inStock escape hatch) - resolveMonthRange in the
+// service layer guarantees from/to are always set, defaulting to the
+// current calendar month, so this can't accidentally return the entire
+// purchase history of the business.
+export const listAllLots = async ({ from, to } = {}) => {
+  return db
+    .select(allLotsSelection)
+    .from(materialLots)
+    .innerJoin(rawMaterials, eq(materialLots.rawMaterialId, rawMaterials.id))
+    .leftJoin(vendors, eq(materialLots.vendorId, vendors.id))
+    .where(and(gte(materialLots.purchaseDate, from), lte(materialLots.purchaseDate, to)))
+    .orderBy(asc(materialLots.purchaseDate));
+};
+
+export const setLotPaymentStatus = async (lotId, isPaid, paidDate) => {
+  const result = await db
+    .update(materialLots)
+    .set({ isPaid, paidDate: isPaid ? paidDate : null })
+    .where(eq(materialLots.id, lotId))
+    .returning({ id: materialLots.id });
+
+  if (!result[0]) return undefined;
+
+  return findLotById(lotId);
 };
 
 export const findLotById = async (id) => {

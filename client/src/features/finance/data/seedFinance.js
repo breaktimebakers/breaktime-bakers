@@ -20,20 +20,6 @@ export const seedCustomerPayments = [
   { id: 'cp12', buyerName: 'Andheri Sweets Mart', buyerType: 'store', storeId: 's3', areaId: 'a2', amount: 9500, amountPaid: 9500, paymentHistory: [{ amount: 9500, date: daysAgo(36) }], date: daysAgo(38), status: 'paid', paidDate: daysAgo(36) },
 ]
 
-// Supplier payment status — keyed by lot id, most outstanding, a few paid
-export const seedSupplierPaymentStatus = {
-  l1: { status: 'outstanding', paidDate: null },
-  l2: { status: 'outstanding', paidDate: null },
-  l3: { status: 'paid', paidDate: daysAgo(5) },
-  l4: { status: 'outstanding', paidDate: null },
-  l5: { status: 'paid', paidDate: daysAgo(3) },
-  l6: { status: 'outstanding', paidDate: null },
-  l7: { status: 'outstanding', paidDate: null },
-  l8: { status: 'paid', paidDate: daysAgo(20) },
-  l9: { status: 'outstanding', paidDate: null },
-  l10: { status: 'outstanding', paidDate: null },
-}
-
 export const expenseCategories = [
   { label: 'Electricity', icon: 'Zap' },
   { label: 'Water', icon: 'Droplet' },

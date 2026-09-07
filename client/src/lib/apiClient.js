@@ -116,11 +116,26 @@ async function request(path, options = {}) {
   const isRecoverableAuthFailure =
     payload?.code === "ACCESS_TOKEN_EXPIRED" || payload?.code === "ACCESS_TOKEN_MISSING";
 
+  // /auth/me failing after a failed refresh just means "not logged in" -
+  // fetchCurrentUser already treats any 401 from this path as that, and
+  // appLayoutRoute's beforeLoad separately redirects to /login on a null
+  // user. Dispatching auth:session-expired here too would be redundant at
+  // best - at worst, sessionExpiry.js's queryClient.clear() would destroy
+  // this exact /auth/me query while it's still the one in flight, which
+  // makes its observer (useAuth in App.jsx) immediately rebuild and
+  // refetch it, 401 again, clear again... an infinite loop that never
+  // resolves isLoading, leaving the app stuck on the splash screen
+  // forever. Reserve the event for a call made *while already logged
+  // in* discovering its session died mid-use.
+  const isAuthMeCheck = normalizedPath.startsWith("/auth/me");
+
   if (!res.ok && res.status === 401 && isRecoverableAuthFailure && !isAuthExempt) {
     try {
       await refreshAccessToken();
     } catch {
-      window.dispatchEvent(new CustomEvent("auth:session-expired"));
+      if (!isAuthMeCheck) {
+        window.dispatchEvent(new CustomEvent("auth:session-expired"));
+      }
       throw new ApiError("Session expired", { status: 401, code: "SESSION_EXPIRED" });
     }
 
@@ -128,7 +143,7 @@ async function request(path, options = {}) {
   }
 
   if (!res.ok) {
-    if (res.status === 401 && payload?.code === "REFRESH_TOKEN_REUSED") {
+    if (res.status === 401 && payload?.code === "REFRESH_TOKEN_REUSED" && !isAuthMeCheck) {
       window.dispatchEvent(new CustomEvent("auth:session-expired"));
     }
 

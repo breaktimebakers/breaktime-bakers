@@ -6,6 +6,10 @@ export const deliveryStatusQuerySchema = withDateRangeCheck(
   z.object({
     page: z.coerce.number().int().min(1).max(2147483647).default(1),
     pageSize: paginationQueryShape.pageSize,
+    // "all" - no date bound at all, unlike the default ("custom"), which
+    // falls back to today when the client doesn't supply an explicit
+    // range - see listDeliveryStatus in status.service.js.
+    filter: z.enum(["custom", "all"]).optional().default("custom"),
     from: isoDate.optional(),
     to: isoDate.optional(),
     areaId: z.string().min(1).optional(),
