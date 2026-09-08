@@ -3,9 +3,11 @@ import { useState, useMemo, Fragment } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ArrowLeft, CalendarDays, ChevronDown, ChevronRight, MapPin, Search } from 'lucide-react'
 import { useAreas, usePaginatedOrders, useScheduleToday } from '@/features/sales/hooks'
+import { orderApi } from '@/features/sales/api/orderApi'
 import { useWorkers } from '@/features/workers/hooks'
 import { ORDER_STATUS } from '@/constants/orderStatus'
-import { Button, EmptyState, ErrorState, PageHeader, Pagination, SortIcon, inputClass } from '@/components/shared'
+import { Button, EmptyState, ErrorState, ExportMenu, PageHeader, Pagination, SortIcon, inputClass } from '@/components/shared'
+import { exportPDF, exportExcel } from '@/utils'
 
 const PAGE_SIZE = 10
 
@@ -58,14 +60,7 @@ export default function OrderTakersList() {
     }
   }
 
-  const paginationResetKey = JSON.stringify([otFilter, dateMode, specificDate, customFrom, customTo, statusFilter, search, sortKey, sortDir])
-  const [pageState, setPageState] = useState({ key: paginationResetKey, page: 1 })
-  const requestedPage = pageState.key === paginationResetKey ? pageState.page : 1
-  if (pageState.key !== paginationResetKey) setPageState({ key: paginationResetKey, page: 1 })
-  const setPage = (nextPage) => setPageState({ key: paginationResetKey, page: nextPage })
-  const { data, isLoading, isError } = usePaginatedOrders({
-    page: requestedPage,
-    pageSize: PAGE_SIZE,
+  const query = {
     filter: dateMode === 'specific' ? 'custom' : dateMode,
     from: dateMode === 'specific' ? specificDate || undefined : dateMode === 'custom' ? customFrom || undefined : undefined,
     to: dateMode === 'specific' ? specificDate || undefined : dateMode === 'custom' ? customTo || undefined : undefined,
@@ -74,9 +69,57 @@ export default function OrderTakersList() {
     search: search.trim() || undefined,
     sortKey,
     sortDir,
-  })
+  }
+
+  const paginationResetKey = JSON.stringify(query)
+  const [pageState, setPageState] = useState({ key: paginationResetKey, page: 1 })
+  const requestedPage = pageState.key === paginationResetKey ? pageState.page : 1
+  if (pageState.key !== paginationResetKey) setPageState({ key: paginationResetKey, page: 1 })
+  const setPage = (nextPage) => setPageState({ key: paginationResetKey, page: nextPage })
+  const { data, isLoading, isError } = usePaginatedOrders({ ...query, page: requestedPage, pageSize: PAGE_SIZE })
   const pagedOrders = data?.orders || []
   const { page = requestedPage, totalPages = 1, totalItems = 0 } = data?.pagination || {}
+
+  // Exports cover every order matching the current filters, not just the
+  // page on screen - fetched fresh (unpaginated) at export time, same
+  // pattern as RawMaterials.jsx's fetchAllFilteredMaterials.
+  const fetchAllFilteredOrders = async () => {
+    const { orders: all } = await orderApi.list(query)
+    return all
+  }
+
+  const orderRow = (o) => {
+    const items = o.items || []
+    const productsLabel = items.length === 0 ? o.productsLabel : items.map((it) => `${it.productName} (${it.quantity})`).join(', ')
+    return [
+      o.otName, o.storeName, o.areaName, productsLabel, o.totalQty,
+      ORDER_STATUS[o.status]?.label || o.status,
+      new Date(o.orderDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+    ]
+  }
+
+  const handleExportPDF = async () => {
+    const all = await fetchAllFilteredOrders()
+    exportPDF({
+      title: 'Orders by Order Taker',
+      subtitle: 'Break Times Bakery',
+      columns: ['Order taker', 'Store', 'Area', 'Products', 'Qty', 'Status', 'Date'],
+      rows: all.map(orderRow),
+      filename: 'orders-by-order-taker.pdf',
+      orientation: 'landscape',
+    })
+  }
+  const handleExportExcel = async () => {
+    const all = await fetchAllFilteredOrders()
+    exportExcel({
+      title: 'Orders by Order Taker',
+      subtitle: 'Break Times Bakery',
+      columns: ['Order taker', 'Store', 'Area', 'Products', 'Qty', 'Status', 'Date'],
+      rows: all.map(orderRow),
+      sheetName: 'Orders',
+      filename: 'orders-by-order-taker.xlsx',
+    })
+  }
 
   const clearFilters = () => {
     setOtFilter('all'); setDateMode('today'); setSpecificDate(''); setCustomFrom(''); setCustomTo(''); setStatusFilter('all'); setSearch('')
@@ -156,7 +199,10 @@ export default function OrderTakersList() {
 
       {/* Orders table */}
       <div className="mt-8">
-        <h2 className="mb-3 font-display text-xl font-semibold text-espresso">All orders by order taker</h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-display text-xl font-semibold text-espresso">All orders by order taker</h2>
+          <ExportMenu onExportPDF={handleExportPDF} onExportExcel={handleExportExcel} />
+        </div>
 
         {/* Filter bar */}
         <div className="mb-4 flex flex-col gap-3 rounded-bakery border border-espresso/8 bg-proof-cream p-4 shadow-bakery">

@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { MapPin, ClipboardList, Store, ArrowRight, Receipt, Package } from 'lucide-react'
+import { MapPin, ClipboardList, Store, ArrowRight, Receipt, Package, ShoppingBag } from 'lucide-react'
 import { useSalesOverview } from '@/features/sales/hooks'
 import { Button, PageHeader } from '@/components/shared'
 
@@ -60,6 +60,7 @@ export default function SalesOverview() {
       <div className="mt-6 grid gap-4 sm:mt-8 sm:grid-cols-2 sm:gap-6">
         <NavCard to="/sales/areas" icon={MapPin} title="Areas & Stores" description="Manage sales territories and the stores within each area." linkLabel="Manage" />
         <NavCard to="/sales/orders" icon={ClipboardList} title="Orders" description="View, filter, and fulfill store orders from your field team." linkLabel="View" />
+        <NavCard to="/sales/walk-in" icon={ShoppingBag} title="Walk-in Sales" description="Record instant counter sales to walk-in customers." linkLabel="Record" />
       </div>
     </div>
   )

@@ -31,7 +31,6 @@ export default function DriversList() {
           <input type="date" className={`${inputClass} mt-1`} value={selectedDate || date || ''} disabled={isFetching} onChange={(event) => setSelectedDate(event.target.value)} />
         </label>
         <Button variant="secondary" disabled={isFetching} onClick={() => { setSelectedDate(''); if (!selectedDate) refetch() }}>Today</Button>
-        <p className="text-xs text-espresso/55">Assignments apply only to this date and save automatically.</p>
       </div>
 
       {isError ? (

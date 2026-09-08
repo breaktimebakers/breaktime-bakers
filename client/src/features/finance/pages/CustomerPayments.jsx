@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Plus, Check, HandCoins, Wallet, MapPin, User, ArrowRight } from 'lucide-react'
+import { Plus, Check, HandCoins, Wallet, MapPin, ShoppingBag, ArrowRight } from 'lucide-react'
 import { useFinance } from '@/features/finance/hooks'
-import { useSales } from '@/features/sales/hooks'
+import { useSales, useWalkInSales } from '@/features/sales/hooks'
 import { Button, Field, Modal, PageHeader, StatCard, inputClass } from '@/components/shared'
 import { PaidBadge } from '../components/PaidBadge'
 import { todayISO } from '@/utils'
@@ -14,12 +14,7 @@ export function PaymentEntryRow({ c, onRecordPayment, onMarkPaid }) {
     <div className="rounded-bakery border border-espresso/8 bg-proof-cream p-4 shadow-bakery transition hover:shadow-bakery-lg">
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <p className="truncate font-medium text-espresso">{c.buyerName}</p>
-            <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${c.buyerType === 'store' ? 'bg-olive-herb/15 text-olive-herb' : 'bg-oven-amber/15 text-oven-amber'}`}>
-              {c.buyerType === 'store' ? 'Store' : 'Individual'}
-            </span>
-          </div>
+          <p className="truncate font-medium text-espresso">{c.buyerName}</p>
           <p className="mt-0.5 font-mono text-xs text-espresso/40">
             {new Date(c.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
             {c.status === 'paid' && c.paidDate && ` · Paid ${new Date(c.paidDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}`}
@@ -98,26 +93,16 @@ export function PartialPaymentModal({ payment, onClose, onRecord }) {
 
 export function AddPaymentModal({ open, onClose, onSubmit, stores, areas, prefillStoreId }) {
   const [form, setForm] = useState(() => ({
-    buyerName: '',
-    buyerType: prefillStoreId ? 'store' : 'store',
     storeId: prefillStoreId || '',
     amount: '',
     date: todayISO(),
   }))
 
   const handleSubmit = () => {
-    if (form.buyerType === 'store' && !form.storeId) return
-    if (form.buyerType === 'individual' && !form.buyerName) return
-    if (!form.amount) return
-    let storeId = null, areaId = null, buyerName = form.buyerName
-    if (form.buyerType === 'store') {
-      const store = stores.find((s) => s.id === form.storeId)
-      storeId = form.storeId
-      areaId = store?.areaId || null
-      buyerName = store?.dealerName || form.buyerName
-    }
-    onSubmit({ buyerName, buyerType: form.buyerType, storeId, areaId, amount: form.amount, date: form.date })
-    setForm({ buyerName: '', buyerType: 'store', storeId: prefillStoreId || '', amount: '', date: todayISO() })
+    if (!form.storeId || !form.amount) return
+    const store = stores.find((s) => s.id === form.storeId)
+    onSubmit({ buyerName: store?.dealerName, buyerType: 'store', storeId: form.storeId, areaId: store?.areaId || null, amount: form.amount, date: form.date })
+    setForm({ storeId: prefillStoreId || '', amount: '', date: todayISO() })
     onClose()
   }
 
@@ -125,28 +110,16 @@ export function AddPaymentModal({ open, onClose, onSubmit, stores, areas, prefil
     <Modal open={open} onClose={onClose} eyebrow="Finance" title="Add Customer Payment"
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={handleSubmit}>Save</Button></>}>
       <div className="flex flex-col gap-4">
-        <Field label="Buyer type" required>
-          <select className={inputClass} value={form.buyerType} onChange={(e) => setForm({ ...form, buyerType: e.target.value })}>
-            <option value="store">Store</option>
-            <option value="individual">Individual</option>
+        <Field label="Store" required>
+          <select className={inputClass} value={form.storeId} onChange={(e) => setForm({ ...form, storeId: e.target.value })} autoFocus>
+            <option value="">Select store...</option>
+            {areas.map((a) => (
+              <optgroup key={a.id} label={a.name}>
+                {stores.filter((s) => s.areaId === a.id).map((s) => <option key={s.id} value={s.id}>{s.dealerName}</option>)}
+              </optgroup>
+            ))}
           </select>
         </Field>
-        {form.buyerType === 'store' ? (
-          <Field label="Store" required>
-            <select className={inputClass} value={form.storeId} onChange={(e) => setForm({ ...form, storeId: e.target.value })}>
-              <option value="">Select store...</option>
-              {areas.map((a) => (
-                <optgroup key={a.id} label={a.name}>
-                  {stores.filter((s) => s.areaId === a.id).map((s) => <option key={s.id} value={s.id}>{s.dealerName}</option>)}
-                </optgroup>
-              ))}
-            </select>
-          </Field>
-        ) : (
-          <Field label="Buyer name" required>
-            <input type="text" className={inputClass} value={form.buyerName} onChange={(e) => setForm({ ...form, buyerName: e.target.value })} placeholder="Buyer name" autoFocus />
-          </Field>
-        )}
         <Field label="Total amount (₹)" required>
           <input type="number" className={inputClass} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0" />
         </Field>
@@ -159,14 +132,14 @@ export function AddPaymentModal({ open, onClose, onSubmit, stores, areas, prefil
 }
 
 export default function CustomerPayments() {
-  const { customerPayments, addCustomerPayment, addPartialPayment, markCustomerPaymentPaid, outstandingCustomer, getAreaPaymentSummary, getLocalBuyerSummary } = useFinance()
+  const { customerPayments, addCustomerPayment, outstandingCustomer, getAreaPaymentSummary } = useFinance()
   const { areas, stores } = useSales()
+  const { data: walkInSales = [] } = useWalkInSales()
   const [modalOpen, setModalOpen] = useState(false)
-  const [partialModal, setPartialModal] = useState(null)
 
   const totalPaid = customerPayments.filter((c) => c.status === 'paid').reduce((s, c) => s + c.amount, 0)
-  const localSummary = getLocalBuyerSummary()
-  const localPayments = customerPayments.filter((c) => c.buyerType === 'individual').sort((a, b) => b.date.localeCompare(a.date))
+  const walkInOutstanding = walkInSales.filter((s) => s.paymentStatus === 'partial').reduce((sum, s) => sum + Number(s.amount), 0)
+  const walkInPaid = walkInSales.filter((s) => s.paymentStatus === 'paid').reduce((sum, s) => sum + Number(s.amount), 0)
 
   return (
     <div>
@@ -203,40 +176,25 @@ export default function CustomerPayments() {
           )
         })}
 
-        {/* Local / Walk-in card */}
+        {/* Local / Walk-in card - read-only view of Sales' Walk-in Sales, recorded from the counter */}
         <Link to="/finance/customer-payments/local"
           className="group rounded-bakery border border-dashed border-espresso/15 bg-crust/20 p-5 shadow-bakery transition-all hover:-translate-y-0.5 hover:shadow-bakery-lg">
           <div className="flex items-start justify-between">
             <div className="flex h-11 w-11 items-center justify-center rounded-bakery bg-espresso/8 text-espresso/50">
-              <User className="h-5 w-5" />
+              <ShoppingBag className="h-5 w-5" />
             </div>
             <ArrowRight className="h-4 w-4 text-espresso/30 transition-transform group-hover:translate-x-1" />
           </div>
           <h3 className="mt-3 font-display text-lg font-semibold text-espresso/70">Local / Walk-in</h3>
-          <p className="text-xs text-espresso/40">Individual buyers</p>
+          <p className="text-xs text-espresso/40">Counter sales, recorded in Sales</p>
           <div className="mt-3 flex items-center justify-between text-sm">
-            <span className="text-espresso/50">Outstanding: <span className="font-mono font-medium text-cherry-compote">₹{localSummary.outstanding.toLocaleString('en-IN')}</span></span>
-            <span className="text-espresso/50">Paid: <span className="font-mono font-medium text-matcha-glaze">₹{localSummary.paid.toLocaleString('en-IN')}</span></span>
+            <span className="text-espresso/50">Outstanding: <span className="font-mono font-medium text-cherry-compote">₹{walkInOutstanding.toLocaleString('en-IN')}</span></span>
+            <span className="text-espresso/50">Paid: <span className="font-mono font-medium text-matcha-glaze">₹{walkInPaid.toLocaleString('en-IN')}</span></span>
           </div>
         </Link>
       </div>
 
-      {/* Recent individual payments preview */}
-      {localPayments.length > 0 && (
-        <>
-          <h2 className="mb-3 mt-6 font-display text-lg font-semibold text-espresso">Recent Individual Payments</h2>
-          <div className="flex flex-col gap-2">
-            {localPayments.slice(0, 3).map((c) => (
-              <PaymentEntryRow key={c.id} c={c}
-                onRecordPayment={(p) => setPartialModal(p)}
-                onMarkPaid={(id) => markCustomerPaymentPaid(id)} />
-            ))}
-          </div>
-        </>
-      )}
-
       <AddPaymentModal open={modalOpen} onClose={() => setModalOpen(false)} onSubmit={addCustomerPayment} stores={stores} areas={areas} />
-      <PartialPaymentModal payment={partialModal} onClose={() => setPartialModal(null)} onRecord={addPartialPayment} />
     </div>
   )
 }

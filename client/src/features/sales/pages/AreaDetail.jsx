@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
-import { Store, Phone, MapPin, Plus, Navigation, Pencil, LayoutGrid, Table as TableIcon, CheckSquare, X, FolderMinus } from 'lucide-react'
+import { Store, Phone, MapPin, Plus, Navigation, Pencil, LayoutGrid, Table as TableIcon, CheckSquare, X, FolderMinus, Search } from 'lucide-react'
 import { useArea, useStores, useCreateStore, useUpdateStore, useUpdateStoreStatus, useBulkUnassignStores } from '@/features/sales/hooks'
-import { Button, EmptyState, ErrorState, Field, Modal, PageHeader, inputClass } from '@/components/shared'
+import { usePagination } from '@/hooks'
+import { Button, EmptyState, ErrorState, Field, Modal, PageHeader, Pagination, inputClass } from '@/components/shared'
 import { StoreLocationPicker } from '@/features/sales/components/StoreLocationPicker'
 import { AreaStoresMap } from '@/features/sales/components/AreaStoresMap'
+
+const PAGE_SIZE = 9
+const storeTypes = ['Shop', 'Canteen', 'Other']
 
 const hasValidStoreLocation = (store) => {
   if (store?.lat === null || store?.lat === undefined || store?.lat === '') return false
@@ -138,7 +142,20 @@ export default function AreaDetail() {
   const [view, setView] = useState('cards')
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState([])
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [typeFilter, setTypeFilter] = useState('all')
   const bulkUnassign = useBulkUnassignStores()
+
+  const filteredStores = stores.filter((s) => {
+    const q = search.trim().toLowerCase()
+    if (q && !`${s.dealerName || ''} ${s.shopName || ''}`.toLowerCase().includes(q)) return false
+    if (statusFilter !== 'all' && (statusFilter === 'active') !== s.isActive) return false
+    if (typeFilter !== 'all' && s.storeType !== typeFilter) return false
+    return true
+  })
+  const { page, setPage, totalPages, start, end } = usePagination(filteredStores.length, PAGE_SIZE, `${search}|${statusFilter}|${typeFilter}`)
+  const pagedStores = filteredStores.slice(start, end)
 
   if (areaLoading) return <p className="px-1 py-8 text-center text-sm text-espresso/40">Loading area…</p>
   if (areaError || !area) return <EmptyState icon={MapPin} title="Area not found" description="This area does not exist." />
@@ -216,33 +233,49 @@ export default function AreaDetail() {
         <>
           <AreaStoresMap stores={stores} />
 
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-bakery border border-espresso/8 bg-proof-cream px-4 py-3 shadow-bakery">
-            <p className="text-sm font-medium text-espresso/60">
-              {stores.length} {stores.length === 1 ? 'store' : 'stores'}
-            </p>
-            <div className="inline-flex rounded-full bg-crust p-0.5">
-              <button
-                onClick={() => setView('cards')}
-                className={`rounded-full p-1.5 ${view === 'cards' ? 'bg-espresso text-crust' : 'text-espresso/60'}`}
-                aria-label="Show stores as cards"
-                title="Cards"
-              >
-                <LayoutGrid className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => setView('table')}
-                className={`rounded-full p-1.5 ${view === 'table' ? 'bg-espresso text-crust' : 'text-espresso/60'}`}
-                aria-label="Show stores as table"
-                title="Table"
-              >
-                <TableIcon className="h-4 w-4" />
-              </button>
+          <div className="mb-4 rounded-bakery border border-espresso/8 bg-proof-cream p-4 shadow-bakery">
+            <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
+              <div className="relative flex-1 lg:min-w-[200px]">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-espresso/30" />
+                <input className={`${inputClass} pl-9`} placeholder="Search dealer or shop name..." value={search} onChange={(e) => setSearch(e.target.value)} />
+              </div>
+              <div className="inline-flex rounded-full bg-crust p-0.5">
+                {['all', 'active', 'inactive'].map((s) => (
+                  <button key={s} onClick={() => setStatusFilter(s)} className={`rounded-full px-3 py-1 text-xs font-medium capitalize transition ${statusFilter === s ? 'bg-espresso text-crust' : 'text-espresso/60'}`}>{s}</button>
+                ))}
+              </div>
+              <select className={`${inputClass} w-auto`} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+                <option value="all">All types</option>
+                {storeTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+              <div className="ml-auto inline-flex rounded-full bg-crust p-0.5">
+                <button
+                  onClick={() => setView('cards')}
+                  className={`rounded-full p-1.5 ${view === 'cards' ? 'bg-espresso text-crust' : 'text-espresso/60'}`}
+                  aria-label="Show stores as cards"
+                  title="Cards"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setView('table')}
+                  className={`rounded-full p-1.5 ${view === 'table' ? 'bg-espresso text-crust' : 'text-espresso/60'}`}
+                  aria-label="Show stores as table"
+                  title="Table"
+                >
+                  <TableIcon className="h-4 w-4" />
+                </button>
+              </div>
             </div>
+            <p className="mt-3 text-xs text-espresso/50">{filteredStores.length} {filteredStores.length === 1 ? 'store' : 'stores'}</p>
           </div>
 
-          {view === 'cards' ? (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {stores.map((s) => (
+          {filteredStores.length === 0 ? (
+            <EmptyState icon={Store} title="No stores match" description="Try a different search or filter." />
+          ) : view === 'cards' ? (
+            <div className="rounded-bakery border border-espresso/8 bg-proof-cream shadow-bakery">
+              <div className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3">
+              {pagedStores.map((s) => (
                 <div
                   key={s.id}
                   onClick={selectMode ? () => toggleSelected(s.id) : undefined}
@@ -293,6 +326,8 @@ export default function AreaDetail() {
                 </div>
               ))}
             </div>
+            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={filteredStores.length} pageSize={PAGE_SIZE} />
+            </div>
           ) : (
             <div className="overflow-hidden rounded-bakery border border-espresso/8 bg-proof-cream shadow-bakery">
               <div className="overflow-x-auto">
@@ -310,7 +345,7 @@ export default function AreaDetail() {
                     </tr>
                   </thead>
                   <tbody>
-                    {stores.map((s) => (
+                    {pagedStores.map((s) => (
                       <tr
                         key={s.id}
                         onClick={selectMode ? () => toggleSelected(s.id) : undefined}
@@ -368,6 +403,7 @@ export default function AreaDetail() {
                   </tbody>
                 </table>
               </div>
+              <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={filteredStores.length} pageSize={PAGE_SIZE} />
             </div>
           )}
         </>

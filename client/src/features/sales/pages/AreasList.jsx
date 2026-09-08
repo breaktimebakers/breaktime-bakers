@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Plus, MapPin, ArrowRight, Store, LayoutGrid, Table as TableIcon, FolderInput } from 'lucide-react'
+import { Plus, MapPin, ArrowRight, Store, LayoutGrid, Table as TableIcon, FolderInput, Search } from 'lucide-react'
 import { useAreas, useCreateArea, useUnassignedStores, useBulkAssignStores } from '@/features/sales/hooks'
 import { Button, EmptyState, ErrorState, Field, Modal, PageHeader, inputClass } from '@/components/shared'
 
@@ -148,6 +148,13 @@ export default function AreasList() {
   const { data: areas = [], isLoading, isError, isFetching, refetch } = useAreas()
   const [addOpen, setAddOpen] = useState(false)
   const [view, setView] = useState('cards')
+  const [search, setSearch] = useState('')
+
+  const filteredAreas = areas.filter((area) => {
+    const q = search.trim().toLowerCase()
+    if (!q) return true
+    return `${area.name} ${area.city} ${area.pincode}`.toLowerCase().includes(q)
+  })
 
   return (
     <div>
@@ -163,33 +170,39 @@ export default function AreasList() {
         <EmptyState icon={MapPin} title="No areas yet" description="Add a sales territory to get started." />
       ) : (
         <>
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-bakery border border-espresso/8 bg-proof-cream px-4 py-3 shadow-bakery">
-            <p className="text-sm font-medium text-espresso/60">
-              {areas.length} {areas.length === 1 ? 'area' : 'areas'}
-            </p>
-            <div className="inline-flex rounded-full bg-crust p-0.5">
-              <button
-                onClick={() => setView('cards')}
-                className={`rounded-full p-1.5 ${view === 'cards' ? 'bg-espresso text-crust' : 'text-espresso/60'}`}
-                aria-label="Show areas as cards"
-                title="Cards"
-              >
-                <LayoutGrid className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => setView('table')}
-                className={`rounded-full p-1.5 ${view === 'table' ? 'bg-espresso text-crust' : 'text-espresso/60'}`}
-                aria-label="Show areas as table"
-                title="Table"
-              >
-                <TableIcon className="h-4 w-4" />
-              </button>
+          <div className="mb-4 rounded-bakery border border-espresso/8 bg-proof-cream p-4 shadow-bakery">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+              <div className="relative flex-1 lg:min-w-[200px]">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-espresso/30" />
+                <input className={`${inputClass} pl-9`} placeholder="Search area, city, or pincode..." value={search} onChange={(e) => setSearch(e.target.value)} />
+              </div>
+              <div className="ml-auto inline-flex rounded-full bg-crust p-0.5">
+                <button
+                  onClick={() => setView('cards')}
+                  className={`rounded-full p-1.5 ${view === 'cards' ? 'bg-espresso text-crust' : 'text-espresso/60'}`}
+                  aria-label="Show areas as cards"
+                  title="Cards"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setView('table')}
+                  className={`rounded-full p-1.5 ${view === 'table' ? 'bg-espresso text-crust' : 'text-espresso/60'}`}
+                  aria-label="Show areas as table"
+                  title="Table"
+                >
+                  <TableIcon className="h-4 w-4" />
+                </button>
+              </div>
             </div>
+            <p className="mt-3 text-xs text-espresso/50">{filteredAreas.length} {filteredAreas.length === 1 ? 'area' : 'areas'}</p>
           </div>
 
-          {view === 'cards' ? (
+          {filteredAreas.length === 0 ? (
+            <EmptyState icon={MapPin} title="No areas match" description="Try a different search." />
+          ) : view === 'cards' ? (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {areas.map((area) => (
+              {filteredAreas.map((area) => (
                 <Link key={area.id} to="/sales/areas/$areaId" params={{ areaId: area.id }} className="group rounded-bakery border border-espresso/8 bg-proof-cream p-5 shadow-bakery transition-all hover:-translate-y-0.5 hover:shadow-bakery-lg">
                   <div className="flex items-start justify-between">
                     <div className="flex h-11 w-11 items-center justify-center rounded-bakery bg-oven-amber/15 text-oven-amber">
@@ -222,7 +235,7 @@ export default function AreasList() {
                     </tr>
                   </thead>
                   <tbody>
-                    {areas.map((area) => (
+                    {filteredAreas.map((area) => (
                       <tr key={area.id} className="border-b border-espresso/8 last:border-0 hover:bg-crust/20">
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2.5">

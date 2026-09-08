@@ -252,18 +252,6 @@ export function useFinance() {
     return { outstanding, paid, totalBilled, entries: storePayments }
   }
 
-  // Local/walk-in buyer summary (individuals)
-  const getLocalBuyerSummary = () => {
-    const localPayments = customerPayments.filter((c) => c.buyerType === 'individual')
-    const outstanding = localPayments
-      .filter((c) => c.status === 'outstanding')
-      .reduce((s, c) => s + (c.amount - (c.amountPaid || 0)), 0)
-    const paid = localPayments
-      .filter((c) => c.status === 'paid')
-      .reduce((s, c) => s + c.amount, 0)
-    return { outstanding, paid, storeCount: 0 }
-  }
-
   return {
     expenses, customerPayments, taxEntries,
     addCustomerPayment, addPartialPayment, markCustomerPaymentPaid,
@@ -283,6 +271,5 @@ export function useFinance() {
     outstandingCustomer,
     getAreaPaymentSummary,
     getStorePaymentSummary,
-    getLocalBuyerSummary,
   }
 }

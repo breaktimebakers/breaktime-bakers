@@ -2,11 +2,12 @@ import { useState, useMemo, Fragment } from 'react'
 import { Link, useParams, useSearch } from '@tanstack/react-router'
 import { Plus, Filter, ChevronDown, ChevronRight, ClipboardList } from 'lucide-react'
 import { usePaginatedOrders, useAllStores, useAreas, useUpdateOrderStatus } from '@/features/sales/hooks'
+import { orderApi } from '@/features/sales/api/orderApi'
 import { useWorkers } from '@/features/workers/hooks'
 import { useReadyStock } from '@/features/inventory/hooks'
-import { Button, EmptyState, PageHeader, Pagination, inputClass } from '@/components/shared'
+import { Button, EmptyState, ExportMenu, PageHeader, Pagination, inputClass } from '@/components/shared'
 import { ORDER_STATUS } from '@/constants/orderStatus'
-import { formatDateShort, isReversedRange } from '@/utils'
+import { formatDateShort, isReversedRange, exportPDF, exportExcel } from '@/utils'
 import { StatusDropdown } from '../components/StatusDropdown'
 import { AddOrderModal } from '../components/AddOrderModal'
 import { FillOrderModal } from '../components/FillOrderModal'
@@ -101,6 +102,46 @@ export default function OrdersOverview() {
   const { page = requestedPage, totalPages = 1, totalItems = 0 } = data?.pagination || {}
   const updateOrderStatus = useUpdateOrderStatus()
 
+  // Exports cover every order matching the current filters, not just the
+  // page on screen - fetched fresh (unpaginated) at export time, same
+  // pattern as RawMaterials.jsx's fetchAllFilteredMaterials.
+  const fetchAllFilteredOrders = async () => {
+    const { orders: all } = await orderApi.list(query)
+    return all
+  }
+
+  const orderRow = (o) => {
+    const store = stores.find((s) => s.id === o.storeId)
+    const area = areas.find((a) => a.id === store?.areaId)
+    const items = o.items || []
+    const totalQty = items.reduce((s, it) => s + it.quantity, 0)
+    const productsLabel = items.length === 0 ? '—' : items.map((it) => `${it.productName} (${it.quantity})`).join(', ')
+    return [store?.dealerName || '—', area?.name || '—', o.otName || '—', productsLabel, totalQty, ORDER_STATUS[o.status]?.label || o.status, formatDateShort(o.orderDate)]
+  }
+
+  const handleExportPDF = async () => {
+    const all = await fetchAllFilteredOrders()
+    exportPDF({
+      title: 'Orders',
+      subtitle: 'Break Times Bakery',
+      columns: ['Store', 'Area', 'Order Taker', 'Products', 'Qty', 'Status', 'Date'],
+      rows: all.map(orderRow),
+      filename: 'orders.pdf',
+      orientation: 'landscape',
+    })
+  }
+  const handleExportExcel = async () => {
+    const all = await fetchAllFilteredOrders()
+    exportExcel({
+      title: 'Orders',
+      subtitle: 'Break Times Bakery',
+      columns: ['Store', 'Area', 'Order Taker', 'Products', 'Qty', 'Status', 'Date'],
+      rows: all.map(orderRow),
+      sheetName: 'Orders',
+      filename: 'orders.xlsx',
+    })
+  }
+
   const clearFilters = () => {
     setDateMode('today'); setSpecificDate(''); setCustomFrom(''); setCustomTo(''); setStatusFilter('all'); setProductFilter('all'); setStoreFilter('all'); setOtFilter('all')
   }
@@ -121,7 +162,10 @@ export default function OrdersOverview() {
           <span className="text-espresso">{area.name}</span>
         </div>
       )}
-      <PageHeader eyebrow="Sales / Orders" title={areaId && area ? area.name : 'Orders'} description={areaId && area ? `${area.city} · ${area.pincode}` : 'View, filter, and fulfill store orders.'} actions={<Button onClick={() => setAddOpen(true)}><Plus className="h-4 w-4" /> Add order</Button>} />
+      <PageHeader eyebrow="Sales / Orders" title={areaId && area ? area.name : 'Orders'} description={areaId && area ? `${area.city} · ${area.pincode}` : 'View, filter, and fulfill store orders.'} actions={<>
+        <ExportMenu onExportPDF={handleExportPDF} onExportExcel={handleExportExcel} />
+        <Button onClick={() => setAddOpen(true)}><Plus className="h-4 w-4" /> Add order</Button>
+      </>} />
 
       {/* Filter bar */}
       <div className="mb-4 rounded-bakery border border-espresso/8 bg-proof-cream p-4 shadow-bakery">

@@ -20,5 +20,7 @@ export {
 } from './useAreaMutations'
 export { useOrders, usePaginatedOrders, useOrderTakerStats, orderKeys } from './useOrders'
 export { useCreateOrder, useUpdateOrderStatus, useFulfillOrder } from './useOrderMutations'
+export { useWalkInSales, walkInSaleKeys } from './useWalkInSales'
+export { useCreateWalkInSale, useSettleWalkInSale } from './useWalkInSaleMutations'
 export { useScheduleDay, useScheduleToday, scheduleKeys } from './useSchedule'
 export { useSetDailyAssignment } from './useScheduleMutations'

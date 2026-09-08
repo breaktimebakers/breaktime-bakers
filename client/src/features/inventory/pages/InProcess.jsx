@@ -6,7 +6,7 @@ import { usePagination } from '@/hooks'
 import { exportPDF, exportExcel, formatCurrency, formatDate } from '@/utils'
 import { AddBatchModal } from '../components/AddBatchModal'
 
-const PAGE_SIZE = 6
+const PAGE_SIZE = 9
 
 export default function InProcess() {
   const [filter, setFilter] = useState('today')

@@ -9,6 +9,7 @@ import OrdersAreaList from './pages/OrdersAreaList'
 import OrderTakersList from './pages/OrderTakersList'
 import OrderTakerDetail from './pages/OrderTakerDetail'
 import OrderTakerSchedule from './pages/OrderTakerSchedule'
+import WalkInSales from './pages/WalkInSales'
 
 const salesRoute = createRoute({ getParentRoute: () => appLayoutRoute, path: '/sales', component: SalesOverview })
 const areasRoute = createRoute({ getParentRoute: () => appLayoutRoute, path: '/sales/areas', component: AreasList })
@@ -29,6 +30,7 @@ const ordersAreaRoute = createRoute({
 const orderTakersRoute = createRoute({ getParentRoute: () => appLayoutRoute, path: '/sales/orders/order-takers', component: OrderTakersList })
 const orderTakerScheduleRoute = createRoute({ getParentRoute: () => appLayoutRoute, path: '/sales/orders/order-takers/schedule', component: OrderTakerSchedule })
 const orderTakerDetailRoute = createRoute({ getParentRoute: () => appLayoutRoute, path: '/sales/orders/order-takers/$personId', component: OrderTakerDetail })
+const walkInSalesRoute = createRoute({ getParentRoute: () => appLayoutRoute, path: '/sales/walk-in', component: WalkInSales })
 
 export const salesRoutes = [
   salesRoute,
@@ -39,4 +41,5 @@ export const salesRoutes = [
   orderTakersRoute,
   orderTakerScheduleRoute,
   orderTakerDetailRoute,
+  walkInSalesRoute,
 ]
