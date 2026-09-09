@@ -16,7 +16,10 @@ const requireOrder = async (id) => {
   return order;
 };
 
-const requireStore = async (storeId) => {
+// Exported for storeVisitNote.service.js, which marks a store closed under
+// the exact same "must be a real store / a real marketer / scheduled to
+// this store's area today" rules an order itself is created under.
+export const requireStore = async (storeId) => {
   const store = await areaRepo.findStoreById(storeId);
 
   if (!store) {
@@ -31,7 +34,7 @@ const requireStore = async (storeId) => {
 // "marketer" role - roles live in a separate join table (worker_roles),
 // so this is a business rule checked here, not something the FK itself
 // can express.
-const requireMarketerWorker = async (workerId) => {
+export const requireMarketerWorker = async (workerId) => {
   const worker = await workerRepo.findWorkerById(workerId);
 
   if (!worker) {
@@ -102,7 +105,7 @@ export const getOrderTakerStats = async (orderTakerId, rangeDays) => {
 // scheduled to today (server's today, matching the orderDate the order
 // itself gets stamped with) - see schedule.service.js for how "today's
 // area" is resolved from the assignment for this exact date.
-const requireScheduledForStoreToday = async (workerId, store) => {
+export const requireScheduledForStoreToday = async (workerId, store) => {
   if (!store.areaId) {
     throw httpError(400, "This store has no area assigned yet", "STORE_UNASSIGNED");
   }

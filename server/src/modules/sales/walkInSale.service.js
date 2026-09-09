@@ -24,3 +24,9 @@ export const settleWalkInSale = async (id) => {
 
   return walkInSaleRepo.markWalkInSalePaid(id);
 };
+
+export const addWalkInSalePayment = async (id, amount) => {
+  await requireWalkInSale(id);
+
+  return walkInSaleRepo.addWalkInSalePayment(id, amount);
+};

@@ -78,3 +78,38 @@ export const markWalkInSalePaid = async (id) => {
 
   return findWalkInSaleById(id);
 };
+
+// Same row-lock-then-update pattern as createWalkInSale's stock check -
+// locks the sale row so two concurrent payments against the same balance
+// can't both read the same amountPaid and overpay it.
+export const addWalkInSalePayment = async (id, amount) => {
+  await db.transaction(async (tx) => {
+    const [sale] = await tx
+      .select({ amount: walkInSales.amount, amountPaid: walkInSales.amountPaid, paymentStatus: walkInSales.paymentStatus })
+      .from(walkInSales)
+      .where(eq(walkInSales.id, id))
+      .for("update");
+
+    if (!sale) {
+      throw httpError(404, "Walk-in sale not found");
+    }
+    if (sale.paymentStatus === "paid") {
+      throw httpError(409, "Walk-in sale is already fully paid", "ALREADY_PAID");
+    }
+
+    const remaining = Number(sale.amount) - Number(sale.amountPaid);
+    if (amount > remaining) {
+      throw httpError(422, `Payment exceeds remaining balance of ₹${remaining.toFixed(2)}`, "PAYMENT_EXCEEDS_BALANCE");
+    }
+
+    const newAmountPaid = Number(sale.amountPaid) + amount;
+    const newStatus = newAmountPaid >= Number(sale.amount) ? "paid" : "partial";
+
+    await tx
+      .update(walkInSales)
+      .set({ amountPaid: newAmountPaid, paymentStatus: newStatus, updatedAt: new Date() })
+      .where(eq(walkInSales.id, id));
+  });
+
+  return findWalkInSaleById(id);
+};

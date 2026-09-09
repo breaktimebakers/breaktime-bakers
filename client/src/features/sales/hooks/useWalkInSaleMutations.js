@@ -39,3 +39,17 @@ export function useSettleWalkInSale() {
     },
   })
 }
+
+export function useRecordWalkInSalePayment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, amount }) => walkInSaleApi.recordPayment(id, amount),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: walkInSaleKeys.all })
+      toast.success('Payment recorded')
+    },
+    onError: (err) => {
+      toast.error('Could not record payment', { description: err.message })
+    },
+  })
+}

@@ -18,3 +18,9 @@ export const settle = async (req, res) => {
 
   sendResponse(res, 200, "Walk-in sale marked paid", { walkInSale });
 };
+
+export const addPayment = async (req, res) => {
+  const walkInSale = await walkInSaleService.addWalkInSalePayment(req.params.id, req.body.amount);
+
+  sendResponse(res, 200, "Payment recorded", { walkInSale });
+};

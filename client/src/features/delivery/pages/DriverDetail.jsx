@@ -13,6 +13,7 @@ export default function DriverDetail() {
   const [selectedDate, setSelectedDate] = useState('')
   const [range, setRange] = useState('7')
   const [assignOpen, setAssignOpen] = useState(false)
+  const [activeAreaId, setActiveAreaId] = useState(null)
 
   const workerQuery = useWorker(driverId)
   const dayQuery = useDriverDay(driverId, selectedDate)
@@ -42,6 +43,9 @@ export default function DriverDetail() {
   const otherAssignments = (schedule?.assignments || [])
     .filter((a) => a.driverId !== driverId)
     .flatMap((a) => a.areas.map((area) => ({ areaId: area.id, driverName: a.driverName })))
+
+  const selectedAreaId = areas.some((area) => area.areaId === activeAreaId) ? activeAreaId : areas[0]?.areaId
+  const selectedArea = areas.find((area) => area.areaId === selectedAreaId)
 
   return (
     <div>
@@ -93,14 +97,27 @@ export default function DriverDetail() {
           <h2 className="mb-3 mt-8 font-display text-xl font-semibold text-espresso">{date}</h2>
           {areas.length === 0 ? (
             <EmptyState icon={MapPin} title="No areas assigned" description="Assign this driver an area for this date to see their stores here." />
+          ) : areas.length === 1 ? (
+            <div>
+              <h3 className="mb-2 flex items-center gap-1.5 font-display text-base font-semibold text-espresso"><MapPin className="h-4 w-4 text-oven-amber" />{areas[0].areaName}</h3>
+              <DriverStoresTable stores={areas[0].stores} />
+            </div>
           ) : (
-            <div className="space-y-6">
-              {areas.map((area) => (
-                <div key={area.areaId}>
-                  <h3 className="mb-2 flex items-center gap-1.5 font-display text-base font-semibold text-espresso"><MapPin className="h-4 w-4 text-oven-amber" />{area.areaName}</h3>
-                  <DriverStoresTable stores={area.stores} />
-                </div>
-              ))}
+            <div>
+              <div className="mb-4 inline-flex flex-wrap gap-1 rounded-full bg-crust p-0.5">
+                {areas.map((area) => (
+                  <button
+                    key={area.areaId}
+                    onClick={() => setActiveAreaId(area.areaId)}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-medium transition ${
+                      selectedAreaId === area.areaId ? 'bg-espresso text-crust' : 'text-espresso/60'
+                    }`}
+                  >
+                    <MapPin className="h-3.5 w-3.5" /> {area.areaName}
+                  </button>
+                ))}
+              </div>
+              {selectedArea && <DriverStoresTable stores={selectedArea.stores} />}
             </div>
           )}
         </>

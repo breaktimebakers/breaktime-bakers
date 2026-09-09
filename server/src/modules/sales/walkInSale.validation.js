@@ -5,6 +5,10 @@ export const walkInSaleIdParamSchema = z.object({
   id: z.string().min(1),
 });
 
+export const recordWalkInSalePaymentSchema = z.object({
+  amount: z.coerce.number().positive("Amount must be greater than 0"),
+});
+
 export const createWalkInSaleSchema = z
   .object({
     productId: z.string().min(1),
