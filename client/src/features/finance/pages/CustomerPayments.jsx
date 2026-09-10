@@ -176,8 +176,10 @@ export default function CustomerPayments() {
           )
         })}
 
-        {/* Local / Walk-in card - read-only view of Sales' Walk-in Sales, recorded from the counter */}
-        <Link to="/finance/customer-payments/local"
+        {/* Local / Walk-in card - links straight to the counter (Sales'
+            Walk-in Sales page), where these sales are actually recorded
+            and settled, rather than to a read-only Finance mirror. */}
+        <Link to="/sales/walk-in"
           className="group rounded-bakery border border-dashed border-espresso/15 bg-crust/20 p-5 shadow-bakery transition-all hover:-translate-y-0.5 hover:shadow-bakery-lg">
           <div className="flex items-start justify-between">
             <div className="flex h-11 w-11 items-center justify-center rounded-bakery bg-espresso/8 text-espresso/50">
