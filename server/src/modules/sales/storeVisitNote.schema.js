@@ -25,7 +25,16 @@ export const storeVisitNotes = pgTable(
 
     visitDate: date("visit_date", { mode: "string" }).notNull(),
 
-    reason: varchar("reason", { length: 500 }).notNull(),
+    // A closed enum of "why no order today" outcomes rather than free
+    // text - lets the Orders page render/filter on it directly instead of
+    // parsing prose. "OTHER" is the escape hatch for anything that
+    // doesn't fit, and is the only code that requires `note` (enforced in
+    // storeVisitNote.validation.js, not here).
+    reasonCode: varchar("reason_code", { length: 30 }).notNull(),
+
+    // Optional free-text detail. Required only when reasonCode is
+    // "OTHER" - everywhere else the code alone is the reason.
+    note: varchar("note", { length: 500 }),
 
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },

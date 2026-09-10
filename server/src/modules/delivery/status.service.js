@@ -11,6 +11,14 @@ export const listDeliveryStatus = async (query) => {
   const from = filter === "all" ? undefined : query.from || todayIso();
   const to = filter === "all" ? undefined : query.to || todayIso();
   const filters = { ...rest, from, to };
+
+  // Omitting `page` (the export path) skips pagination entirely and
+  // returns every matching row - same convention as listOrders.
+  if (query.page === undefined) {
+    const rows = await statusRepo.listStatusRows(filters);
+    return { rows, pagination: undefined };
+  }
+
   const pagination = resolvePagination(await statusRepo.countStatusRows(filters), query);
   const rows = await statusRepo.listStatusRows(filters, pagination);
 

@@ -4,8 +4,11 @@ import { isoDateSchema as isoDate, withDateRangeCheck } from "../../utils/isoDat
 
 export const deliveryStatusQuerySchema = withDateRangeCheck(
   z.object({
-    page: z.coerce.number().int().min(1).max(2147483647).default(1),
-    pageSize: paginationQueryShape.pageSize,
+    // page left optional (no default) - omitting it entirely returns every
+    // matching row unpaginated, which is what export uses (see
+    // listDeliveryStatus in status.service.js and listOrders's identical
+    // pattern in order.repository.js).
+    ...paginationQueryShape,
     // "all" - no date bound at all, unlike the default ("custom"), which
     // falls back to today when the client doesn't supply an explicit
     // range - see listDeliveryStatus in status.service.js.

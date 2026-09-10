@@ -3,10 +3,13 @@ import { Link } from '@tanstack/react-router'
 import { CalendarCheck, Search, Check, X, Clock } from 'lucide-react'
 import { useWorkers, useAttendanceByDate, useAllAttendance, useMarkAttendance, useClearAttendance } from '@/features/workers/hooks'
 import { dayNames, weekStartOf } from '@/features/workers/utils'
-import { Button, EmptyState, Field, PageHeader, inputClass } from '@/components/shared'
+import { Button, EmptyState, Field, PageHeader, Pagination, inputClass } from '@/components/shared'
+import { usePagination } from '@/hooks'
 import { todayISO, dayOfWeekOf } from '@/utils'
 import { RoleBadge } from '../components/RoleBadge'
 import { WorkerAvatar } from '../components/PhotoCapture'
+
+const PAGE_SIZE = 10
 
 const statusConfig = {
   present: { label: 'Present', dot: 'bg-matcha-glaze', text: 'text-matcha-glaze', bg: 'bg-matcha-glaze/15' },
@@ -104,6 +107,9 @@ export default function WorkerAttendance() {
     setOvertimeModal(null)
   }
 
+  const { page, setPage, totalPages, start, end } = usePagination(filteredWithStatus.length, PAGE_SIZE, `${search}|${roleFilter}|${statusFilter}`)
+  const pagedWorkers = filteredWithStatus.slice(start, end)
+
   const presentCount = workingToday.filter((w) => getTodayEntry(w.id)?.status === 'present').length
   const absentCount = workingToday.filter((w) => getTodayEntry(w.id)?.status === 'absent').length
   const halfCount = workingToday.filter((w) => getTodayEntry(w.id)?.status === 'half_day').length
@@ -175,7 +181,7 @@ export default function WorkerAttendance() {
                 </tr>
               </thead>
               <tbody>
-                {filteredWithStatus.map((w) => {
+                {pagedWorkers.map((w) => {
                   const entry = getTodayEntry(w.id)
                   const cfg = entry ? statusConfig[entry.status] : null
                   const isWeekOff = isOffToday(w)
@@ -255,6 +261,7 @@ export default function WorkerAttendance() {
               </tbody>
             </table>
           </div>
+          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={filteredWithStatus.length} pageSize={PAGE_SIZE} />
         </div>
       )}
 

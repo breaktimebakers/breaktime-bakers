@@ -1,12 +1,13 @@
 import { useState, useMemo, Fragment } from 'react'
 import { Link, useParams, useSearch } from '@tanstack/react-router'
 import { Plus, Filter, ChevronDown, ChevronRight, ClipboardList } from 'lucide-react'
-import { usePaginatedOrders, useAllStores, useAreas, useUpdateOrderStatus } from '@/features/sales/hooks'
+import { usePaginatedOrders, useAllStores, useAreas, useUpdateOrderStatus, useStoreVisitNotes } from '@/features/sales/hooks'
 import { orderApi } from '@/features/sales/api/orderApi'
 import { useWorkers } from '@/features/workers/hooks'
 import { useReadyStock } from '@/features/inventory/hooks'
-import { Button, EmptyState, ExportMenu, PageHeader, Pagination, inputClass } from '@/components/shared'
+import { Button, EmptyState, ExportMenu, Modal, PageHeader, Pagination, inputClass } from '@/components/shared'
 import { ORDER_STATUS } from '@/constants/orderStatus'
+import { VISIT_REASONS } from '@/constants/visitReasons'
 import { formatDateShort, isReversedRange, exportPDF, exportExcel } from '@/utils'
 import { StatusDropdown } from '../components/StatusDropdown'
 import { AddOrderModal } from '../components/AddOrderModal'
@@ -101,6 +102,27 @@ export default function OrdersOverview() {
   const orders = data?.orders || []
   const { page = requestedPage, totalPages = 1, totalItems = 0 } = data?.pagination || {}
   const updateOrderStatus = useUpdateOrderStatus()
+
+  // Store visits that ended without an order (store closed, owner
+  // unavailable, ...) - a separate table/entity from `orders` (see
+  // storeVisitNote.schema.js), shown alongside it here so "why no order"
+  // is visible for the same date/store/order-taker filters. status and
+  // product filters don't apply to a visit that has no items, so those two
+  // are deliberately left out of this query.
+  const visitNoteQuery = useMemo(() => {
+    const q = { filter: query.filter }
+    if (query.from) q.from = query.from
+    if (query.to) q.to = query.to
+    if (query.storeId) q.storeId = query.storeId
+    if (query.orderTakerId) q.orderTakerId = query.orderTakerId
+    return q
+  }, [query.filter, query.from, query.to, query.storeId, query.orderTakerId])
+  const { data: allVisitNotes = [] } = useStoreVisitNotes(visitNoteQuery, { enabled: dateInputReady })
+  // storeVisitNoteApi has no areaId filter server-side (it isn't a column
+  // on the table) - narrowed here client-side the same way the area-scoped
+  // route (/sales/orders/:areaId) narrows everything else on this page.
+  const visitNotes = areaId ? allVisitNotes.filter((v) => stores.find((s) => s.id === v.storeId)?.areaId === areaId) : allVisitNotes
+  const [viewNote, setViewNote] = useState(null)
 
   // Exports cover every order matching the current filters, not just the
   // page on screen - fetched fresh (unpaginated) at export time, same
@@ -306,8 +328,59 @@ export default function OrdersOverview() {
         </div>
       )}
 
+      {visitNotes.length > 0 && (
+        <div className="mt-6 overflow-hidden rounded-bakery border border-espresso/8 bg-proof-cream shadow-bakery">
+          <div className="border-b border-espresso/8 px-4 py-3">
+            <h3 className="font-display text-sm font-semibold text-espresso">Visits without an order ({visitNotes.length})</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[600px] text-sm">
+              <thead>
+                <tr className="border-b border-espresso/10 bg-crust/30 text-left">
+                  <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Store</th>
+                  <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Order Taker</th>
+                  <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Reason</th>
+                  <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visitNotes.map((v) => {
+                  const otName = workers.find((w) => w.id === v.orderTakerId)?.name || '—'
+                  const hasNote = Boolean(v.note)
+                  return (
+                    <tr key={v.id} className="border-b border-espresso/8 last:border-0 hover:bg-crust/20">
+                      <td className="px-4 py-3 font-medium text-espresso">{v.storeName}</td>
+                      <td className="px-4 py-3 text-espresso/70">{otName}</td>
+                      <td className="px-4 py-3">
+                        {hasNote ? (
+                          <button type="button" onClick={() => setViewNote(v)} className="text-oven-amber underline decoration-dotted hover:decoration-solid">
+                            {VISIT_REASONS[v.reasonCode]?.label || v.reasonCode}
+                          </button>
+                        ) : (
+                          <span className="text-espresso/80">{VISIT_REASONS[v.reasonCode]?.label || v.reasonCode}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-espresso/60">{formatDateShort(v.visitDate)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       <AddOrderModal open={addOpen} onClose={() => setAddOpen(false)} areaId={areaId} />
       <FillOrderModal open={!!fillOrder} onClose={() => setFillOrder(null)} order={fillOrder} />
+
+      <Modal open={!!viewNote} onClose={() => setViewNote(null)} eyebrow="Sales / Orders" title={viewNote?.storeName} footer={<Button variant="secondary" onClick={() => setViewNote(null)}>Close</Button>}>
+        {viewNote && (
+          <div className="grid gap-2 text-sm">
+            <p className="text-espresso/50">{VISIT_REASONS[viewNote.reasonCode]?.label || viewNote.reasonCode} · {formatDateShort(viewNote.visitDate)}</p>
+            <p className="whitespace-pre-wrap text-espresso">{viewNote.note}</p>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

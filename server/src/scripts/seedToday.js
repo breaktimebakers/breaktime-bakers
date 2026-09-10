@@ -35,6 +35,9 @@ import { driverAreaAssignments } from "../modules/delivery/driverAreaAssignment.
 
 import { products } from "../modules/inventory/product.schema.js";
 import { readyStockMovements } from "../modules/inventory/readyStockMovement.schema.js";
+import { batches } from "../modules/inventory/batch.schema.js";
+import { rawMaterials } from "../modules/inventory/rawMaterial.schema.js";
+import { createBatchWithConsumption } from "../modules/inventory/batch.repository.js";
 
 const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 const pick = (arr) => arr[randomInt(0, arr.length - 1)];
@@ -140,6 +143,64 @@ const seedTodayOrders = async (date) => {
   console.log(`Created ${orderRows.length} orders (in_transit) with ${itemRows.length} line items for ${date}`);
 };
 
+// ------------------------------------------------------------- batches
+// Same perUnit ingredient rates as seedDemoData.js's PRODUCT_DEFS - only
+// materials that already exist are used, so this stays a no-op on a DB
+// that hasn't been through seedDemoData.js.
+const PRODUCT_DEFS = [
+  { name: "Butter Croissants", unit: "pcs", basePrice: 35, perUnit: { "Maida (Refined Flour)": 0.075, Butter: 0.05, Milk: 0.05, Yeast: 0.0075 } },
+  { name: "Milk Bread", unit: "loaves", basePrice: 45, perUnit: { "Maida (Refined Flour)": 0.1333, Milk: 0.1, Sugar: 0.0333, Yeast: 0.01 } },
+  { name: "Cocoa Cookies", unit: "pcs", basePrice: 20, perUnit: { "Maida (Refined Flour)": 0.05, Sugar: 0.0333, Butter: 0.025, "Chocolate Chips": 0.0167 } },
+  { name: "Dinner Buns", unit: "pcs", basePrice: 15, perUnit: { "Maida (Refined Flour)": 0.06, Milk: 0.04, Sugar: 0.01, Yeast: 0.006 } },
+  { name: "Tea Cakes", unit: "pcs", basePrice: 60, perUnit: { "Maida (Refined Flour)": 0.08, Sugar: 0.06, Butter: 0.04, Milk: 0.04 } },
+  { name: "Multigrain Bread", unit: "loaves", basePrice: 55, perUnit: { "Maida (Refined Flour)": 0.12, Sugar: 0.02, Yeast: 0.008, Milk: 0.05 } },
+  { name: "Cheese Puffs", unit: "pcs", basePrice: 30, perUnit: { "Maida (Refined Flour)": 0.06, Butter: 0.03, Cheese: 0.08, "Baking Powder": 0.005 } },
+  { name: "Rusk", unit: "packets", basePrice: 40, perUnit: { "Maida (Refined Flour)": 0.05, Sugar: 0.02, Butter: 0.01, "Baking Powder": 0.003 } },
+];
+
+const seedTodayBatches = async (date) => {
+  const existing = await db
+    .select({ id: batches.id })
+    .from(batches)
+    .where(sql`${batches.producedAt}::date = ${date}`)
+    .limit(1);
+  if (existing.length > 0) {
+    console.log(`Skipping batches - some already exist for ${date}`);
+    return;
+  }
+
+  const rawMaterialRows = await db.select({ id: rawMaterials.id, name: rawMaterials.name }).from(rawMaterials);
+  const rawMaterialIdByName = Object.fromEntries(rawMaterialRows.map((r) => [r.name, r.id]));
+
+  let batchCount = 0;
+  for (const def of PRODUCT_DEFS) {
+    const ingredientNames = Object.keys(def.perUnit).filter((name) => rawMaterialIdByName[name]);
+    if (ingredientNames.length === 0) continue;
+
+    const quantityProduced = randomInt(60, 200);
+    const ingredients = ingredientNames.map((name) => ({
+      rawMaterialId: rawMaterialIdByName[name],
+      qty: Number((def.perUnit[name] * quantityProduced).toFixed(3)),
+    }));
+    const jitter = 1 + (Math.random() * 0.2 - 0.1);
+
+    try {
+      await createBatchWithConsumption({
+        productName: def.name,
+        quantityProduced,
+        unit: def.unit,
+        pricePerUnit: Math.round(def.basePrice * jitter),
+        producedAt: date,
+        ingredients,
+      });
+      batchCount++;
+    } catch (err) {
+      console.log(`Skipped producing ${def.name} - ${err.message}`);
+    }
+  }
+  console.log(`Created ${batchCount} production batches for ${date}`);
+};
+
 // ---------------------------------------------------------- walk-in sales
 const WALK_IN_ATTEMPTS = 25;
 
@@ -194,6 +255,7 @@ const run = async () => {
   await seedTodayAttendance(date);
   await seedTodayDriverAssignments(date);
   await seedTodayOrders(date);
+  await seedTodayBatches(date);
   await seedTodayWalkInSales(date);
   console.log("Done.");
   process.exit(0);

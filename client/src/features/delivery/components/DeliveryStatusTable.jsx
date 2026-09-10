@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ArrowRight, CheckCircle2, CircleDot, Clock3, Filter, Search, Truck } from 'lucide-react'
-import { EmptyState, ErrorState, Pagination, inputClass } from '@/components/shared'
+import { EmptyState, ErrorState, ExportMenu, PageHeader, Pagination, inputClass } from '@/components/shared'
 import { useAreas } from '@/features/sales/hooks'
 import { useWorkers } from '@/features/workers/hooks'
 import { useDeliveryStatus } from '@/features/delivery/hooks'
-import { daysAgoISO, isReversedRange, todayISO } from '@/utils'
+import { deliveryApi } from '@/features/delivery/api/deliveryApi'
+import { daysAgoISO, formatDateShort, isReversedRange, todayISO, exportPDF, exportExcel } from '@/utils'
 
 const PAGE_SIZE = 6
 
@@ -102,6 +103,38 @@ export function DeliveryStatusTable() {
     if (pagination?.page && pagination.page !== page) setPage(pagination.page)
   }, [page, pagination?.page])
 
+  // Exports cover every record matching the current filters, not just the
+  // page on screen - fetched fresh (unpaginated, `page` omitted) at export
+  // time, same pattern as RawMaterials.jsx's fetchAllFilteredMaterials.
+  const fetchAllFilteredRows = async () => {
+    const { rows: all } = await deliveryApi.getStatus({ ...query, page: undefined, pageSize: undefined })
+    return all
+  }
+  const statusRow = (row) => [formatDateShort(row.date), row.storeName, row.areaName, row.driverName, `${row.deliveredOrders}/${row.totalOrders}`, STATUS_META[row.status]?.label || row.status, formatUpdated(row.lastUpdated)]
+
+  const handleExportPDF = async () => {
+    const all = await fetchAllFilteredRows()
+    exportPDF({
+      title: 'Delivery Status',
+      subtitle: 'Break Times Bakery',
+      columns: ['Date', 'Store', 'Area', 'Delivery Guy', 'Orders', 'Status', 'Updated'],
+      rows: all.map(statusRow),
+      filename: 'delivery-status.pdf',
+      orientation: 'landscape',
+    })
+  }
+  const handleExportExcel = async () => {
+    const all = await fetchAllFilteredRows()
+    exportExcel({
+      title: 'Delivery Status',
+      subtitle: 'Break Times Bakery',
+      columns: ['Date', 'Store', 'Area', 'Delivery Guy', 'Orders', 'Status', 'Updated'],
+      rows: all.map(statusRow),
+      sheetName: 'Delivery Status',
+      filename: 'delivery-status.xlsx',
+    })
+  }
+
   const retry = () => {
     statusQuery.refetch()
     areasQuery.refetch()
@@ -129,6 +162,13 @@ export function DeliveryStatusTable() {
 
   return (
     <div>
+      <PageHeader
+        eyebrow="Delivery / Status"
+        title="Delivery status"
+        description="Track every assigned store by area, delivery guy, and delivery progress."
+        actions={<ExportMenu onExportPDF={handleExportPDF} onExportExcel={handleExportExcel} />}
+      />
+
       {/* Filter bar */}
       <div className="mb-4 rounded-bakery border border-espresso/8 bg-proof-cream p-4 shadow-bakery">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:flex-wrap">

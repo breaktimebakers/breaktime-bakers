@@ -92,9 +92,11 @@ export const countStatusRows = async (query) => {
   return result.total;
 };
 
-export const listStatusRows = async (query, { page, pageSize }) => {
-  return groupedStatusQuery(query)
-    .orderBy(desc(driverAreaAssignments.date), asc(areas.name), asc(stores.dealerName), asc(workers.name))
-    .limit(pageSize)
-    .offset((page - 1) * pageSize);
+export const listStatusRows = async (query, pagination) => {
+  const statement = groupedStatusQuery(query)
+    .orderBy(desc(driverAreaAssignments.date), asc(areas.name), asc(stores.dealerName), asc(workers.name));
+
+  if (!pagination) return statement;
+
+  return statement.limit(pagination.pageSize).offset((pagination.page - 1) * pagination.pageSize);
 };
