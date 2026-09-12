@@ -146,9 +146,30 @@ export const updateOrderStatus = async (id, status) => {
   return orderRepo.updateOrderStatus(id, status);
 };
 
+// A payment's collector, when given, must hold the "delivery" role - same
+// reasoning as requireMarketerWorker above: roles live in a separate join
+// table a DB FK can't express a "has this role" constraint against.
+export const requireDeliveryWorker = async (workerId) => {
+  const worker = await workerRepo.findWorkerById(workerId);
+
+  if (!worker) {
+    throw httpError(404, "Collector not found");
+  }
+
+  if (!worker.roles.includes("delivery")) {
+    throw httpError(400, "Selected worker does not hold the delivery role", "NOT_A_DELIVERY_WORKER");
+  }
+
+  return worker;
+};
+
 export const fulfillOrder = async (id, body) => {
   const order = await requireOrder(id);
-  const { status, fulfillmentDate, items } = body;
+  const { status, fulfillmentDate, items, collectedBy } = body;
+
+  if (collectedBy) {
+    await requireDeliveryWorker(collectedBy);
+  }
 
   const orderItemsById = new Map(order.items.map((item) => [item.id, item]));
 

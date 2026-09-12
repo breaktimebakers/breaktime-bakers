@@ -102,7 +102,7 @@ export default function OrderTakersList() {
     const all = await fetchAllFilteredOrders()
     exportPDF({
       title: 'Orders by Order Taker',
-      subtitle: 'Break Times Bakery',
+      subtitle: 'BREAKTIME Bakery',
       columns: ['Order taker', 'Store', 'Area', 'Products', 'Qty', 'Status', 'Date'],
       rows: all.map(orderRow),
       filename: 'orders-by-order-taker.pdf',
@@ -113,7 +113,7 @@ export default function OrderTakersList() {
     const all = await fetchAllFilteredOrders()
     exportExcel({
       title: 'Orders by Order Taker',
-      subtitle: 'Break Times Bakery',
+      subtitle: 'BREAKTIME Bakery',
       columns: ['Order taker', 'Store', 'Area', 'Products', 'Qty', 'Status', 'Date'],
       rows: all.map(orderRow),
       sheetName: 'Orders',

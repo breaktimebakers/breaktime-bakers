@@ -3,6 +3,7 @@ import { orderApi } from '../api/orderApi'
 import { orderKeys } from './useOrders'
 import { salesKeys } from './useSalesOverview'
 import { readyStockKeys } from '@/features/inventory/hooks/useReadyStock'
+import { customerPaymentKeys } from '@/features/finance/hooks/useCustomerPayments'
 import { toast } from '@/lib/toast'
 
 const invalidateOrders = (queryClient) => Promise.all([
@@ -47,6 +48,11 @@ export function useFulfillOrder() {
       // Fulfillment now also draws down ready_stock_movements server-side,
       // so Ready Stock's cached availableQty is stale too, not just orders.
       queryClient.invalidateQueries({ queryKey: readyStockKeys.all })
+      // An optional amountCollected on this fulfillment may have logged an
+      // order_payments row server-side - always invalidate rather than
+      // checking the body, so Finance's Customer Payments never shows a
+      // stale balance after a delivery collects money.
+      queryClient.invalidateQueries({ queryKey: customerPaymentKeys.all })
       toast.success('Order fulfilled')
     },
     onError: (err) => {

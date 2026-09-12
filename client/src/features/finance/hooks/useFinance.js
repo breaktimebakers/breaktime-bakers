@@ -1,20 +1,12 @@
-import { useQueryClient } from '@tanstack/react-query'
-import { useLocalQuery, setLocalData } from '@/lib/localStore'
 import { useWorkers, useAllAttendance, useAllAdvances } from '@/features/workers/hooks'
 import { computeGrossSalaryForMonth, sumAdvancesForMonth } from '@/features/workers/utils'
 import { useSalaryPayments } from './useSalaryPayments'
 import { useMarkSalaryPaid, useMarkSalaryUnpaid, useBulkMarkSalaryPaid } from './useSalaryPaymentMutations'
 import { useExpenses } from './useExpenses'
 import { useTaxEntries } from './useTaxEntries'
-import { seedCustomerPayments } from '../data/seedFinance'
 import { todayISO } from '@/utils'
 
-const KEYS = {
-  customerPayments: ['local', 'finance', 'customerPayments'],
-}
-
 export function useFinance() {
-  const queryClient = useQueryClient()
   // Supplier Payments now reads real lots directly via useAllLots/
   // useUpdateLotPayment (see SupplierPayments.jsx) - a dedicated
   // GET /raw-materials/lots endpoint scoped to a date range. outstandingSupplier
@@ -40,44 +32,6 @@ export function useFinance() {
   const markSalaryPaidMutation = useMarkSalaryPaid()
   const markSalaryUnpaidMutation = useMarkSalaryUnpaid()
   const bulkMarkSalaryPaidMutation = useBulkMarkSalaryPaid()
-
-  const { data: customerPayments = [] } = useLocalQuery(KEYS.customerPayments, seedCustomerPayments)
-
-  const addCustomerPayment = (data) => {
-    const id = 'cp' + Date.now()
-    setLocalData(queryClient, KEYS.customerPayments, (p) => [{ id, buyerName: data.buyerName, buyerType: data.buyerType || 'store', storeId: data.storeId || null, areaId: data.areaId || null, amount: Number(data.amount) || 0, amountPaid: 0, paymentHistory: [], date: data.date, status: 'outstanding', paidDate: null }, ...p])
-  }
-
-  const addPartialPayment = (id, partialAmount) => {
-    setLocalData(queryClient, KEYS.customerPayments, (p) => p.map((c) => {
-      if (c.id !== id) return c
-      const newAmountPaid = (c.amountPaid || 0) + Number(partialAmount)
-      const isFullyPaid = newAmountPaid >= c.amount
-      const todayStr = todayISO()
-      return {
-        ...c,
-        amountPaid: isFullyPaid ? c.amount : newAmountPaid,
-        paymentHistory: [...(c.paymentHistory || []), { amount: Number(partialAmount), date: todayStr }],
-        status: isFullyPaid ? 'paid' : 'outstanding',
-        paidDate: isFullyPaid ? todayStr : c.paidDate,
-      }
-    }))
-  }
-
-  const markCustomerPaymentPaid = (id) => {
-    const todayStr = todayISO()
-    setLocalData(queryClient, KEYS.customerPayments, (p) => p.map((c) => {
-      if (c.id !== id) return c
-      const remaining = c.amount - (c.amountPaid || 0)
-      return {
-        ...c,
-        amountPaid: c.amount,
-        paymentHistory: remaining > 0 ? [...(c.paymentHistory || []), { amount: remaining, date: todayStr }] : (c.paymentHistory || []),
-        status: 'paid',
-        paidDate: todayStr,
-      }
-    }))
-  }
 
   // Get salary for a worker for a given month, using attendance + dailySalaryFromMonthly
   const getSalaryForMonth = (workerId, year, month) => {
@@ -195,13 +149,20 @@ export function useFinance() {
   // eslint-disable-next-line no-unused-vars
   const getRawMaterialUsedTotal = (year, month) => 0
 
+  // Sales used to be summed from the local hand-typed customerPayments
+  // ledger. Customer Payments is now real, order-backed data (see
+  // useCustomerPayments.js), but it only exposes all-time totals so far -
+  // this P&L view needs an arbitrary (year, month) and 6 months at once for
+  // FinanceOverview's trend chart, which isn't wired yet. Pinned at 0 until
+  // a per-month endpoint exists, same "real feature to build, not a
+  // safe thing to improvise" reasoning as the raw-materials figures below.
+  // eslint-disable-next-line no-unused-vars
+  const getSalesTotal = (year, month) => 0
+
   // Profit & Loss for a month
   const getProfitAndLoss = (year, month) => {
     const mStr = `${year}-${String(month + 1).padStart(2, '0')}`
-    // Sales = sum of customerPayments amounts for that month (regardless of paid/outstanding)
-    const sales = customerPayments
-      .filter((c) => c.date.startsWith(mStr))
-      .reduce((s, c) => s + c.amount, 0)
+    const sales = getSalesTotal(year, month)
     const rawMaterialsPurchased = getRawMaterialPurchasedTotal(year, month)
     const rawMaterialsUsed = getRawMaterialUsedTotal(year, month)
     // Salaries = sum of getSalaryForMonth for all workers
@@ -216,45 +177,17 @@ export function useFinance() {
     return { sales, rawMaterialsPurchased, rawMaterialsUsed, salaries, expenses: expensesTotal, taxes, profit }
   }
 
-  // Outstanding totals (supplier + customer). Supplier is pinned at 0 for
-  // the same reason as getRawMaterialPurchasedTotal above - this needs an
-  // unscoped (all lots, any month) fetch, not yet wired to the new
-  // per-month useAllLots endpoint.
+  // Supplier outstanding is pinned at 0 for the same reason as
+  // getRawMaterialPurchasedTotal above - this needs an unscoped (all lots,
+  // any month) fetch, not yet wired to the new per-month useAllLots
+  // endpoint. Customer outstanding is real now - see
+  // useCustomerPaymentsOverview in useCustomerPayments.js, called directly
+  // by whichever page needs it (FinanceOverview.jsx) rather than threaded
+  // through this hook.
   const outstandingSupplier = 0
 
-  const outstandingCustomer = customerPayments
-    .filter((c) => c.status === 'outstanding')
-    .reduce((s, c) => s + (c.amount - (c.amountPaid || 0)), 0)
-
-  // Area-level payment summary
-  const getAreaPaymentSummary = (areaId) => {
-    const areaPayments = customerPayments.filter((c) => c.areaId === areaId)
-    const outstanding = areaPayments
-      .filter((c) => c.status === 'outstanding')
-      .reduce((s, c) => s + (c.amount - (c.amountPaid || 0)), 0)
-    const paid = areaPayments
-      .filter((c) => c.status === 'paid')
-      .reduce((s, c) => s + c.amount, 0)
-    const storeIds = new Set(areaPayments.filter((c) => c.storeId).map((c) => c.storeId))
-    return { outstanding, paid, storeCount: storeIds.size }
-  }
-
-  // Store-level payment summary with entries
-  const getStorePaymentSummary = (storeId) => {
-    const storePayments = customerPayments.filter((c) => c.storeId === storeId)
-    const outstanding = storePayments
-      .filter((c) => c.status === 'outstanding')
-      .reduce((s, c) => s + (c.amount - (c.amountPaid || 0)), 0)
-    const paid = storePayments
-      .filter((c) => c.status === 'paid')
-      .reduce((s, c) => s + c.amount, 0)
-    const totalBilled = storePayments.reduce((s, c) => s + c.amount, 0)
-    return { outstanding, paid, totalBilled, entries: storePayments }
-  }
-
   return {
-    expenses, customerPayments, taxEntries,
-    addCustomerPayment, addPartialPayment, markCustomerPaymentPaid,
+    expenses, taxEntries,
     getSalaryForMonth,
     getAdvancesForMonth,
     getNetPayable,
@@ -268,8 +201,5 @@ export function useFinance() {
     getRawMaterialUsedTotal,
     getProfitAndLoss,
     outstandingSupplier,
-    outstandingCustomer,
-    getAreaPaymentSummary,
-    getStorePaymentSummary,
   }
 }

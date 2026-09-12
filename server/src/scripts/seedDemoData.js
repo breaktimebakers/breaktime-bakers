@@ -74,7 +74,7 @@ const SAMPLE_RECEIPT_PDF = Buffer.from(
 4 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj
 5 0 obj<</Length 96>>
 stream
-BT /F1 14 Tf 20 110 Td (Break Times Bakery) Tj 0 -20 Td (Sample Purchase Receipt) Tj ET
+BT /F1 14 Tf 20 110 Td (BREAKTIME Bakery) Tj 0 -20 Td (Sample Purchase Receipt) Tj ET
 endstream
 endobj
 xref

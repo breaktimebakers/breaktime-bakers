@@ -9,13 +9,13 @@ export default function SplashScreen({ isLeaving = false }) {
           <img src="/breakTimeLogo.png" alt="" className="splash-logo" />
         </div>
         <p className="splash-kicker">Fresh from the oven</p>
-        <h1 className="splash-title">Break Times</h1>
+        <h1 className="splash-title">BREAKTIME</h1>
         <div className="splash-loader" aria-hidden="true">
           <span />
           <span />
           <span />
         </div>
-        <span className="sr-only">Loading Break Times bakery dashboard</span>
+        <span className="sr-only">Loading BREAKTIME bakery dashboard</span>
       </div>
     </div>
   )

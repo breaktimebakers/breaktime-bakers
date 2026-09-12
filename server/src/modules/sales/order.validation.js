@@ -88,6 +88,14 @@ export const fulfillOrderSchema = z
       .refine((lines) => new Set(lines.map((l) => l.itemId)).size === lines.length, {
         message: "Each item can only appear once in a fulfillment request",
       }),
+    // Optional - a delivery can be marked complete with nothing collected.
+    // When given, must not exceed what this fulfillment actually bills
+    // (checked in order.repository.js, once the new fulfilledQty values are
+    // known) - same bounds style as amount in orderPayment.validation.js.
+    amountCollected: z.coerce.number().positive("Amount collected must be greater than 0").max(9999999999.99, "Amount is too large").optional(),
+    // Who collected it - must hold the "delivery" role, checked in
+    // order.service.js. Only meaningful alongside amountCollected.
+    collectedBy: z.string().min(1).optional(),
   })
   .refine((body) => body.status !== "delivered" || Boolean(body.fulfillmentDate), {
     message: "Fulfillment date is required when marking an order delivered",

@@ -27,7 +27,7 @@ export default function InProcess() {
   const paged = batches.slice(start, end)
 
   const handleExportPDF = () => exportPDF({
-    title: 'Production Batches', subtitle: 'Break Times Bakery',
+    title: 'Production Batches', subtitle: 'BREAKTIME Bakery',
     columns: ['Date', 'Product', 'Quantity', 'Unit', 'Raw material cost'],
     rows: batches.map((b) => [formatDate(b.producedAt), b.productName, b.quantityProduced, b.unit, formatCurrency(b.totalIngredientCost)]),
     filename: 'batches.pdf',

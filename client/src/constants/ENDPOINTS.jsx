@@ -55,6 +55,14 @@ export const ENDPOINTS = {
     fulfill: (id) => `/orders/${id}/fulfill`,
     orderTakerStats: '/orders/order-taker-stats',
   },
+  orderPayments: {
+    record: '/order-payments',
+    listForOrder: '/order-payments',
+    overview: '/order-payments/overview',
+    areas: '/order-payments/areas',
+    areaStores: (areaId) => `/order-payments/areas/${areaId}/stores`,
+    storeDetail: (storeId) => `/order-payments/stores/${storeId}`,
+  },
   storeVisitNotes: {
     list: '/store-visit-notes',
     create: '/store-visit-notes',

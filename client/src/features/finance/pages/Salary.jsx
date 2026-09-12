@@ -1,24 +1,29 @@
-import { useEffect, useState } from 'react'
-import { Users, Eye, EyeOff, CircleCheck, Circle } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Users, Eye, EyeOff, CircleCheck, Circle, Search } from 'lucide-react'
 import { usePayroll, useMarkSalaryPaid, useMarkSalaryUnpaid, useBulkMarkSalaryPaid } from '@/features/finance/hooks'
-import { Button, EmptyState, ErrorState, PageHeader, MonthFilterBar, monthNames } from '@/components/shared'
-import { RoleBadge } from '@/features/workers/components/RoleBadge'
+import { Button, EmptyState, ErrorState, PageHeader, MonthFilterBar, monthNames, inputClass } from '@/components/shared'
+import { RoleBadge, roleConfig } from '@/features/workers/components/RoleBadge'
 import { todayISO } from '@/utils'
+
+const allRoles = ['chef', 'labour', 'delivery', 'marketer']
+const EMPTY_ROWS = []
 
 export default function Salary() {
   const [todayYear, todayMonth] = todayISO().split('-').map(Number)
   const [year, setYear] = useState(todayYear)
   const [month, setMonth] = useState(todayMonth - 1)
   const [showLeft, setShowLeft] = useState(false)
+  const [search, setSearch] = useState('')
+  const [roleFilter, setRoleFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
   const [selected, setSelected] = useState(() => new Set())
   const payrollQuery = usePayroll({ year, month, includeLeft: showLeft })
   const markPaid = useMarkSalaryPaid()
   const markUnpaid = useMarkSalaryUnpaid()
   const bulkMarkPaidMutation = useBulkMarkSalaryPaid()
 
-  const rows = payrollQuery.data?.rows || []
+  const rows = payrollQuery.data?.rows ?? EMPTY_ROWS
   const summary = payrollQuery.data?.summary
-  const totalNetPayable = summary?.totalNetPayable || 0
   const totalPaid = summary?.totalPaid || 0
   const totalUnpaid = summary?.totalUnpaid || 0
   const mutationBusy = markPaid.isPending || markUnpaid.isPending || bulkMarkPaidMutation.isPending
@@ -26,7 +31,21 @@ export default function Salary() {
 
   useEffect(() => {
     setSelected(new Set())
-  }, [year, month, showLeft])
+  }, [year, month, showLeft, search, roleFilter, statusFilter])
+
+  const filteredRows = useMemo(() => {
+    const term = search.trim().toLowerCase()
+
+    return rows.filter((row) => {
+      if (term && !row.worker.name.toLowerCase().includes(term)) return false
+      if (roleFilter !== 'all' && !row.worker.roles.includes(roleFilter)) return false
+      if (statusFilter === 'paid' && !row.paid) return false
+      if (statusFilter === 'unpaid' && row.paid) return false
+      return true
+    })
+  }, [rows, search, roleFilter, statusFilter])
+
+  const filteredNetPayable = filteredRows.reduce((total, row) => total + row.netPayable, 0)
 
   const toggleSelected = (workerId) => {
     setSelected((prev) => {
@@ -37,7 +56,7 @@ export default function Salary() {
     })
   }
 
-  const unpaidRows = rows.filter((r) => !r.paid)
+  const unpaidRows = filteredRows.filter((r) => !r.paid)
   const allUnpaidSelected = unpaidRows.length > 0 && unpaidRows.every((r) => selected.has(r.worker.id))
 
   const toggleSelectAll = () => {
@@ -104,6 +123,38 @@ export default function Salary() {
         </div>
       </div>
 
+      {/* Filter bar */}
+      <div className="mb-4 rounded-bakery border border-espresso/8 bg-proof-cream p-4 shadow-bakery">
+        <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
+          <label className="relative block min-w-0 flex-1 lg:min-w-[220px]">
+            <span className="sr-only">Search worker name</span>
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-espresso/35" />
+            <input className={`${inputClass} pl-9`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search worker name…" />
+          </label>
+          <select className={`${inputClass} lg:w-40`} value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}>
+            <option value="all">All roles</option>
+            {allRoles.map((role) => <option key={role} value={role}>{roleConfig[role].label}</option>)}
+          </select>
+          <div className="inline-flex rounded-full bg-crust p-0.5">
+            {[
+              ['all', 'All'],
+              ['unpaid', 'Not paid'],
+              ['paid', 'Paid'],
+            ].map(([value, label]) => (
+              <button key={value} type="button" onClick={() => setStatusFilter(value)} className={`rounded-full px-3 py-1 text-xs font-medium transition ${statusFilter === value ? 'bg-espresso text-crust' : 'text-espresso/60'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {(search || roleFilter !== 'all' || statusFilter !== 'all') && (
+            <button type="button" onClick={() => { setSearch(''); setRoleFilter('all'); setStatusFilter('all') }} className="text-xs font-medium text-oven-amber hover:underline">
+              Clear filters
+            </button>
+          )}
+        </div>
+        <p className="mt-3 text-xs text-espresso/50">{filteredRows.length} {filteredRows.length === 1 ? 'worker' : 'workers'}</p>
+      </div>
+
       {/* Bulk action bar */}
       {selected.size > 0 && (
         <div className="mb-4 flex items-center justify-between rounded-bakery border border-oven-amber/30 bg-oven-amber/10 px-4 py-3">
@@ -124,6 +175,8 @@ export default function Salary() {
         </div>
       ) : rows.length === 0 ? (
         <EmptyState icon={Users} title="No workers to show" description="No workers were employed during this salary period." />
+      ) : filteredRows.length === 0 ? (
+        <EmptyState icon={Users} title="No workers match your filters" description="Try a different name, role, or payment status." />
       ) : (
         <>
           {/* Desktop table */}
@@ -147,7 +200,7 @@ export default function Salary() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r) => (
+                  {filteredRows.map((r) => (
                     <tr key={r.worker.id} className="border-b border-espresso/8 last:border-0 hover:bg-crust/20">
                       <td className="px-4 py-3">
                         <input
@@ -191,7 +244,7 @@ export default function Salary() {
                 <tfoot>
                   <tr className="border-t-2 border-espresso/15 bg-crust/30">
                     <td colSpan={8} className="px-4 py-3 text-right font-mono text-xs uppercase tracking-wider text-espresso/50">Total ({new Date(year, month).toLocaleDateString('en-IN', { month: 'long' })})</td>
-                    <td className="px-4 py-3 text-right font-mono text-lg font-bold text-espresso">₹{totalNetPayable.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
+                    <td className="px-4 py-3 text-right font-mono text-lg font-bold text-espresso">₹{filteredNetPayable.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
                     <td />
                   </tr>
                 </tfoot>
@@ -201,7 +254,7 @@ export default function Salary() {
 
           {/* Mobile card list */}
           <div className="flex flex-col gap-3 lg:hidden">
-            {rows.map((r) => (
+            {filteredRows.map((r) => (
               <div key={r.worker.id} className="rounded-bakery border border-espresso/8 bg-proof-cream p-4 shadow-bakery">
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-2.5">

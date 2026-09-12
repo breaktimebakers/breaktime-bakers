@@ -34,8 +34,8 @@ export default function Login() {
           <div className="px-6 py-8 sm:px-8">
             {/* Brand header */}
             <div className="mb-6 flex flex-col items-center text-center">
-              <img src="/breakTimeLogo.png" alt="Break Times" className="h-14 w-14 rounded-bakery object-cover" />
-              <h1 className="mt-3 font-display text-2xl font-semibold text-espresso">Break Times</h1>
+              <img src="/breakTimeLogo.png" alt="BREAKTIME" className="h-14 w-14 rounded-bakery object-cover" />
+              <h1 className="mt-3 font-display text-2xl font-semibold text-espresso">BREAKTIME</h1>
               <p className="text-center font-mono text-[10px] uppercase tracking-wider text-espresso/50">Bakers</p>
             </div>
 

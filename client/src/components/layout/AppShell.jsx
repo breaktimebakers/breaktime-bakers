@@ -289,9 +289,9 @@ function SidebarContent({ onNavigate }) {
   return (
     <div className="flex h-full flex-col bg-espresso text-crust">
       <div className="flex items-center gap-3 px-5 pt-5 pb-4">
-        <img src="/breakTimeLogo.png" alt="Break Times" className="h-10 w-10 rounded-bakery object-cover" />
+        <img src="/breakTimeLogo.png" alt="BREAKTIME" className="h-10 w-10 rounded-bakery object-cover" />
         <div>
-          <h1 className="font-display text-lg font-semibold leading-tight">Break Times</h1>
+          <h1 className="font-display text-lg font-semibold leading-tight">BREAKTIME</h1>
           <p className="text-center font-mono text-[10px] uppercase tracking-wider text-crust/50">Bakers</p>
         </div>
       </div>
@@ -359,8 +359,8 @@ export function AppShell({ children }) {
       {/* Mobile sticky header */}
       <header className="no-print sticky top-0 z-20 flex items-center justify-between bg-espresso px-4 py-3 text-crust lg:hidden">
         <div className="flex items-center gap-2.5">
-          <img src="/breakTimeLogo.png" alt="Break Times" className="h-8 w-8 rounded-bakery object-cover" />
-          <span className="font-display text-base font-semibold">Break Times</span>
+          <img src="/breakTimeLogo.png" alt="BREAKTIME" className="h-8 w-8 rounded-bakery object-cover" />
+          <span className="font-display text-base font-semibold">BREAKTIME</span>
         </div>
         <button
           onClick={() => setDrawerOpen(true)}

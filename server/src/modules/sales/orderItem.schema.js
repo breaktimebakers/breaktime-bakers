@@ -19,6 +19,16 @@ export const orderItems = pgTable(
 
     fulfilledQty: numeric("fulfilled_qty", { precision: 12, scale: 3, mode: "number" }).notNull().default(0),
 
+    // Snapshotted from products.pricePerUnit at order-creation time - the
+    // agreed price for this order, same "capture once, never re-derive"
+    // idiom as batches.pricePerUnit. Nullable only because rows created
+    // before this column existed have no historical price to backfill
+    // exactly (see scripts/backfillOrderItemPrices.js). Order value is
+    // always fulfilledQty * pricePerUnit, not quantity * pricePerUnit -
+    // only what actually left the bakery is billed (see
+    // orderPayment.repository.js).
+    pricePerUnit: numeric("price_per_unit", { precision: 12, scale: 2, mode: "number" }),
+
     createdAt: timestamp("created_at").defaultNow().notNull(),
 
     updatedAt: timestamp("updated_at").defaultNow().notNull(),

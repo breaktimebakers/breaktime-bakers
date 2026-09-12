@@ -1,10 +1,11 @@
-import { and, asc, count, desc, eq, gte, ilike, lte, ne, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, inArray, lte, ne, or, sql } from "drizzle-orm";
 import { v7 as uuidv7 } from "uuid";
 import { db } from "../../db/index.js";
 import { httpError } from "../../utils/httpError.js";
 import { todayIso } from "../../utils/dateRange.js";
 import { orders } from "./order.schema.js";
 import { orderItems } from "./orderItem.schema.js";
+import { orderPayments } from "./orderPayment.schema.js";
 import { stores } from "./store.schema.js";
 import { areas } from "./area.schema.js";
 import { workers } from "../workers/worker.schema.js";
@@ -24,7 +25,8 @@ const orderItemsSql = sql`COALESCE((
            'productName', p.name,
            'unit', p.unit,
            'quantity', oi.quantity,
-           'fulfilledQty', oi.fulfilled_qty
+           'fulfilledQty', oi.fulfilled_qty,
+           'pricePerUnit', oi.price_per_unit
          ) ORDER BY p.name)
   FROM order_items oi
   JOIN products p ON p.id = oi.product_id
@@ -196,12 +198,22 @@ export const createOrderWithItems = async ({ storeId, orderTakerId, items, notes
       notes: notes || null,
     });
 
+    // Snapshot each line's current catalog price onto the order item at
+    // creation time - the agreed price for this order, never re-derived
+    // from a later (possibly changed) products.pricePerUnit.
+    const productRows = await tx
+      .select({ id: products.id, pricePerUnit: products.pricePerUnit })
+      .from(products)
+      .where(inArray(products.id, items.map((line) => line.productId)));
+    const priceByProductId = new Map(productRows.map((p) => [p.id, p.pricePerUnit]));
+
     await tx.insert(orderItems).values(
       items.map((line) => ({
         id: uuidv7(),
         orderId: id,
         productId: line.productId,
         quantity: line.quantity,
+        pricePerUnit: priceByProductId.get(line.productId) ?? null,
       })),
     );
 
@@ -230,7 +242,7 @@ export const updateOrderStatus = async (id, status) => {
 // moves stock is the *delta* against what was already recorded - this is
 // what makes resubmitting the same value a no-op, an increase draw down
 // only the extra amount, and a correction downward hand quantity back.
-export const fulfillOrder = async (id, { status, fulfillmentDate, notes, items }) => {
+export const fulfillOrder = async (id, { status, fulfillmentDate, notes, items, amountCollected, collectedBy }) => {
   await db.transaction(async (tx) => {
     // Row-locks this order's items for the rest of the transaction, same
     // reasoning as consumeFifo in batch.repository.js - two concurrent
@@ -294,6 +306,36 @@ export const fulfillOrder = async (id, { status, fulfillmentDate, notes, items }
         quantity: -delta,
         reason: "sale",
         occurredAt,
+      });
+    }
+
+    // Optional - a delivery can be marked complete with nothing collected
+    // (order.validation.js). When given, billed is recomputed from the
+    // fulfilledQty values just written above (not what was already on the
+    // row before this call), so the check reflects what this exact
+    // fulfillment actually bills - same "reach into a sibling table inside
+    // the transaction" idiom already used above for readyStockMovements.
+    if (amountCollected) {
+      const [{ billed }] = await tx
+        .select({ billed: sql`COALESCE(SUM(${orderItems.fulfilledQty} * ${orderItems.pricePerUnit}), 0)`.mapWith(Number) })
+        .from(orderItems)
+        .where(eq(orderItems.orderId, id));
+      const [{ paid }] = await tx
+        .select({ paid: sql`COALESCE(SUM(${orderPayments.amount}), 0)`.mapWith(Number) })
+        .from(orderPayments)
+        .where(eq(orderPayments.orderId, id));
+
+      const balance = billed - paid;
+      if (amountCollected > balance) {
+        throw httpError(422, `Amount collected exceeds remaining balance of ₹${balance.toFixed(2)}`, "PAYMENT_EXCEEDS_BALANCE");
+      }
+
+      await tx.insert(orderPayments).values({
+        id: uuidv7(),
+        orderId: id,
+        amount: amountCollected,
+        collectedBy: collectedBy || null,
+        paymentDate: fulfillmentDate || todayIso(),
       });
     }
   });

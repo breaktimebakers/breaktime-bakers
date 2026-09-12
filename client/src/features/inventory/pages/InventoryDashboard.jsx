@@ -141,10 +141,10 @@ export default function InventoryDashboard() {
           </div>
         </div>
 
-        <div className="rounded-bakery border border-espresso/8 bg-proof-cream p-5 shadow-bakery">
+        <div className="flex flex-col rounded-bakery border border-espresso/8 bg-proof-cream p-5 shadow-bakery">
           <h3 className="font-display text-lg font-semibold text-espresso">Batches produced</h3>
           <p className="text-xs text-espresso/50">Last 7 days</p>
-          <div className="mt-4 h-48">
+          <div className="mt-4 h-48 flex-1">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={barData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(59,42,33,0.08)" vertical={false} />

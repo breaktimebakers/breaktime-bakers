@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { Wallet, Receipt, Truck, HandCoins, Landmark, TrendingUp, ArrowRight, Users, CircleDollarSign } from 'lucide-react'
-import { useFinance } from '@/features/finance/hooks'
+import { useFinance, useCustomerPaymentsOverview } from '@/features/finance/hooks'
 import { PageHeader, StatCard } from '@/components/shared'
 
 function NavCard({ to, icon: Icon, title, description, linkLabel }) {
@@ -54,7 +54,9 @@ function ProfitTrendChart({ data }) {
 }
 
 export default function FinanceOverview() {
-  const { getProfitAndLoss, outstandingSupplier, outstandingCustomer } = useFinance()
+  const { getProfitAndLoss, outstandingSupplier } = useFinance()
+  const { data: customerOverview } = useCustomerPaymentsOverview()
+  const outstandingCustomer = customerOverview?.outstanding || 0
   const now = new Date()
   const pnl = getProfitAndLoss(now.getFullYear(), now.getMonth())
   const totalOutstanding = outstandingSupplier + outstandingCustomer

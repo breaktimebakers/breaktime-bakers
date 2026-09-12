@@ -1,12 +1,25 @@
-import { useState } from 'react'
-import { Plus, ShoppingBag, Wallet, Check, AlertCircle, CreditCard } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { Plus, Search, ShoppingBag, Wallet, Check, AlertCircle, CreditCard } from 'lucide-react'
 import { useWalkInSales, useCreateWalkInSale, useSettleWalkInSale, useRecordWalkInSalePayment } from '@/features/sales/hooks'
 import { useReadyStock } from '@/features/inventory/hooks/useReadyStock'
 import { usePagination } from '@/hooks'
 import { Button, EmptyState, ErrorState, ExportMenu, Field, Modal, PageHeader, Pagination, StatCard, inputClass } from '@/components/shared'
-import { todayISO, formatDate, exportPDF, exportExcel } from '@/utils'
+import { todayISO, daysAgoISO, formatDate, exportPDF, exportExcel } from '@/utils'
 
 const PAGE_SIZE = 10
+
+const DATE_OPTIONS = [
+  ['all', 'All dates'],
+  ['today', 'Today'],
+  ['yesterday', 'Yesterday'],
+  ['specific', 'Specific date'],
+]
+
+const STATUS_PILL_OPTIONS = [
+  ['all', 'All'],
+  ['paid', 'Paid'],
+  ['partial', 'Partial'],
+]
 
 const emptyForm = () => ({ productId: '', quantity: '', amount: '', paymentStatus: 'paid', amountPaid: '', saleDate: todayISO() })
 
@@ -159,17 +172,44 @@ export default function WalkInSales() {
   const settleSale = useSettleWalkInSale()
   const [modalOpen, setModalOpen] = useState(false)
   const [paymentSale, setPaymentSale] = useState(null)
-  const { page, setPage, totalPages, start, end } = usePagination(sales.length, PAGE_SIZE)
-  const pagedSales = sales.slice(start, end)
+  const [search, setSearch] = useState('')
+  const [status, setStatus] = useState('all')
+  const [dateMode, setDateMode] = useState('all')
+  const [specificDate, setSpecificDate] = useState(todayISO())
+
+  const filteredSales = useMemo(() => {
+    const term = search.trim().toLowerCase()
+    const targetDate = dateMode === 'today' ? todayISO() : dateMode === 'yesterday' ? daysAgoISO(1) : dateMode === 'specific' ? specificDate : null
+    return sales.filter((s) => {
+      if (term && !s.productName.toLowerCase().includes(term)) return false
+      if (status !== 'all' && s.paymentStatus !== status) return false
+      if (targetDate && s.saleDate.slice(0, 10) !== targetDate) return false
+      return true
+    })
+  }, [sales, search, status, dateMode, specificDate])
+
+  const { page, setPage, totalPages, start, end } = usePagination(filteredSales.length, PAGE_SIZE, `${search}|${status}|${dateMode}|${specificDate}`)
+  const pagedSales = filteredSales.slice(start, end)
 
   const outstanding = sales.filter((s) => s.paymentStatus === 'partial').reduce((sum, s) => sum + Number(s.amount), 0)
   const paid = sales.filter((s) => s.paymentStatus === 'paid').reduce((sum, s) => sum + Number(s.amount), 0)
 
+  const summaryParts = []
+  if (dateMode !== 'all') summaryParts.push(dateMode === 'specific' ? specificDate : dateMode === 'today' ? 'Today' : 'Yesterday')
+  if (status !== 'all') summaryParts.push(status === 'paid' ? 'Paid' : 'Partial')
+  if (search) summaryParts.push(`"${search}"`)
+  const clearFilters = () => {
+    setSearch('')
+    setStatus('all')
+    setDateMode('all')
+    setSpecificDate(todayISO())
+  }
+
   const handleExportPDF = () => {
-    exportPDF({ title: 'Walk-in Sales', subtitle: 'Break Times Bakery', columns: EXPORT_COLUMNS, rows: sales.map(saleRow), filename: 'walk-in-sales.pdf' })
+    exportPDF({ title: 'Walk-in Sales', subtitle: 'BREAKTIME Bakery', columns: EXPORT_COLUMNS, rows: filteredSales.map(saleRow), filename: 'walk-in-sales.pdf' })
   }
   const handleExportExcel = () => {
-    exportExcel({ title: 'Walk-in Sales', subtitle: 'Break Times Bakery', columns: EXPORT_COLUMNS, rows: sales.map(saleRow), sheetName: 'Walk-in Sales', filename: 'walk-in-sales.xlsx' })
+    exportExcel({ title: 'Walk-in Sales', subtitle: 'BREAKTIME Bakery', columns: EXPORT_COLUMNS, rows: filteredSales.map(saleRow), sheetName: 'Walk-in Sales', filename: 'walk-in-sales.xlsx' })
   }
 
   return (
@@ -185,12 +225,45 @@ export default function WalkInSales() {
         <StatCard label="Paid" value={`₹${paid.toLocaleString('en-IN')}`} icon={Check} chipColor="bg-matcha-glaze/15 text-matcha-glaze" />
       </div>
 
+      <div className="mb-4 rounded-bakery border border-espresso/8 bg-proof-cream p-4 shadow-bakery">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:flex-wrap">
+          <label className="relative block min-w-0 flex-1 lg:flex-[1.4]">
+            <span className="sr-only">Search product</span>
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-espresso/35" />
+            <input className={inputClass + ' pl-9'} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search product…" />
+          </label>
+          <select className={`${inputClass} lg:w-36`} value={dateMode} onChange={(e) => setDateMode(e.target.value)}>
+            {DATE_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+          {dateMode === 'specific' && (
+            <input type="date" className={`${inputClass} lg:w-36`} value={specificDate} onChange={(e) => setSpecificDate(e.target.value)} />
+          )}
+          <div className="inline-flex flex-wrap rounded-full bg-crust p-0.5">
+            {STATUS_PILL_OPTIONS.map(([value, label]) => (
+              <button key={value} onClick={() => setStatus(value)} className={`rounded-full px-3 py-1 text-xs font-medium transition ${status === value ? 'bg-espresso text-crust' : 'text-espresso/60'}`}>{label}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <h2 className="font-display text-lg font-semibold text-espresso">{filteredSales.length} {filteredSales.length === 1 ? 'sale' : 'sales'}</h2>
+        {summaryParts.length > 0 && (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-oven-amber/10 px-3 py-1 text-xs text-espresso/70">
+            Showing: {summaryParts.join(' · ')}
+            <button onClick={clearFilters} className="text-oven-amber hover:underline">Clear filters</button>
+          </span>
+        )}
+      </div>
+
       {isError ? (
         <ErrorState description={error?.message} onRetry={refetch} />
       ) : isLoading ? (
         <p role="status" className="text-sm text-espresso/50">Loading walk-in sales…</p>
       ) : sales.length === 0 ? (
         <EmptyState icon={ShoppingBag} title="No walk-in sales yet" description="Record a counter sale to get started." />
+      ) : filteredSales.length === 0 ? (
+        <EmptyState icon={ShoppingBag} title="No sales match your filters" description="Try adjusting the search, date, or status." />
       ) : (
         <div className="overflow-hidden rounded-bakery border border-espresso/8 bg-proof-cream shadow-bakery">
           <div className="overflow-x-auto">
@@ -245,7 +318,7 @@ export default function WalkInSales() {
               </tbody>
             </table>
           </div>
-          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={sales.length} pageSize={PAGE_SIZE} />
+          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={filteredSales.length} pageSize={PAGE_SIZE} />
         </div>
       )}
 

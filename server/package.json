@@ -12,6 +12,7 @@
     "db:seed-admins": "node src/scripts/seedAdmins.js",
     "db:seed-demo": "node src/scripts/seedDemoData.js",
     "db:seed-today": "node src/scripts/seedToday.js",
+    "db:backfill-order-item-prices": "node src/scripts/backfillOrderItemPrices.js",
     "db:clean": "node src/scripts/cleanDb.js",
     "db:clean:sessions": "node src/scripts/cleanDb.js sessions"
   },

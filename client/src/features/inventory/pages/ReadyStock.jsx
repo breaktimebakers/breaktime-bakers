@@ -79,7 +79,7 @@ export default function ReadyStock() {
     })
 
     exportPDF({
-      title: 'Ready Stock', subtitle: 'Break Times Bakery',
+      title: 'Ready Stock', subtitle: 'BREAKTIME Bakery',
       columns: ['Product', 'Qty', 'Unit price', 'Value'],
       rows: readyStock.map((r) => [r.name, `${r.availableQty} ${r.unit}`, formatCurrency(r.pricePerUnit), formatCurrency(r.totalValue)]),
       extraTable,

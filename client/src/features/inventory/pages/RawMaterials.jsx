@@ -142,7 +142,7 @@ export default function RawMaterials() {
     const total = all.reduce((sum, m) => sum + Number(m.stockQty || 0) * Number(m.nextLotRate || 0), 0)
     exportPDF({
       title: 'Raw Materials',
-      subtitle: 'Break Times Bakery',
+      subtitle: 'BREAKTIME Bakery',
       columns: ['Material', 'Unit', 'Stock', 'Low-stock at', 'Next lot rate', 'Amount'],
       rows: all.map((m) => {
         const amount = Number(m.stockQty || 0) * Number(m.nextLotRate || 0)
@@ -157,7 +157,7 @@ export default function RawMaterials() {
     const total = all.reduce((sum, m) => sum + Number(m.stockQty || 0) * Number(m.nextLotRate || 0), 0)
     exportExcel({
       title: 'Raw Materials',
-      subtitle: 'Break Times Bakery',
+      subtitle: 'BREAKTIME Bakery',
       columns: ['Material', 'Unit', 'Stock', 'Low-stock at', 'Next lot rate', 'Amount'],
       rows: all.map((m) => {
         const rate = Number(m.nextLotRate || 0)

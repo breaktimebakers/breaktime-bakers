@@ -8,7 +8,7 @@ import { useDeliveryStatus } from '@/features/delivery/hooks'
 import { deliveryApi } from '@/features/delivery/api/deliveryApi'
 import { daysAgoISO, formatDateShort, isReversedRange, todayISO, exportPDF, exportExcel } from '@/utils'
 
-const PAGE_SIZE = 6
+const PAGE_SIZE = 10
 
 const DATE_OPTIONS = [
   ['today', 'Today'],
@@ -116,7 +116,7 @@ export function DeliveryStatusTable() {
     const all = await fetchAllFilteredRows()
     exportPDF({
       title: 'Delivery Status',
-      subtitle: 'Break Times Bakery',
+      subtitle: 'BREAKTIME Bakery',
       columns: ['Date', 'Store', 'Area', 'Delivery Guy', 'Orders', 'Status', 'Updated'],
       rows: all.map(statusRow),
       filename: 'delivery-status.pdf',
@@ -127,7 +127,7 @@ export function DeliveryStatusTable() {
     const all = await fetchAllFilteredRows()
     exportExcel({
       title: 'Delivery Status',
-      subtitle: 'Break Times Bakery',
+      subtitle: 'BREAKTIME Bakery',
       columns: ['Date', 'Store', 'Area', 'Delivery Guy', 'Orders', 'Status', 'Updated'],
       rows: all.map(statusRow),
       sheetName: 'Delivery Status',
@@ -250,7 +250,6 @@ export function DeliveryStatusTable() {
                     <td className="px-4 py-3 font-mono text-xs text-espresso/50">{row.date}</td>
                     <td className="px-4 py-3">
                       <p className="font-medium text-espresso">{row.storeName}</p>
-                      <p className="mt-0.5 font-mono text-[10px] text-espresso/40">{row.storeId}</p>
                     </td>
                     <td className="px-4 py-3 text-espresso/65">{row.areaName}</td>
                     <td className="px-4 py-3 text-espresso/65">{row.driverName}</td>

@@ -8,7 +8,8 @@ export function FillOrderModal({ open, onClose, order }) {
   const { data: stores = [] } = useAllStores()
   const { data: workers = [] } = useWorkers()
   const fulfillOrder = useFulfillOrder()
-  const [form, setForm] = useState({ status: 'delivered', fulfillmentDate: todayISO(), notes: '', items: [] })
+  const drivers = workers.filter((w) => w.roles?.includes('delivery'))
+  const [form, setForm] = useState({ status: 'delivered', fulfillmentDate: todayISO(), notes: '', items: [], amountCollected: '', collectedBy: '' })
 
   useEffect(() => {
     if (order) {
@@ -24,6 +25,8 @@ export function FillOrderModal({ open, onClose, order }) {
         status: isFirstFulfillment ? 'delivered' : order.status,
         fulfillmentDate: isFirstFulfillment ? todayISO() : order.fulfillmentDate,
         notes: order.notes || '',
+        amountCollected: '',
+        collectedBy: '',
         items: (order.items || []).map((it) => ({
           itemId: it.id,
           productName: it.productName,
@@ -67,7 +70,11 @@ export function FillOrderModal({ open, onClose, order }) {
     ? 'Cannot mark delivered with no fulfilled quantity.'
     : ''
 
-  const hasError = hasQuantityError || Boolean(dateError) || Boolean(statusError)
+  const amountCollectedError = form.amountCollected !== '' && (!Number.isFinite(Number(form.amountCollected)) || Number(form.amountCollected) <= 0)
+    ? 'Enter an amount greater than 0, or leave it blank.'
+    : ''
+
+  const hasError = hasQuantityError || Boolean(dateError) || Boolean(statusError) || Boolean(amountCollectedError)
 
   const submit = async () => {
     if (hasError) return
@@ -80,6 +87,8 @@ export function FillOrderModal({ open, onClose, order }) {
           fulfillmentDate: form.fulfillmentDate,
           notes: form.notes || undefined,
           items: form.items.map((ln) => ({ itemId: ln.itemId, fulfilledQty: Number(ln.fulfilledQty) })),
+          amountCollected: form.amountCollected !== '' ? Number(form.amountCollected) : undefined,
+          collectedBy: form.collectedBy || undefined,
         },
       })
       onClose()
@@ -154,6 +163,26 @@ export function FillOrderModal({ open, onClose, order }) {
         <div className="col-span-2">
           <Field label="Notes"><textarea className={`${inputClass} min-h-[80px] resize-y`} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></Field>
         </div>
+        <Field label="Amount collected (₹)">
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            aria-invalid={Boolean(amountCollectedError)}
+            aria-describedby={amountCollectedError ? 'fulfillment-amount-collected-error' : undefined}
+            className={inputClass}
+            value={form.amountCollected}
+            onChange={(e) => setForm({ ...form, amountCollected: e.target.value })}
+            placeholder="Optional - leave blank if nothing collected"
+          />
+          {amountCollectedError && <p id="fulfillment-amount-collected-error" role="alert" className="mt-1 text-xs text-cherry-compote">{amountCollectedError}</p>}
+        </Field>
+        <Field label="Collected by">
+          <select className={inputClass} value={form.collectedBy} onChange={(e) => setForm({ ...form, collectedBy: e.target.value })}>
+            <option value="">Select driver...</option>
+            {drivers.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
+        </Field>
       </div>
     </Modal>
   )

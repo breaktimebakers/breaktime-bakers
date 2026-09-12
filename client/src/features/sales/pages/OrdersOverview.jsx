@@ -16,6 +16,17 @@ import { OrderProductsTable } from '../components/OrderProductsTable'
 
 const PAGE_SIZE = 8
 
+const getOrderTotal = (items = []) => {
+  if (items.some((item) => item.pricePerUnit === null || item.pricePerUnit === undefined)) return null
+
+  return items.reduce((total, item) => total + Number(item.quantity) * Number(item.pricePerUnit), 0)
+}
+
+const formatCurrency = (value) => `₹${Number(value).toLocaleString('en-IN', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})}`
+
 export default function OrdersOverview() {
   const { areaId } = useParams({ strict: false })
   // Deep-link params from the Delivery Status table ("View orders" on a
@@ -137,16 +148,17 @@ export default function OrdersOverview() {
     const area = areas.find((a) => a.id === store?.areaId)
     const items = o.items || []
     const totalQty = items.reduce((s, it) => s + it.quantity, 0)
+    const totalAmount = getOrderTotal(items)
     const productsLabel = items.length === 0 ? '—' : items.map((it) => `${it.productName} (${it.quantity})`).join(', ')
-    return [store?.dealerName || '—', area?.name || '—', o.otName || '—', productsLabel, totalQty, ORDER_STATUS[o.status]?.label || o.status, formatDateShort(o.orderDate)]
+    return [store?.dealerName || '—', area?.name || '—', o.otName || '—', productsLabel, totalQty, totalAmount === null ? '—' : formatCurrency(totalAmount), ORDER_STATUS[o.status]?.label || o.status, formatDateShort(o.orderDate)]
   }
 
   const handleExportPDF = async () => {
     const all = await fetchAllFilteredOrders()
     exportPDF({
       title: 'Orders',
-      subtitle: 'Break Times Bakery',
-      columns: ['Store', 'Area', 'Order Taker', 'Products', 'Qty', 'Status', 'Date'],
+      subtitle: 'BREAKTIME Bakery',
+      columns: ['Store', 'Area', 'Order Taker', 'Products', 'Qty', 'Total Amount', 'Status', 'Date'],
       rows: all.map(orderRow),
       filename: 'orders.pdf',
       orientation: 'landscape',
@@ -156,8 +168,8 @@ export default function OrdersOverview() {
     const all = await fetchAllFilteredOrders()
     exportExcel({
       title: 'Orders',
-      subtitle: 'Break Times Bakery',
-      columns: ['Store', 'Area', 'Order Taker', 'Products', 'Qty', 'Status', 'Date'],
+      subtitle: 'BREAKTIME Bakery',
+      columns: ['Store', 'Area', 'Order Taker', 'Products', 'Qty', 'Total Amount', 'Status', 'Date'],
       rows: all.map(orderRow),
       sheetName: 'Orders',
       filename: 'orders.xlsx',
@@ -255,7 +267,7 @@ export default function OrdersOverview() {
       ) : (
         <div className="overflow-hidden rounded-bakery border border-espresso/8 bg-proof-cream shadow-bakery">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[800px] text-sm">
+            <table className="w-full min-w-[950px] text-sm">
               <thead>
                 <tr className="border-b border-espresso/10 bg-crust/30 text-left">
                   <th scope="col" className="w-10 px-2 py-3"><span className="sr-only">Order products</span></th>
@@ -264,6 +276,7 @@ export default function OrdersOverview() {
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Order Taker</th>
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Products</th>
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Qty</th>
+                  <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-espresso/50">Total Amount</th>
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Status</th>
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Date</th>
                   <th className="px-4 py-3 text-right font-mono text-[10px] uppercase tracking-wider text-espresso/50">Actions</th>
@@ -276,6 +289,7 @@ export default function OrdersOverview() {
                   const cfg = ORDER_STATUS[o.status]
                   const items = o.items || []
                   const totalQty = items.reduce((s, it) => s + it.quantity, 0)
+                  const totalAmount = getOrderTotal(items)
                   const expandable = items.length > 1
                   const isExpanded = expandable && expandedIds.has(o.id)
                   return (
@@ -302,6 +316,9 @@ export default function OrdersOverview() {
                           {items.length === 0 ? '—' : items.length === 1 ? items[0].productName : `${items[0].productName} +${items.length - 1} more`}
                         </td>
                         <td className="px-4 py-3 font-mono text-espresso">{totalQty}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-right font-mono font-semibold text-espresso">
+                          {totalAmount === null ? '—' : formatCurrency(totalAmount)}
+                        </td>
                         <td className="px-4 py-3"><span className={`inline-flex items-center gap-1 text-xs ${cfg.color}`}><cfg.icon className="h-3.5 w-3.5" />{cfg.label}</span></td>
                         <td className="px-4 py-3 text-espresso/60">{formatDateShort(o.orderDate)}</td>
                         <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
@@ -313,7 +330,7 @@ export default function OrdersOverview() {
                       </tr>
                       {isExpanded && (
                         <tr className="border-b border-espresso/8 bg-crust/20 last:border-0">
-                          <td colSpan={9} className="px-4 py-4">
+                          <td colSpan={10} className="px-4 py-4">
                             <OrderProductsTable order={{ ...o, storeName: store?.dealerName, totalQty }} id={`area-order-products-${o.id}`} />
                           </td>
                         </tr>

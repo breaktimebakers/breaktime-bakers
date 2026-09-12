@@ -250,7 +250,7 @@ const seedTodayWalkInSales = async (date) => {
 
 // ------------------------------------------------------------------ run
 const run = async () => {
-  const date = today();
+  const date = process.argv[2] || today();
   console.log(`Seeding today's data for ${date}...`);
   await seedTodayAttendance(date);
   await seedTodayDriverAssignments(date);
