@@ -34,11 +34,17 @@ const app = express();
 // letting an external client spoof the header to bypass it.
 app.set("trust proxy", "loopback");
 
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://breaktimebakers.in",
+  "https://www.breaktimebakers.in",
+];
+
 app.use(
   cors({
-    origin: env.FRONTEND_URL,
+    origin: allowedOrigins,
     credentials: true,
-  }),
+  })
 );
 app.use(express.json());
 app.use(requestLogger);
