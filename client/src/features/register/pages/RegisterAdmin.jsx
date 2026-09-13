@@ -1,9 +1,86 @@
 import { useState } from 'react'
-import { Eye, EyeOff, UserPlus, AlertCircle } from 'lucide-react'
-import { PageHeader, Field, inputClass, Button } from '@/components/shared'
-import { useCreateAdmin } from '../hooks/useRegisterMutations'
+import { Eye, EyeOff, UserPlus, AlertCircle, KeyRound, Trash2, ShieldUser } from 'lucide-react'
+import { PageHeader, Field, inputClass, Button, ConfirmModal, EmptyState, ErrorState } from '@/components/shared'
+import { useAuth } from '@/features/auth/hooks'
+import { useAdmins } from '../hooks/useAdmins'
+import { useCreateAdmin, useDeleteAdmin } from '../hooks/useRegisterMutations'
+import { ChangeAdminPasswordModal } from '../components/ChangeAdminPasswordModal'
 
 const emptyForm = { name: '', email: '', password: '' }
+
+function AdminsList() {
+  const { currentUser } = useAuth()
+  const { data: admins = [], isLoading, isError, isFetching, refetch } = useAdmins()
+  const { mutateAsync: deleteAdmin, isPending: isDeleting } = useDeleteAdmin()
+  const [passwordTarget, setPasswordTarget] = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+
+  const handleDelete = async () => {
+    await deleteAdmin(deleteTarget.id)
+    setDeleteTarget(null)
+  }
+
+  return (
+    <div className="mt-8">
+      <h2 className="mb-3 font-display text-lg font-semibold text-espresso">All Admins</h2>
+
+      {isError ? (
+        <ErrorState description="Could not load admins." onRetry={refetch} retrying={isFetching} />
+      ) : isLoading ? (
+        <p role="status" className="py-8 text-center text-sm text-espresso/50">Loading admins…</p>
+      ) : admins.length === 0 ? (
+        <EmptyState icon={ShieldUser} title="No admins yet" description="Admins you create will show up here." />
+      ) : (
+        <div className="max-w-2xl divide-y divide-espresso/10 rounded-bakery border border-espresso/10 bg-proof-cream shadow-bakery">
+          {admins.map((admin) => {
+            const isSelf = admin.id === currentUser?.id
+            return (
+              <div key={admin.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-espresso">
+                    {admin.name}
+                    {isSelf && <span className="ml-2 rounded-full bg-oven-amber/15 px-2 py-0.5 text-xs font-normal text-oven-amber">You</span>}
+                  </p>
+                  <p className="truncate text-xs text-espresso/50">{admin.email}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Button size="sm" variant="secondary" onClick={() => setPasswordTarget(admin)}>
+                    <KeyRound className="h-3.5 w-3.5" />
+                    Change password
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    disabled={isSelf}
+                    title={isSelf ? "You can't delete your own account" : undefined}
+                    onClick={() => setDeleteTarget(admin)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {passwordTarget && (
+        <ChangeAdminPasswordModal admin={passwordTarget} onClose={() => setPasswordTarget(null)} />
+      )}
+
+      <ConfirmModal
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        isLoading={isDeleting}
+        title="Danger zone"
+        confirmLabel="Delete admin"
+        description={deleteTarget && `This permanently deletes ${deleteTarget.name}'s (${deleteTarget.email}) admin login and signs them out everywhere. This cannot be undone.`}
+      />
+    </div>
+  )
+}
 
 export default function RegisterAdmin() {
   const { mutateAsync: createAdmin, isPending } = useCreateAdmin()
@@ -96,6 +173,8 @@ export default function RegisterAdmin() {
           </Button>
         </form>
       </div>
+
+      <AdminsList />
     </div>
   )
 }

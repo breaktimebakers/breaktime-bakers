@@ -12,6 +12,11 @@ export const ENDPOINTS = {
     refreshToken: '/auth/refresh-token',
     me: '/auth/me',
   },
+  admins: {
+    list: '/admins',
+    remove: (id) => `/admins/${id}`,
+    changePassword: (id) => `/admins/${id}/password`,
+  },
   rawMaterials: {
     list: '/raw-materials',
     create: '/raw-materials',

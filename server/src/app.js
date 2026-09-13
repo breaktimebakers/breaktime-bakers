@@ -4,6 +4,7 @@ import cookieParser from "cookie-parser";
 
 import { env } from "./config/env.js";
 import authRoutes from "./modules/auth/auth.routes.js";
+import adminRoutes from "./modules/users/user.routes.js";
 import rawMaterialRoutes from "./modules/inventory/rawMaterial.routes.js";
 import batchRoutes from "./modules/inventory/batch.routes.js";
 import readyStockRoutes from "./modules/inventory/readyStock.routes.js";
@@ -51,6 +52,7 @@ app.use(requestLogger);
 app.use(cookieParser());
 
 app.use("/api/auth", authRoutes);
+app.use("/api/admins", adminRoutes);
 app.use("/api/raw-materials", rawMaterialRoutes);
 app.use("/api/batches", batchRoutes);
 app.use("/api/ready-stock", readyStockRoutes);
