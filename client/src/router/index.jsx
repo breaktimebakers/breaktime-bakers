@@ -9,6 +9,7 @@ import { salesRoutes } from '@/features/sales/routes'
 import { deliveryRoutes } from '@/features/delivery/routes'
 import { workersRoutes } from '@/features/workers/routes'
 import { financeRoutes } from '@/features/finance/routes'
+import { registerRoutes } from '@/features/register/routes'
 
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -26,6 +27,7 @@ const routeTree = rootRoute.addChildren([
     ...deliveryRoutes,
     ...workersRoutes,
     ...financeRoutes,
+    ...registerRoutes,
   ]),
 ])
 

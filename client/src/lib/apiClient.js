@@ -25,7 +25,11 @@ export class ApiError extends Error {
 }
 
 // Paths that must never trigger the refresh flow, or we'd loop.
-const AUTH_EXEMPT_PATHS = new Set(["/auth/login", "/auth/register", "/auth/refresh-token"]);
+// /auth/register is NOT exempt: creating another admin is itself an
+// authenticated action (requires an existing admin session), so a
+// register call that hits a stale/expired access token should go through
+// the same silent refresh-then-retry as any other protected request.
+const AUTH_EXEMPT_PATHS = new Set(["/auth/login", "/auth/refresh-token"]);
 
 let refreshPromise = null;
 

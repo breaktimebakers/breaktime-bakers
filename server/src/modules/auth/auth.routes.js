@@ -2,6 +2,7 @@ import { Router } from "express";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import { validate } from "../../middlewares/validate.js";
 import { requireAuth } from "../../middlewares/requireAuth.js";
+import { requireRole } from "../../middlewares/requireRole.js";
 import { createRateLimiter } from "../../utils/rateLimiter.js";
 import { registerSchema, loginSchema } from "./auth.validation.js";
 import * as authController from "./auth.controller.js";
@@ -26,8 +27,12 @@ const loginLimiter = createRateLimiter({
 
 router.use(authLimiter);
 
+// Not a public sign-up route: this app is admin-only, and the only way
+// to create another admin login is to already be one.
 router.post(
   "/register",
+  requireAuth,
+  requireRole("admin"),
   validate(registerSchema),
   asyncHandler(authController.register),
 );

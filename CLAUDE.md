@@ -25,10 +25,7 @@ for file storage via `@aws-sdk/client-s3`.
 cd server && npm run dev          # nodemon src/server.js, port from .env
 cd server && npm run db:push      # drizzle-kit push (no migration files, direct push)
 cd server && npm run db:studio    # drizzle-kit studio
-cd server && npm run db:seed-admins # idempotent - creates admin login(s)
-cd server && npm run db:seed-demo # idempotent, run after db:seed-admins - large realistic dataset
-                                   # (200+ stores, orders, batches, workers, finance) sized to stress
-                                   # the UI at real scale, not just enough rows to prove a page renders
+cd server && npm run db:seed-admins # idempotent - creates the bootstrap admin login
 
 # client
 cd client && npm run dev          # vite, http://localhost:5173

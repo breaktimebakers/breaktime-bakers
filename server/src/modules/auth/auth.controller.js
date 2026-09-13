@@ -13,12 +13,14 @@ const requestMeta = (req) => ({
   ipAddress: req.ip ?? null,
 });
 
+// Creates another admin login. Deliberately does not touch auth cookies -
+// the caller is already a logged-in admin creating a *different* user, so
+// setting cookies here would log the new account in on the caller's own
+// browser and clobber their session.
 export const register = async (req, res) => {
-  const result = await authService.registerUser(req.body, requestMeta(req));
+  const user = await authService.registerUser(req.body);
 
-  setAuthCookies(res, result.accessToken, result.refreshToken);
-
-  sendResponse(res, 201, "User registered successfully!", { user: result.user });
+  sendResponse(res, 201, "Admin created successfully!", { user });
 };
 
 export const login = async (req, res) => {

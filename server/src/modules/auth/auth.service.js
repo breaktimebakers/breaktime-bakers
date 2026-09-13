@@ -44,7 +44,9 @@ const startSession = async (userId, meta) => {
   return { accessToken, refreshToken };
 };
 
-export const registerUser = async (body, meta) => {
+// Creates another admin login. No session is started for it - the
+// account is created by an already-logged-in admin, not signing itself in.
+export const registerUser = async (body) => {
   const existingUser = await findUserByEmail(body.email);
 
   if (existingUser) {
@@ -61,17 +63,11 @@ export const registerUser = async (body, meta) => {
     password: hashedPassword,
   });
 
-  const { accessToken, refreshToken } = await startSession(userId, meta);
-
   return {
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-    },
-    accessToken,
-    refreshToken,
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
   };
 };
 

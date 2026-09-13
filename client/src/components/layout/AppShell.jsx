@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { Link, useLocation, useNavigate } from '@tanstack/react-router'
-import { Warehouse, Wheat, CookingPot, PackageCheck, Receipt, MapPin, ClipboardList, Users, Truck, UserRound, Wallet, X, Menu, CalendarCheck, LogOut, HandCoins, Landmark, TrendingUp, Search, ShoppingBag } from 'lucide-react'
+import { Warehouse, Wheat, CookingPot, PackageCheck, Receipt, MapPin, ClipboardList, Users, Truck, UserRound, Wallet, X, Menu, CalendarCheck, LogOut, HandCoins, Landmark, TrendingUp, Search, ShoppingBag, UserPlus, ShieldCheck } from 'lucide-react'
 import { ConfirmModal } from '@/components/shared'
 import { useAuth } from '@/features/auth/hooks'
 
@@ -49,6 +49,13 @@ const navConfig = [
       { label: 'Customer Payments', path: '/finance/customer-payments', icon: HandCoins },
       { label: 'Taxes', path: '/finance/taxes', icon: Landmark },
       { label: 'Profit & Loss', path: '/finance/profit-loss', icon: TrendingUp },
+    ],
+  },
+  {
+    label: 'Register', icon: UserPlus, path: '/register',
+    children: [
+      { label: 'New Admin', path: '/register/admin', icon: ShieldCheck },
+      { label: 'Staff', path: '/register/staff', icon: Users },
     ],
   },
 ]
