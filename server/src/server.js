@@ -8,7 +8,7 @@ const startServer = async () => {
     await db.execute(sql`SELECT 1`);
     console.log("Database Connected");
 
-    app.listen(env.PORT, () => {
+    app.listen(env.PORT, "127.0.0.1",() => {
       console.log(`Server is running on ${env.PORT}`);
     });
   } catch (err) {
