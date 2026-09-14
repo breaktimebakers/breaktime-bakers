@@ -34,6 +34,11 @@ export const walkInSales = pgTable(
 
     saleDate: date("sale_date", { mode: "string" }).notNull(),
 
+    // Optional, only ever collected for a "partial" sale (so there's
+    // someone to follow up with for the balance) - null for a "paid" sale.
+    customerName: varchar("customer_name", { length: 120 }),
+    customerPhone: varchar("customer_phone", { length: 20 }),
+
     createdAt: timestamp("created_at").defaultNow().notNull(),
 
     updatedAt: timestamp("updated_at").defaultNow().notNull(),

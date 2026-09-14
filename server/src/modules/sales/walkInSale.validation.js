@@ -26,6 +26,11 @@ export const createWalkInSaleSchema = z
     // the service always sets amountPaid = amount for a "paid" sale.
     amountPaid: z.coerce.number().nonnegative("Amount paid cannot be negative").optional(),
     saleDate: isoDate,
+    // Optional even for a partial sale - only collected so there's someone
+    // to follow up with for the balance. Ignored for a "paid" sale, same
+    // as amountPaid above.
+    customerName: z.string().trim().max(120, "Name is too long").optional(),
+    customerPhone: z.string().trim().max(20, "Number is too long").optional(),
   })
   .refine((body) => body.paymentStatus !== "partial" || body.amountPaid !== undefined, {
     message: "Amount paid is required for a partial payment",

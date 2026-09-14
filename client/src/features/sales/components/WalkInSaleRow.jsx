@@ -16,6 +16,11 @@ export function WalkInSaleRow({ sale, onSettle }) {
             {new Date(sale.saleDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
             {' · '}{sale.quantity} {sale.unit}
           </p>
+          {(sale.customerName || sale.customerPhone) && (
+            <p className="mt-0.5 truncate text-xs text-espresso/50">
+              {[sale.customerName, sale.customerPhone].filter(Boolean).join(' · ')}
+            </p>
+          )}
         </div>
         <div className="text-right">
           <p className="font-mono font-semibold text-espresso">₹{Number(sale.amount).toLocaleString('en-IN')}</p>

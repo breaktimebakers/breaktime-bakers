@@ -16,6 +16,8 @@ const walkInSaleSelection = {
   amountPaid: walkInSales.amountPaid,
   paymentStatus: walkInSales.paymentStatus,
   saleDate: walkInSales.saleDate,
+  customerName: walkInSales.customerName,
+  customerPhone: walkInSales.customerPhone,
   createdAt: walkInSales.createdAt,
   updatedAt: walkInSales.updatedAt,
 };
@@ -36,9 +38,22 @@ export const findWalkInSaleById = async (id) => {
 // lock the product row so two concurrent counter sales can't both read the
 // same available balance, then insert a negative ready_stock_movements row
 // alongside the walk-in sale row in one transaction.
-export const createWalkInSale = async ({ productId, quantity, amount, paymentStatus, amountPaid, saleDate }) => {
+export const createWalkInSale = async ({
+  productId,
+  quantity,
+  amount,
+  paymentStatus,
+  amountPaid,
+  saleDate,
+  customerName,
+  customerPhone,
+}) => {
   const id = uuidv7();
   const resolvedAmountPaid = paymentStatus === "partial" ? amountPaid : amount;
+  // Customer details are only ever relevant for following up on a balance -
+  // don't persist them against a sale that was paid in full.
+  const resolvedCustomerName = paymentStatus === "partial" ? customerName || null : null;
+  const resolvedCustomerPhone = paymentStatus === "partial" ? customerPhone || null : null;
 
   await db.transaction(async (tx) => {
     const [product] = await tx.select({ id: products.id }).from(products).where(eq(products.id, productId)).for("update");
@@ -64,7 +79,17 @@ export const createWalkInSale = async ({ productId, quantity, amount, paymentSta
       occurredAt: new Date(),
     });
 
-    await tx.insert(walkInSales).values({ id, productId, quantity, amount, paymentStatus, amountPaid: resolvedAmountPaid, saleDate });
+    await tx.insert(walkInSales).values({
+      id,
+      productId,
+      quantity,
+      amount,
+      paymentStatus,
+      amountPaid: resolvedAmountPaid,
+      saleDate,
+      customerName: resolvedCustomerName,
+      customerPhone: resolvedCustomerPhone,
+    });
   });
 
   return findWalkInSaleById(id);

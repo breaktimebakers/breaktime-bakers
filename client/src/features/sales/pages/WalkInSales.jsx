@@ -21,7 +21,7 @@ const STATUS_PILL_OPTIONS = [
   ['partial', 'Partial'],
 ]
 
-const emptyForm = () => ({ productId: '', quantity: '', amount: '', paymentStatus: 'paid', amountPaid: '', saleDate: todayISO() })
+const emptyForm = () => ({ productId: '', quantity: '', amount: '', paymentStatus: 'paid', amountPaid: '', customerName: '', customerPhone: '', saleDate: todayISO() })
 
 function AddWalkInSaleModal({ open, onClose, products }) {
   const createSale = useCreateWalkInSale()
@@ -79,9 +79,17 @@ function AddWalkInSaleModal({ open, onClose, products }) {
           </select>
         </Field>
         {isPartial && (
-          <Field label="Amount paid now (₹)" required>
-            <input type="number" className={inputClass} value={form.amountPaid} onChange={(e) => setForm({ ...form, amountPaid: e.target.value })} placeholder="0" max={form.amount || undefined} />
-          </Field>
+          <>
+            <Field label="Amount paid now (₹)" required>
+              <input type="number" className={inputClass} value={form.amountPaid} onChange={(e) => setForm({ ...form, amountPaid: e.target.value })} placeholder="0" max={form.amount || undefined} />
+            </Field>
+            <Field label="Customer name (optional)">
+              <input type="text" className={inputClass} value={form.customerName} onChange={(e) => setForm({ ...form, customerName: e.target.value })} placeholder="Who owes the balance?" />
+            </Field>
+            <Field label="Customer phone (optional)">
+              <input type="tel" className={inputClass} value={form.customerPhone} onChange={(e) => setForm({ ...form, customerPhone: e.target.value })} placeholder="Phone number" />
+            </Field>
+          </>
         )}
         <Field label="Date" required>
           <input type="date" className={inputClass} value={form.saleDate} onChange={(e) => setForm({ ...form, saleDate: e.target.value })} />
@@ -162,9 +170,10 @@ const saleRow = (s) => {
     isPaid ? 'Paid' : 'Partial',
     isPaid ? '—' : `₹${Number(s.amountPaid || 0).toLocaleString('en-IN')}`,
     isPaid ? '—' : `₹${balance.toLocaleString('en-IN')}`,
+    [s.customerName, s.customerPhone].filter(Boolean).join(' · ') || '—',
   ]
 }
-const EXPORT_COLUMNS = ['Product', 'Date', 'Quantity', 'Amount', 'Status', 'Paid', 'Balance']
+const EXPORT_COLUMNS = ['Product', 'Date', 'Quantity', 'Amount', 'Status', 'Paid', 'Balance', 'Customer']
 
 export default function WalkInSales() {
   const { data: sales = [], isLoading, isError, error, refetch } = useWalkInSales()
@@ -285,7 +294,14 @@ export default function WalkInSales() {
                   const balance = Number(s.amount) - Number(s.amountPaid || 0)
                   return (
                     <tr key={s.id} className="border-b border-espresso/8 last:border-0 hover:bg-crust/20">
-                      <td className="px-4 py-3 font-medium text-espresso">{s.productName}</td>
+                      <td className="px-4 py-3 font-medium text-espresso">
+                        {s.productName}
+                        {(s.customerName || s.customerPhone) && (
+                          <p className="mt-0.5 text-xs font-normal text-espresso/50">
+                            {[s.customerName, s.customerPhone].filter(Boolean).join(' · ')}
+                          </p>
+                        )}
+                      </td>
                       <td className="px-4 py-3 font-mono text-xs text-espresso/60">{formatDate(s.saleDate)}</td>
                       <td className="px-4 py-3 text-espresso/70">{s.quantity} {s.unit}</td>
                       <td className="px-4 py-3 text-right font-mono font-semibold text-espresso">₹{Number(s.amount).toLocaleString('en-IN')}</td>
