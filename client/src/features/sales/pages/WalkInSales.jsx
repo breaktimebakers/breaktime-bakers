@@ -200,7 +200,7 @@ export default function WalkInSales() {
   const { page, setPage, totalPages, start, end } = usePagination(filteredSales.length, PAGE_SIZE, `${search}|${status}|${dateMode}|${specificDate}`)
   const pagedSales = filteredSales.slice(start, end)
 
-  const outstanding = sales.filter((s) => s.paymentStatus === 'partial').reduce((sum, s) => sum + Number(s.amount), 0)
+  const outstanding = sales.filter((s) => s.paymentStatus === 'partial').reduce((sum, s) => sum + (Number(s.amount) - Number(s.amountPaid || 0)), 0)
   const paid = sales.filter((s) => s.paymentStatus === 'paid').reduce((sum, s) => sum + Number(s.amount), 0)
 
   const summaryParts = []
