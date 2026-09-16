@@ -10,10 +10,13 @@ export default function CustomerPayments() {
   const { data: overview } = useCustomerPaymentsOverview()
   const { data: walkInSales = [] } = useWalkInSales()
 
-  const outstanding = overview?.outstanding || 0
-  const paid = overview?.paid || 0
   const walkInOutstanding = sumWalkInOutstanding(walkInSales)
   const walkInPaid = sumWalkInPaid(walkInSales)
+  // Store/area orders plus counter sales - the top cards are the total
+  // across every customer channel, not just stores (the Areas grid below
+  // already breaks that total back out by area, walk-in included).
+  const outstanding = (overview?.outstanding || 0) + walkInOutstanding
+  const paid = (overview?.paid || 0) + walkInPaid
 
   return (
     <div>
