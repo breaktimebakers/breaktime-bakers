@@ -201,7 +201,7 @@ export default function WalkInSales() {
   const pagedSales = filteredSales.slice(start, end)
 
   const outstanding = sales.filter((s) => s.paymentStatus === 'partial').reduce((sum, s) => sum + (Number(s.amount) - Number(s.amountPaid || 0)), 0)
-  const paid = sales.filter((s) => s.paymentStatus === 'paid').reduce((sum, s) => sum + Number(s.amount), 0)
+  const paid = sales.reduce((sum, s) => sum + (s.paymentStatus === 'paid' ? Number(s.amount) : Number(s.amountPaid || 0)), 0)
 
   const summaryParts = []
   if (dateMode !== 'all') summaryParts.push(dateMode === 'specific' ? specificDate : dateMode === 'today' ? 'Today' : 'Yesterday')
