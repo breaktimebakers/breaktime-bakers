@@ -4,4 +4,5 @@ import { ENDPOINTS } from '@/constants/ENDPOINTS'
 export const batchApi = {
   list: (query) => apiClient.get(ENDPOINTS.batches.list, { query }),
   create: (body) => apiClient.post(ENDPOINTS.batches.create, body),
+  update: (id, body) => apiClient.patch(ENDPOINTS.batches.update(id), body),
 }

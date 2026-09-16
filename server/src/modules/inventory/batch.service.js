@@ -4,3 +4,5 @@ import * as batchRepo from "./batch.repository.js";
 export const listBatches = (query) => batchRepo.listBatches(resolveDateRange(query));
 
 export const createBatch = (body) => batchRepo.createBatchWithConsumption(body);
+
+export const updateBatch = (id, body) => batchRepo.updateBatchWithConsumption(id, body);

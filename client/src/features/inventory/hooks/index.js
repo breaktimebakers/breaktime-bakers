@@ -8,5 +8,5 @@ export {
   useUpdateLotPayment,
 } from './useRawMaterialMutations'
 export { useBatches, batchKeys } from './useBatches'
-export { useCreateBatch } from './useBatchMutations'
+export { useCreateBatch, useUpdateBatch } from './useBatchMutations'
 export { useReadyStock, useProductStockHistory, readyStockKeys } from './useReadyStock'

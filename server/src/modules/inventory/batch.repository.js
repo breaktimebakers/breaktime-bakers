@@ -180,3 +180,103 @@ export const createBatchWithConsumption = async ({
 
   return findBatchById(batchId);
 };
+
+// Full-replace edit (e.g. an admin realizes an ingredient was left off the
+// original batch). Rather than diffing old vs new ingredient lines, this
+// reverses every old consumption row back onto the exact lot it was drawn
+// from, deletes those rows, then re-runs consumeFifo for the new list from
+// scratch - handles an added/removed/changed line uniformly and re-derives
+// costAtConsumption against the lots' current state, same as a fresh
+// batch. Ordered by lotId so a concurrent edit touching overlapping lots
+// locks in a consistent order, same reasoning as sortedIngredients above.
+export const updateBatchWithConsumption = async (
+  id,
+  { productName, quantityProduced, unit, pricePerUnit, producedAt, ingredients },
+) => {
+  await db.transaction(async (tx) => {
+    const [existingBatch] = await tx.select().from(batches).where(eq(batches.id, id));
+
+    if (!existingBatch) {
+      throw httpError(404, "Batch not found");
+    }
+
+    const oldConsumptions = await tx
+      .select({
+        id: batchLotConsumptions.id,
+        lotId: batchLotConsumptions.lotId,
+        qtyConsumed: batchLotConsumptions.qtyConsumed,
+      })
+      .from(batchLotConsumptions)
+      .where(eq(batchLotConsumptions.batchId, id))
+      .orderBy(asc(batchLotConsumptions.lotId));
+
+    for (const row of oldConsumptions) {
+      await tx
+        .update(materialLots)
+        .set({ remainingQty: sql`${materialLots.remainingQty} + ${row.qtyConsumed}` })
+        .where(eq(materialLots.id, row.lotId));
+    }
+
+    await tx.delete(batchLotConsumptions).where(eq(batchLotConsumptions.batchId, id));
+
+    const sortedIngredients = [...ingredients].sort((a, b) => a.rawMaterialId.localeCompare(b.rawMaterialId));
+
+    for (const line of sortedIngredients) {
+      await consumeFifo(tx, { batchId: id, rawMaterialId: line.rawMaterialId, qty: line.qty });
+    }
+
+    const producedAtValue = producedAt ? startOfDay(producedAt) : existingBatch.producedAt;
+
+    await tx
+      .update(batches)
+      .set({ productName, quantityProduced, unit, pricePerUnit: pricePerUnit ?? null, producedAt: producedAtValue })
+      .where(eq(batches.id, id));
+
+    // Ready Stock follow-along, same atomicity guarantee as creation -
+    // re-point this batch's single production movement at whatever
+    // product/qty/date the edit now says. Guarded against pulling stock a
+    // product no longer has (some of this batch's stock may have already
+    // sold) - see the availableAfter check below.
+    const [movement] = await tx
+      .select({ id: readyStockMovements.id, productId: readyStockMovements.productId, quantity: readyStockMovements.quantity })
+      .from(readyStockMovements)
+      .where(and(eq(readyStockMovements.batchId, id), eq(readyStockMovements.reason, "production")));
+
+    const newProductId = await upsertProductByName(tx, { name: productName, unit, pricePerUnit });
+
+    if (!movement) {
+      await tx.insert(readyStockMovements).values({
+        id: uuidv7(),
+        productId: newProductId,
+        batchId: id,
+        quantity: quantityProduced,
+        reason: "production",
+        occurredAt: producedAtValue,
+      });
+      return;
+    }
+
+    const [{ available }] = await tx
+      .select({ available: sql`COALESCE(SUM(${readyStockMovements.quantity}), 0)`.mapWith(Number) })
+      .from(readyStockMovements)
+      .where(eq(readyStockMovements.productId, movement.productId));
+
+    const stayingOnSameProduct = newProductId === movement.productId;
+    const availableAfter = available - movement.quantity + (stayingOnSameProduct ? quantityProduced : 0);
+
+    if (availableAfter < 0) {
+      throw httpError(
+        422,
+        `Can't reduce this batch's quantity that far - ${(-availableAfter).toFixed(3)} ${unit} of it has already been sold or used elsewhere in Ready Stock`,
+        "READY_STOCK_WOULD_GO_NEGATIVE",
+      );
+    }
+
+    await tx
+      .update(readyStockMovements)
+      .set({ productId: newProductId, quantity: quantityProduced, occurredAt: producedAtValue })
+      .where(eq(readyStockMovements.id, movement.id));
+  });
+
+  return findBatchById(id);
+};

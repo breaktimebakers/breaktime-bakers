@@ -28,3 +28,24 @@ export function useCreateBatch() {
     },
   })
 }
+
+export function useUpdateBatch() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, body }) => batchApi.update(id, body),
+    onSuccess: ({ batch }) => {
+      // Editing re-derives raw-material consumption and the batch's Ready
+      // Stock movement from scratch server-side, same reasoning as
+      // useCreateBatch's invalidation above.
+      queryClient.invalidateQueries({ queryKey: batchKeys.all })
+      queryClient.invalidateQueries({ queryKey: rawMaterialKeys.all })
+      queryClient.invalidateQueries({ queryKey: readyStockKeys.all })
+
+      toast.success(`Batch of ${batch.productName} updated`)
+    },
+    onError: (err) => {
+      toast.error('Could not update batch', { description: err.message })
+    },
+  })
+}

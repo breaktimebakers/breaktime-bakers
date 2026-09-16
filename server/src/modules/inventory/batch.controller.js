@@ -12,3 +12,9 @@ export const create = async (req, res) => {
 
   sendResponse(res, 201, "Batch created", { batch });
 };
+
+export const update = async (req, res) => {
+  const batch = await batchService.updateBatch(req.params.id, req.body);
+
+  sendResponse(res, 200, "Batch updated", { batch });
+};

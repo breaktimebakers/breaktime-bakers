@@ -1,16 +1,18 @@
 import { useState, useMemo } from 'react'
-import { Plus, CookingPot, LayoutGrid, Table as TableIcon } from 'lucide-react'
+import { Plus, Pencil, CookingPot, LayoutGrid, Table as TableIcon } from 'lucide-react'
 import { useBatches } from '@/features/inventory/hooks'
 import { Button, EmptyState, ErrorState, ExportMenu, PageHeader, Pagination, inputClass } from '@/components/shared'
 import { usePagination } from '@/hooks'
 import { exportPDF, exportExcel, formatCurrency, formatDate } from '@/utils'
 import { AddBatchModal } from '../components/AddBatchModal'
+import { EditBatchModal } from '../components/EditBatchModal'
 
 const PAGE_SIZE = 9
 
 export default function InProcess() {
   const [filter, setFilter] = useState('today')
   const [addOpen, setAddOpen] = useState(false)
+  const [editBatch, setEditBatch] = useState(null)
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
   const [view, setView] = useState('cards')
@@ -80,7 +82,10 @@ export default function InProcess() {
                     <h3 className="font-display text-lg font-semibold text-espresso">{b.productName}</h3>
                     <p className="font-mono text-[10px] uppercase tracking-wider text-espresso/40">{formatDate(b.producedAt)}</p>
                   </div>
-                  <span className="stamp text-matcha-glaze">Produced</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="stamp text-matcha-glaze">Produced</span>
+                    <button onClick={() => setEditBatch(b)} className="flex h-7 w-7 items-center justify-center rounded-lg text-espresso/50 hover:bg-espresso/5 hover:text-espresso" title="Edit batch"><Pencil className="h-3.5 w-3.5" /></button>
+                  </div>
                 </div>
                 <div className="mt-3 flex items-baseline gap-1.5">
                   <span className="font-mono text-3xl font-bold text-espresso">{b.quantityProduced}</span>
@@ -120,6 +125,7 @@ export default function InProcess() {
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Unit</th>
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Raw material cost</th>
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Ingredients</th>
+                  <th className="px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody>
@@ -133,6 +139,9 @@ export default function InProcess() {
                     <td className="px-4 py-3 text-xs text-espresso/60">
                       {b.ingredientsUsed.length === 0 ? '—' : b.ingredientsUsed.map((ing) => `${ing.rawMaterialName} (${ing.qty})`).join(', ')}
                     </td>
+                    <td className="px-4 py-3 text-right">
+                      <button onClick={() => setEditBatch(b)} className="flex h-8 w-8 items-center justify-center rounded-lg text-espresso/60 hover:bg-espresso/5 hover:text-espresso" title="Edit"><Pencil className="h-4 w-4" /></button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -143,6 +152,7 @@ export default function InProcess() {
       )}
 
       <AddBatchModal open={addOpen} onClose={() => setAddOpen(false)} />
+      <EditBatchModal open={!!editBatch} onClose={() => setEditBatch(null)} batch={editBatch} />
     </div>
   )
 }

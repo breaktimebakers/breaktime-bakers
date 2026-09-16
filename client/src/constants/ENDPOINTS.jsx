@@ -32,6 +32,7 @@ export const ENDPOINTS = {
   batches: {
     list: '/batches',
     create: '/batches',
+    update: (id) => `/batches/${id}`,
   },
   readyStock: {
     list: '/ready-stock',

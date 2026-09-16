@@ -22,16 +22,27 @@ const ingredientLineSchema = z.object({
   qty: z.coerce.number().positive("Quantity must be greater than 0"),
 });
 
+const uniqueIngredientLines = (lines) => new Set(lines.map((l) => l.rawMaterialId)).size === lines.length;
+const uniqueIngredientLinesMessage = { message: "Each raw material can only appear once - combine quantities into a single line" };
+
 export const createBatchSchema = z.object({
   productName: z.string().trim().min(1, "Product name is required").max(150),
   quantityProduced: z.coerce.number().positive("Quantity produced must be greater than 0"),
   unit: z.string().trim().min(1, "Unit is required").max(20),
   pricePerUnit: z.coerce.number().positive("Selling price per unit is required"),
   producedAt: isoDate.optional(),
-  ingredients: z
-    .array(ingredientLineSchema)
-    .default([])
-    .refine((lines) => new Set(lines.map((l) => l.rawMaterialId)).size === lines.length, {
-      message: "Each raw material can only appear once - combine quantities into a single line",
-    }),
+  ingredients: z.array(ingredientLineSchema).default([]).refine(uniqueIngredientLines, uniqueIngredientLinesMessage),
+});
+
+// Full replace, same shape as createBatchSchema - editing re-derives the
+// batch's ingredient consumption and Ready Stock movement from scratch
+// rather than patching individual fields (see updateBatchWithConsumption
+// in batch.repository.js).
+export const updateBatchSchema = z.object({
+  productName: z.string().trim().min(1, "Product name is required").max(150),
+  quantityProduced: z.coerce.number().positive("Quantity produced must be greater than 0"),
+  unit: z.string().trim().min(1, "Unit is required").max(20),
+  pricePerUnit: z.coerce.number().positive("Selling price per unit is required"),
+  producedAt: isoDate.optional(),
+  ingredients: z.array(ingredientLineSchema).default([]).refine(uniqueIngredientLines, uniqueIngredientLinesMessage),
 });
