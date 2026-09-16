@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router'
 import { Check, HandCoins, MapPin, ShoppingBag, ArrowRight } from 'lucide-react'
 import { useAreaPaymentSummaries, useCustomerPaymentsOverview } from '@/features/finance/hooks'
 import { useWalkInSales } from '@/features/sales/hooks'
+import { sumWalkInOutstanding, sumWalkInPaid } from '@/features/sales/utils/walkInPayments'
 import { ErrorState, PageHeader, StatCard } from '@/components/shared'
 
 export default function CustomerPayments() {
@@ -11,8 +12,8 @@ export default function CustomerPayments() {
 
   const outstanding = overview?.outstanding || 0
   const paid = overview?.paid || 0
-  const walkInOutstanding = walkInSales.filter((s) => s.paymentStatus === 'partial').reduce((sum, s) => sum + Number(s.amount), 0)
-  const walkInPaid = walkInSales.filter((s) => s.paymentStatus === 'paid').reduce((sum, s) => sum + Number(s.amount), 0)
+  const walkInOutstanding = sumWalkInOutstanding(walkInSales)
+  const walkInPaid = sumWalkInPaid(walkInSales)
 
   return (
     <div>

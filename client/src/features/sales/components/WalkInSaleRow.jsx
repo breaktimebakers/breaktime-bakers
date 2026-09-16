@@ -1,4 +1,5 @@
 import { Check } from 'lucide-react'
+import { walkInBalance } from '../utils/walkInPayments'
 
 // Shared between Sales' own Walk-in Sales page and Finance's read-only
 // Local/Walk-in view (CustomerPaymentsLocal.jsx) - one row shape, same
@@ -6,7 +7,7 @@ import { Check } from 'lucide-react'
 // omitted entirely on the Finance side, which is view-only.
 export function WalkInSaleRow({ sale, onSettle }) {
   const isPaid = sale.paymentStatus === 'paid'
-  const balance = Number(sale.amount) - Number(sale.amountPaid || 0)
+  const balance = walkInBalance(sale)
   return (
     <div className="rounded-bakery border border-espresso/8 bg-proof-cream p-4 shadow-bakery transition hover:shadow-bakery-lg">
       <div className="flex items-center gap-3">

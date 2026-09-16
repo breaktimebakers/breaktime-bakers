@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { ShoppingBag, Wallet, Check } from 'lucide-react'
 import { useWalkInSales } from '@/features/sales/hooks'
+import { sumWalkInOutstanding, sumWalkInPaid } from '@/features/sales/utils/walkInPayments'
 import { WalkInSaleRow } from '@/features/sales/components/WalkInSaleRow'
 import { EmptyState, ErrorState, PageHeader, StatCard } from '@/components/shared'
 
@@ -11,8 +12,8 @@ import { EmptyState, ErrorState, PageHeader, StatCard } from '@/components/share
 export default function CustomerPaymentsLocal() {
   const { data: sales = [], isLoading, isError, error, refetch } = useWalkInSales()
 
-  const outstanding = sales.filter((s) => s.paymentStatus === 'partial').reduce((sum, s) => sum + Number(s.amount), 0)
-  const paid = sales.filter((s) => s.paymentStatus === 'paid').reduce((sum, s) => sum + Number(s.amount), 0)
+  const outstanding = sumWalkInOutstanding(sales)
+  const paid = sumWalkInPaid(sales)
 
   return (
     <div>

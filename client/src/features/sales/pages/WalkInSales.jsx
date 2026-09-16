@@ -5,6 +5,7 @@ import { useReadyStock } from '@/features/inventory/hooks/useReadyStock'
 import { usePagination } from '@/hooks'
 import { Button, EmptyState, ErrorState, ExportMenu, Field, Modal, PageHeader, Pagination, StatCard, inputClass } from '@/components/shared'
 import { todayISO, daysAgoISO, formatDate, exportPDF, exportExcel } from '@/utils'
+import { walkInBalance, sumWalkInOutstanding, sumWalkInPaid } from '@/features/sales/utils/walkInPayments'
 
 const PAGE_SIZE = 10
 
@@ -161,7 +162,7 @@ function RecordPaymentModal({ sale, onClose }) {
 
 const saleRow = (s) => {
   const isPaid = s.paymentStatus === 'paid'
-  const balance = Number(s.amount) - Number(s.amountPaid || 0)
+  const balance = walkInBalance(s)
   return [
     s.productName,
     formatDate(s.saleDate),
@@ -200,8 +201,8 @@ export default function WalkInSales() {
   const { page, setPage, totalPages, start, end } = usePagination(filteredSales.length, PAGE_SIZE, `${search}|${status}|${dateMode}|${specificDate}`)
   const pagedSales = filteredSales.slice(start, end)
 
-  const outstanding = sales.filter((s) => s.paymentStatus === 'partial').reduce((sum, s) => sum + (Number(s.amount) - Number(s.amountPaid || 0)), 0)
-  const paid = sales.reduce((sum, s) => sum + (s.paymentStatus === 'paid' ? Number(s.amount) : Number(s.amountPaid || 0)), 0)
+  const outstanding = sumWalkInOutstanding(sales)
+  const paid = sumWalkInPaid(sales)
 
   const summaryParts = []
   if (dateMode !== 'all') summaryParts.push(dateMode === 'specific' ? specificDate : dateMode === 'today' ? 'Today' : 'Yesterday')
