@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { v7 as uuidv7 } from "uuid";
 import { db } from "../../db/index.js";
 import { httpError } from "../../utils/httpError.js";
@@ -179,6 +179,19 @@ export const listStoreSummariesForArea = (areaId, { from, to } = {}) => {
     // The unfiltered view continues to show every store in the area.
     .having(from || to ? sql`COUNT(${orders.id}) > 0` : undefined)
     .orderBy(asc(stores.dealerName));
+};
+
+// Cash actually collected within [from, to] - the P&L "Sales (Customer
+// Payments)" line. Deliberately separate from getOverviewTotals above:
+// that one is all-time billed/paid for the outstanding-customer figure,
+// this one is period-scoped payment cash for a specific month.
+export const getPaymentsTotalForRange = async ({ from, to }) => {
+  const [row] = await db
+    .select({ total: sql`COALESCE(SUM(${orderPayments.amount}), 0)`.mapWith(Number) })
+    .from(orderPayments)
+    .where(and(gte(orderPayments.paymentDate, from), lte(orderPayments.paymentDate, to)));
+
+  return row.total;
 };
 
 export const getOverviewTotals = async () => {

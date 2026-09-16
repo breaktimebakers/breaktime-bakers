@@ -2,17 +2,10 @@ import { useMemo, useState } from 'react'
 import { Truck, Check, ChevronDown } from 'lucide-react'
 import { useAllLots, useRawMaterialLots, useUpdateLotPayment } from '@/features/inventory/hooks'
 import { EmptyState, ErrorState, PageHeader, StatCard, MonthFilterBar } from '@/components/shared'
-import { todayISO } from '@/utils'
+import { todayISO, monthRangeISO } from '@/utils'
 import { PaidBadge } from '../components/PaidBadge'
 import { FragmentRow } from '../components/FragmentRow'
 import { ExpandedHistory } from '../components/ExpandedHistory'
-
-const monthRangeISO = (year, month) => {
-  const from = `${year}-${String(month + 1).padStart(2, '0')}-01`
-  const lastDay = new Date(year, month + 1, 0).getDate()
-  const to = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
-  return { from, to }
-}
 
 const toRow = (lot, overrides = {}) => ({
   lotId: lot.id,

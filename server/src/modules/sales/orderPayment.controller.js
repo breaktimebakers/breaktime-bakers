@@ -17,6 +17,10 @@ export const overview = async (req, res) => {
   sendResponse(res, 200, "Customer payments overview fetched", await orderPaymentService.getOverview());
 };
 
+export const periodTotal = async (req, res) => {
+  sendResponse(res, 200, "Customer payments period total fetched", await orderPaymentService.getPeriodTotal(req.validatedQuery));
+};
+
 export const areas = async (req, res) => {
   const areas = await orderPaymentService.getAreaSummaries();
 

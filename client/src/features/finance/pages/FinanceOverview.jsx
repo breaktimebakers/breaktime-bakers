@@ -1,6 +1,7 @@
+import { useMemo } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Wallet, Receipt, Truck, HandCoins, Landmark, TrendingUp, ArrowRight, Users, CircleDollarSign } from 'lucide-react'
-import { useFinance, useCustomerPaymentsOverview } from '@/features/finance/hooks'
+import { useFinance, useProfitAndLoss, useProfitAndLossTrend, useCustomerPaymentsOverview } from '@/features/finance/hooks'
 import { PageHeader, StatCard } from '@/components/shared'
 
 function NavCard({ to, icon: Icon, title, description, linkLabel }) {
@@ -54,23 +55,28 @@ function ProfitTrendChart({ data }) {
 }
 
 export default function FinanceOverview() {
-  const { getProfitAndLoss, outstandingSupplier } = useFinance()
+  const { outstandingSupplier } = useFinance()
   const { data: customerOverview } = useCustomerPaymentsOverview()
   const outstandingCustomer = customerOverview?.outstanding || 0
   const now = new Date()
-  const pnl = getProfitAndLoss(now.getFullYear(), now.getMonth())
+  const { data: pnl } = useProfitAndLoss(now.getFullYear(), now.getMonth())
   const totalOutstanding = outstandingSupplier + outstandingCustomer
 
   // Last 6 months profit trend
-  const trendData = []
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    const monthPnl = getProfitAndLoss(d.getFullYear(), d.getMonth())
-    trendData.push({
-      label: d.toLocaleDateString('en-IN', { month: 'short' }),
-      profit: monthPnl.profit,
-    })
-  }
+  const last6Months = useMemo(() => {
+    const months = []
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      months.push({ year: d.getFullYear(), month: d.getMonth() })
+    }
+    return months
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [now.getFullYear(), now.getMonth()])
+  const { data: trendPnl } = useProfitAndLossTrend(last6Months)
+  const trendData = last6Months.map(({ year, month }, i) => ({
+    label: new Date(year, month, 1).toLocaleDateString('en-IN', { month: 'short' }),
+    profit: trendPnl[i]?.profit || 0,
+  }))
 
   return (
     <div>

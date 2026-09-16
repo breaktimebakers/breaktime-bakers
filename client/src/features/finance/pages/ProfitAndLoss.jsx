@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { TrendingUp, TrendingDown } from 'lucide-react'
-import { useFinance } from '@/features/finance/hooks'
+import { useProfitAndLoss } from '@/features/finance/hooks'
 import { PageHeader, MonthFilterBar } from '@/components/shared'
 
 function MiniBar({ label, value, isPositive }) {
@@ -18,12 +18,11 @@ function MiniBar({ label, value, isPositive }) {
 }
 
 export default function ProfitAndLoss() {
-  const { getProfitAndLoss } = useFinance()
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth())
 
-  const pnl = useMemo(() => getProfitAndLoss(year, month), [getProfitAndLoss, year, month])
+  const { data: pnl, isLoading } = useProfitAndLoss(year, month)
   const isProfit = pnl.profit >= 0
 
   // Bar chart for purchased vs used
@@ -34,6 +33,10 @@ export default function ProfitAndLoss() {
       <PageHeader eyebrow="Finance / Profit & Loss" title="Profit & Loss" description="Monthly P&L statement with full breakdown." />
 
       <MonthFilterBar year={year} month={month} onChange={(y, m) => { setYear(y); setMonth(m) }} />
+
+      {isLoading && (
+        <p className="mb-4 font-mono text-xs text-espresso/40">Loading this month&apos;s figures…</p>
+      )}
 
       {/* Large profit figure */}
       <div className={`mb-4 rounded-bakery border p-6 shadow-bakery ${isProfit ? 'border-matcha-glaze/30 bg-matcha-glaze/5' : 'border-cherry-compote/30 bg-cherry-compote/5'}`}>

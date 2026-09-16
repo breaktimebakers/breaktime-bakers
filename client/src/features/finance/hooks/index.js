@@ -1,4 +1,5 @@
 export { useFinance } from './useFinance'
+export { useProfitAndLoss, useProfitAndLossTrend } from './useProfitAndLoss'
 export { useExpenses, expenseKeys } from './useExpenses'
 export { useCreateExpense, useDeleteExpense } from './useExpenseMutations'
 export { useTaxEntries, taxEntryKeys } from './useTaxEntries'
@@ -7,6 +8,7 @@ export { useSalaryPayments, usePayroll, salaryPaymentKeys } from './useSalaryPay
 export { useMarkSalaryPaid, useMarkSalaryUnpaid, useBulkMarkSalaryPaid } from './useSalaryPaymentMutations'
 export {
   useCustomerPaymentsOverview,
+  usePaymentsPeriodTotal,
   useAreaPaymentSummaries,
   useAreaStoreSummaries,
   useStorePaymentLedger,

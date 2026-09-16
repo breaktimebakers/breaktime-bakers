@@ -5,6 +5,7 @@ import { toast } from '@/lib/toast'
 export const customerPaymentKeys = {
   all: ['customerPayments'],
   overview: ['customerPayments', 'overview'],
+  periodTotal: (range = {}) => ['customerPayments', 'periodTotal', range],
   areas: ['customerPayments', 'areas'],
   areaStores: (areaId, query = {}) => ['customerPayments', 'areas', areaId, 'stores', query],
   store: (storeId) => ['customerPayments', 'store', storeId],
@@ -15,6 +16,16 @@ export function useCustomerPaymentsOverview() {
   return useQuery({
     queryKey: customerPaymentKeys.overview,
     queryFn: () => customerPaymentApi.overview(),
+  })
+}
+
+// Cash collected within a bounded [from, to] - the P&L "Sales" line.
+// range defaults to the current calendar month server-side when both
+// from/to are omitted, same resolveMonthRange idiom as useAllLots.
+export function usePaymentsPeriodTotal(range = {}) {
+  return useQuery({
+    queryKey: customerPaymentKeys.periodTotal(range),
+    queryFn: () => customerPaymentApi.periodTotal(range),
   })
 }
 

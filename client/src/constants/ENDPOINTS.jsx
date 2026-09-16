@@ -64,6 +64,7 @@ export const ENDPOINTS = {
     record: '/order-payments',
     listForOrder: '/order-payments',
     overview: '/order-payments/overview',
+    periodTotal: '/order-payments/period-total',
     areas: '/order-payments/areas',
     areaStores: (areaId) => `/order-payments/areas/${areaId}/stores`,
     storeDetail: (storeId) => `/order-payments/stores/${storeId}`,

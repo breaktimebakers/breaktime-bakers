@@ -30,3 +30,13 @@ export const areaStoreSummariesQuerySchema = withDateRangeCheck(
     to: isoDate.optional(),
   }),
 );
+
+// P&L's "Sales (Customer Payments)" line - from/to default to the current
+// calendar month when both are omitted, same resolveMonthRange idiom as
+// listAllLotsQuerySchema in the raw-materials module.
+export const periodTotalQuerySchema = withDateRangeCheck(
+  z.object({
+    from: isoDate.optional(),
+    to: isoDate.optional(),
+  }),
+);

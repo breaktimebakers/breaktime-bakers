@@ -94,3 +94,15 @@ export const isValidCalendarDate = (dateStr) => {
 // YYYY-MM-DD sorts the same lexicographically as it does chronologically,
 // so plain string comparison is enough - no Date parsing needed.
 export const isReversedRange = (from, to) => Boolean(from && to && from > to)
+
+// First/last calendar day of (year, month) as YYYY-MM-DD - month is
+// 0-indexed (JS Date convention, matches useState(now.getMonth())
+// elsewhere). The single [from, to] builder for every month-scoped
+// finance query (Supplier Payments, P&L) that calls a backend endpoint
+// deliberately bounded to a date range rather than an unscoped fetch.
+export const monthRangeISO = (year, month) => {
+  const from = `${year}-${pad(month + 1)}-01`
+  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate()
+  const to = `${year}-${pad(month + 1)}-${pad(lastDay)}`
+  return { from, to }
+}

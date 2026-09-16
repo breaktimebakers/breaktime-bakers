@@ -3,7 +3,7 @@ import { asyncHandler } from "../../utils/asyncHandler.js";
 import { validate, validateQuery } from "../../middlewares/validate.js";
 import { requireAuth } from "../../middlewares/requireAuth.js";
 import { requireRole } from "../../middlewares/requireRole.js";
-import { recordPaymentSchema, listForOrderQuerySchema, storeIdParamSchema, areaIdParamSchema, areaStoreSummariesQuerySchema } from "./orderPayment.validation.js";
+import { recordPaymentSchema, listForOrderQuerySchema, storeIdParamSchema, areaIdParamSchema, areaStoreSummariesQuerySchema, periodTotalQuerySchema } from "./orderPayment.validation.js";
 import * as orderPaymentController from "./orderPayment.controller.js";
 
 const router = Router();
@@ -11,6 +11,8 @@ const router = Router();
 router.use(requireAuth, requireRole("admin"));
 
 router.get("/overview", asyncHandler(orderPaymentController.overview));
+
+router.get("/period-total", validateQuery(periodTotalQuerySchema), asyncHandler(orderPaymentController.periodTotal));
 
 router.get("/areas", asyncHandler(orderPaymentController.areas));
 

@@ -1,5 +1,5 @@
 import { httpError } from "../../utils/httpError.js";
-import { resolveDateRange, todayIso } from "../../utils/dateRange.js";
+import { resolveDateRange, resolveMonthRange, todayIso } from "../../utils/dateRange.js";
 import * as orderPaymentRepo from "./orderPayment.repository.js";
 import * as orderRepo from "./order.repository.js";
 import { requireDeliveryWorker } from "./order.service.js";
@@ -64,3 +64,10 @@ export const getAreaStoreSummaries = async (areaId, rangeQuery = {}) => {
 };
 
 export const getOverview = () => orderPaymentRepo.getOverviewTotals();
+
+export const getPeriodTotal = async (rangeQuery = {}) => {
+  const { from, to } = resolveMonthRange(rangeQuery);
+  const total = await orderPaymentRepo.getPaymentsTotalForRange({ from, to });
+
+  return { total, from, to };
+};

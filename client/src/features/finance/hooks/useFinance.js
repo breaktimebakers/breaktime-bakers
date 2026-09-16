@@ -7,22 +7,22 @@ import { useTaxEntries } from './useTaxEntries'
 import { todayISO } from '@/utils'
 
 export function useFinance() {
-  // Supplier Payments now reads real lots directly via useAllLots/
+  // Supplier Payments reads real lots directly via useAllLots/
   // useUpdateLotPayment (see SupplierPayments.jsx) - a dedicated
-  // GET /raw-materials/lots endpoint scoped to a date range. outstandingSupplier
-  // and the P&L "raw materials purchased/used" lines below are still
-  // pinned at 0 - they need a multi-month view (6 months at once for the
-  // trend chart) that hasn't been wired to the new endpoint yet, a real
-  // feature to build, not a safe thing to improvise as a side effect of
-  // something else.
+  // GET /raw-materials/lots endpoint scoped to a date range. P&L itself
+  // now lives in useProfitAndLoss.js (useProfitAndLoss /
+  // useProfitAndLossTrend), which wires up the same raw-material-lots,
+  // batch-consumption, and customer-payment-period endpoints - kept
+  // separate from this hook since those need their own per-month/
+  // multi-month query plumbing rather than the plain-object shape below.
+  // outstandingSupplier stays pinned at 0 here - it needs an unscoped
+  // (all lots, any month) fetch, a separate gap from P&L's.
   const { data: workers = [] } = useWorkers()
-  // getSalaryForMonth/getProfitAndLoss below take an arbitrary (year,
-  // month) per call - FinanceOverview's trend chart calls getProfitAndLoss
-  // for 6 different months in one render - so there's no single date to
-  // scope a fetch to. useAllAttendance fetches the whole table once
-  // (same unscoped-list precedent as useWorkers/useAreas at this app's
-  // scale) and the month filtering below happens client-side, same as
-  // the original mock data did.
+  // getSalaryForMonth below takes an arbitrary (year, month) per call, so
+  // there's no single date to scope a fetch to. useAllAttendance fetches
+  // the whole table once (same unscoped-list precedent as useWorkers/
+  // useAreas at this app's scale) and the month filtering below happens
+  // client-side, same as the original mock data did.
   const { data: attendance = [] } = useAllAttendance()
   const { data: advances = [] } = useAllAdvances()
   const { data: salaryPayments = [] } = useSalaryPayments()
@@ -130,56 +130,8 @@ export function useFinance() {
     return unpaid
   }
 
-  // Sum of lot originalQty × unitCost for lots purchased in that month.
-  // Supplier Payments itself now reads real per-month lots via useAllLots
-  // (a single month at a time, driven by that page's own filter) - this
-  // still needs the same data across an arbitrary (year, month), 6 months
-  // at once for FinanceOverview's trend chart, which useAllLots' single
-  // useQuery call per render can't do without a bigger refactor (see
-  // rawMaterials comment above). Pinned at 0 until that's wired.
-  // eslint-disable-next-line no-unused-vars
-  const getRawMaterialPurchasedTotal = (year, month) => 0
-
-  // Sum of ingredient cost consumed by batches in that month. Batches are
-  // real now (see useBatches in the inventory feature), but wiring an
-  // arbitrary (year, month) of them into this month-by-month P&L view is
-  // a real feature to build, not a safe thing to improvise as a side
-  // effect of something else - same reasoning as the rawMaterials.lots
-  // gap above. Pinned at 0 until Finance itself gets wired.
-  // eslint-disable-next-line no-unused-vars
-  const getRawMaterialUsedTotal = (year, month) => 0
-
-  // Sales used to be summed from the local hand-typed customerPayments
-  // ledger. Customer Payments is now real, order-backed data (see
-  // useCustomerPayments.js), but it only exposes all-time totals so far -
-  // this P&L view needs an arbitrary (year, month) and 6 months at once for
-  // FinanceOverview's trend chart, which isn't wired yet. Pinned at 0 until
-  // a per-month endpoint exists, same "real feature to build, not a
-  // safe thing to improvise" reasoning as the raw-materials figures below.
-  // eslint-disable-next-line no-unused-vars
-  const getSalesTotal = (year, month) => 0
-
-  // Profit & Loss for a month
-  const getProfitAndLoss = (year, month) => {
-    const mStr = `${year}-${String(month + 1).padStart(2, '0')}`
-    const sales = getSalesTotal(year, month)
-    const rawMaterialsPurchased = getRawMaterialPurchasedTotal(year, month)
-    const rawMaterialsUsed = getRawMaterialUsedTotal(year, month)
-    // Salaries = sum of getSalaryForMonth for all workers
-    const salaries = workers.reduce((s, w) => s + getSalaryForMonth(w.id, year, month).total, 0)
-    const expensesTotal = expenses
-      .filter((e) => e.date.startsWith(mStr))
-      .reduce((s, e) => s + e.amount, 0)
-    const taxes = taxEntries
-      .filter((t) => t.date.startsWith(mStr))
-      .reduce((s, t) => s + t.amount, 0)
-    const profit = sales - rawMaterialsPurchased - salaries - expensesTotal - taxes
-    return { sales, rawMaterialsPurchased, rawMaterialsUsed, salaries, expenses: expensesTotal, taxes, profit }
-  }
-
-  // Supplier outstanding is pinned at 0 for the same reason as
-  // getRawMaterialPurchasedTotal above - this needs an unscoped (all lots,
-  // any month) fetch, not yet wired to the new per-month useAllLots
+  // Supplier outstanding is pinned at 0 - this needs an unscoped (all
+  // lots, any month) fetch, not yet wired to the new per-month useAllLots
   // endpoint. Customer outstanding is real now - see
   // useCustomerPaymentsOverview in useCustomerPayments.js, called directly
   // by whichever page needs it (FinanceOverview.jsx) rather than threaded
@@ -197,9 +149,6 @@ export function useFinance() {
     bulkMarkSalaryPaid,
     getPaidTotalForMonth,
     getUnpaidTotal,
-    getRawMaterialPurchasedTotal,
-    getRawMaterialUsedTotal,
-    getProfitAndLoss,
     outstandingSupplier,
   }
 }
