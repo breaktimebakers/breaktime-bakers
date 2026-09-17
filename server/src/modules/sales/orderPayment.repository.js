@@ -8,6 +8,7 @@ import { orderPayments } from "./orderPayment.schema.js";
 import { stores } from "./store.schema.js";
 import { areas } from "./area.schema.js";
 import { workers } from "../workers/worker.schema.js";
+import { walkInSales } from "./walkInSale.schema.js";
 
 // Billed/paid/balance are never stored columns - always summed at read time
 // from order_items and order_payments, same "don't store a derivable
@@ -184,14 +185,26 @@ export const listStoreSummariesForArea = (areaId, { from, to } = {}) => {
 // Cash actually collected within [from, to] - the P&L "Sales (Customer
 // Payments)" line. Deliberately separate from getOverviewTotals above:
 // that one is all-time billed/paid for the outstanding-customer figure,
-// this one is period-scoped payment cash for a specific month.
+// this one is period-scoped payment cash for a specific month. Sums both
+// channels - store/area order_payments and walk-in counter sales - same
+// as the Customer Payments page's "Paid" card (CustomerPayments.jsx), so
+// P&L's sales figure isn't silently missing counter cash. Walk-in has no
+// per-installment payment ledger (see walkInSale.schema.js), so it's
+// scoped by saleDate rather than a payment date - amountPaid is always
+// kept in sync with what's actually been collected (settleWalkInSale sets
+// it incrementally; a "paid" sale sets it to the full amount on create).
 export const getPaymentsTotalForRange = async ({ from, to }) => {
-  const [row] = await db
+  const [orderRow] = await db
     .select({ total: sql`COALESCE(SUM(${orderPayments.amount}), 0)`.mapWith(Number) })
     .from(orderPayments)
     .where(and(gte(orderPayments.paymentDate, from), lte(orderPayments.paymentDate, to)));
 
-  return row.total;
+  const [walkInRow] = await db
+    .select({ total: sql`COALESCE(SUM(${walkInSales.amountPaid}), 0)`.mapWith(Number) })
+    .from(walkInSales)
+    .where(and(gte(walkInSales.saleDate, from), lte(walkInSales.saleDate, to)));
+
+  return orderRow.total + walkInRow.total;
 };
 
 export const getOverviewTotals = async () => {
