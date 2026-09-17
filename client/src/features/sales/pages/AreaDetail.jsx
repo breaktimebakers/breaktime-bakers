@@ -37,7 +37,7 @@ function StoreFormModal({ open, onClose, areaId, store }) {
   const updateStoreStatus = useUpdateStoreStatus()
   const isEdit = !!store
   const hasSavedLocation = isEdit && hasValidStoreLocation(store)
-  const [form, setForm] = useState({ dealerName: '', shopName: '', dealerPhone: '', storeType: 'Shop', address: '', lat: '', lng: '', isActive: true })
+  const [form, setForm] = useState({ dealerName: '', shopName: '', dealerPhone: '', whatsappNumber: '', whatsappSameAsPhone: true, storeType: 'Shop', address: '', lat: '', lng: '', isActive: true })
   const [locationAuthorized, setLocationAuthorized] = useState(false)
 
   // This modal instance stays mounted across different "Edit" clicks (only
@@ -49,20 +49,21 @@ function StoreFormModal({ open, onClose, areaId, store }) {
 
     setLocationAuthorized(hasSavedLocation)
     setForm(store
-      ? { dealerName: store.dealerName || '', shopName: store.shopName || '', dealerPhone: store.dealerPhone || '', storeType: store.storeType || 'Shop', address: store.address || '', lat: store.lat ?? '', lng: store.lng ?? '', isActive: store.isActive }
-      : { dealerName: '', shopName: '', dealerPhone: '', storeType: 'Shop', address: '', lat: '', lng: '', isActive: true }
+      ? { dealerName: store.dealerName || '', shopName: store.shopName || '', dealerPhone: store.dealerPhone || '', whatsappNumber: store.whatsappNumber || '', whatsappSameAsPhone: !store.whatsappNumber || store.whatsappNumber === store.dealerPhone, storeType: store.storeType || 'Shop', address: store.address || '', lat: store.lat ?? '', lng: store.lng ?? '', isActive: store.isActive }
+      : { dealerName: '', shopName: '', dealerPhone: '', whatsappNumber: '', whatsappSameAsPhone: true, storeType: 'Shop', address: '', lat: '', lng: '', isActive: true }
     )
   }, [open, store, hasSavedLocation])
 
   const busy = createStore.isPending || updateStore.isPending || updateStoreStatus.isPending
 
   const submit = async () => {
-    if (!form.dealerName || (!isEdit && !locationAuthorized)) return
+    if (!form.dealerName || !form.shopName || (!isEdit && !locationAuthorized)) return
 
     const body = {
       dealerName: form.dealerName,
-      shopName: form.shopName || undefined,
+      shopName: form.shopName,
       dealerPhone: form.dealerPhone || undefined,
+      whatsappNumber: (form.whatsappSameAsPhone ? form.dealerPhone : form.whatsappNumber) || undefined,
       storeType: form.storeType,
       address: form.address || undefined,
       lat: form.lat === '' ? undefined : form.lat,
@@ -91,14 +92,33 @@ function StoreFormModal({ open, onClose, areaId, store }) {
   return (
     <Modal open={open} onClose={onClose} eyebrow="Sales / Stores" title={isEdit ? 'Edit store' : 'Add store'} footer={<><Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button><Button onClick={submit} disabled={busy || (!isEdit && !locationAuthorized)}>{busy ? 'Saving…' : !isEdit && !locationAuthorized ? 'Allow location first' : isEdit ? 'Save changes' : 'Add store'}</Button></>}>
       <div className="grid grid-cols-2 gap-3">
+        <Field label="Shop name" required><input className={inputClass} value={form.shopName} onChange={(e) => setForm({ ...form, shopName: e.target.value })} placeholder="e.g. Sunrise Bakery" /></Field>
         <Field label="Dealer name" required><input className={inputClass} value={form.dealerName} onChange={(e) => setForm({ ...form, dealerName: e.target.value })} /></Field>
-        <Field label="Shop name"><input className={inputClass} value={form.shopName} onChange={(e) => setForm({ ...form, shopName: e.target.value })} placeholder="e.g. Sunrise Bakery" /></Field>
         <Field label="Phone"><input className={inputClass} value={form.dealerPhone} onChange={(e) => setForm({ ...form, dealerPhone: e.target.value })} /></Field>
         <Field label="Store type" required>
           <select className={inputClass} value={form.storeType} onChange={(e) => setForm({ ...form, storeType: e.target.value })}>
             <option>Shop</option><option>Canteen</option><option>Other</option>
           </select>
         </Field>
+        <div className="col-span-2">
+          <span className="mb-1.5 block text-xs font-medium text-espresso/70">WhatsApp number</span>
+          <input
+            className={inputClass}
+            value={form.whatsappSameAsPhone ? form.dealerPhone : form.whatsappNumber}
+            onChange={(e) => setForm({ ...form, whatsappNumber: e.target.value })}
+            disabled={form.whatsappSameAsPhone}
+            placeholder="e.g. 9876543210"
+          />
+          <label className="mt-2 flex items-center gap-2 text-xs text-espresso/60">
+            <input
+              type="checkbox"
+              checked={form.whatsappSameAsPhone}
+              onChange={(e) => setForm({ ...form, whatsappSameAsPhone: e.target.checked })}
+              className="h-4 w-4 rounded border-espresso/20 text-oven-amber"
+            />
+            Same as phone number
+          </label>
+        </div>
         <div className="col-span-2"><Field label="Address"><input className={inputClass} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></Field></div>
         <div className="col-span-2">
           <Field label="Location"><StoreLocationPicker lat={form.lat} lng={form.lng} requirePermission={!isEdit} onChange={({ lat, lng, address }) => setForm((current) => ({ ...current, lat, lng, address: address || current.address }))} onAuthorizationChange={setLocationAuthorized} /></Field>
@@ -304,8 +324,8 @@ export default function AreaDetail() {
                       )}
                     </div>
                   </div>
-                  <h3 className="mt-4 font-display text-lg font-semibold text-espresso">{s.dealerName}</h3>
-                  {s.shopName && <p className="text-sm font-medium text-oven-amber">{s.shopName}</p>}
+                  <h3 className="mt-4 font-display text-lg font-semibold text-espresso">{s.shopName || s.dealerName}</h3>
+                  {s.shopName && <p className="text-sm font-medium text-oven-amber">{s.dealerName}</p>}
                   <p className="text-sm text-espresso/55">{s.address}</p>
                   <div className="mt-3 flex items-center justify-between">
                     <div className="flex items-center gap-1.5 text-sm text-espresso/60">
@@ -335,8 +355,8 @@ export default function AreaDetail() {
                   <thead>
                     <tr className="border-b border-espresso/10 bg-crust/30 text-left">
                       {selectMode && <th className="w-10 px-4 py-3" />}
-                      <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Dealer</th>
                       <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Shop</th>
+                      <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Dealer</th>
                       <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Type</th>
                       <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Phone</th>
                       <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-espresso/50">Status</th>
@@ -367,10 +387,10 @@ export default function AreaDetail() {
                             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-bakery bg-sourdough/40 text-espresso">
                               <Store className="h-4 w-4" />
                             </div>
-                            <p className="font-medium text-espresso">{s.dealerName}</p>
+                            <p className="font-medium text-espresso">{s.shopName || s.dealerName}</p>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-espresso/70">{s.shopName || '-'}</td>
+                        <td className="px-4 py-3 text-espresso/70">{s.dealerName}</td>
                         <td className="px-4 py-3">
                           <span className="rounded-full bg-espresso/5 px-2.5 py-1 text-xs font-medium text-espresso/70">{s.storeType}</span>
                         </td>

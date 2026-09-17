@@ -16,10 +16,17 @@ export const stores = pgTable(
 
     dealerName: varchar("dealer_name", { length: 150 }).notNull(),
 
-    // A dealer doesn't always operate under its own shop brand.
+    // Required going forward (enforced in area.validation.js, not here -
+    // kept nullable at the DB level so existing pre-this-change rows with
+    // no shop name don't need a backfill migration).
     shopName: varchar("shop_name", { length: 150 }),
 
     dealerPhone: varchar("dealer_phone", { length: 20 }),
+
+    // Defaults to dealerPhone client-side via a "same as phone" toggle,
+    // but stored as its own value so it can diverge (e.g. dealer's WhatsApp
+    // is a different number than their landline).
+    whatsappNumber: varchar("whatsapp_number", { length: 20 }),
 
     // "Shop" / "Canteen" / "Other" from a closed picker in the UI -
     // validated as an enum at the API boundary (see area.validation.js),

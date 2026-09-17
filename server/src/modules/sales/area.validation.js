@@ -19,8 +19,9 @@ export const updateAreaSchema = createAreaSchema;
 export const createStoreSchema = z
   .object({
     dealerName: z.string().trim().min(1, "Dealer name is required").max(150),
-    shopName: z.string().trim().max(150).optional(),
+    shopName: z.string().trim().min(1, "Shop name is required").max(150),
     dealerPhone: z.string().trim().max(20).optional(),
+    whatsappNumber: z.string().trim().max(20).optional(),
     storeType: z.enum(["Shop", "Canteen", "Other"]),
     address: z.string().trim().max(500).optional(),
     lat: z.coerce.number().min(-90).max(90).optional(),
