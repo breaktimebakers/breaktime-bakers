@@ -26,7 +26,10 @@ const computePnlFigures = ({ year, month, workers, attendance, expenses, taxEntr
   const taxes = taxEntries.filter((t) => t.date.startsWith(mStr)).reduce((s, t) => s + t.amount, 0)
   // Sum of lot originalQty x unitCost for lots purchased in the month -
   // what actually went out the door to suppliers.
-  const rawMaterialsPurchased = lots.reduce((s, lot) => s + lot.originalQty * lot.unitCost, 0)
+  // Only lots already paid for count - unpaid ones are owed, not spent, so
+  // they're reported separately as `outstanding` and kept out of the profit.
+  const rawMaterialsPurchased = lots.filter((lot) => lot.isPaid).reduce((s, lot) => s + lot.originalQty * lot.unitCost, 0)
+  const outstanding = lots.filter((lot) => !lot.isPaid).reduce((s, lot) => s + lot.originalQty * lot.unitCost, 0)
   // Sum of ingredient cost consumed by batches produced in the month -
   // "reference only" in the UI, not subtracted from profit (Purchased
   // already accounts for the cash outflow).
@@ -34,7 +37,7 @@ const computePnlFigures = ({ year, month, workers, attendance, expenses, taxEntr
   const sales = salesTotal || 0
   const profit = sales - rawMaterialsPurchased - salaries - expensesTotal - taxes
 
-  return { sales, rawMaterialsPurchased, rawMaterialsUsed, salaries, expenses: expensesTotal, taxes, profit }
+  return { sales, rawMaterialsPurchased, rawMaterialsUsed, outstanding, salaries, expenses: expensesTotal, taxes, profit }
 }
 
 // P&L for a single (year, month) - Profit & Loss page and FinanceOverview's

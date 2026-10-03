@@ -65,7 +65,7 @@ export default function ProfitAndLoss() {
             <span className="font-mono font-semibold text-matcha-glaze">+₹{pnl.sales.toLocaleString('en-IN')}</span>
           </div>
           <div className="flex items-center justify-between px-5 py-3">
-            <span className="text-sm text-espresso/70">Raw Materials Purchased</span>
+            <span className="text-sm text-espresso/70">Raw Materials Purchased (paid)</span>
             <span className="font-mono font-semibold text-cherry-compote">−₹{pnl.rawMaterialsPurchased.toLocaleString('en-IN')}</span>
           </div>
           <div className="flex items-center justify-between px-5 py-3 bg-espresso/5">
@@ -86,6 +86,13 @@ export default function ProfitAndLoss() {
           <div className="flex items-center justify-between px-5 py-3">
             <span className="text-sm text-espresso/70">Taxes</span>
             <span className="font-mono font-semibold text-cherry-compote">−₹{pnl.taxes.toLocaleString('en-IN')}</span>
+          </div>
+          <div className="flex items-center justify-between bg-espresso/5 px-5 py-3">
+            <div>
+              <span className="text-sm text-espresso/50">Outstanding</span>
+              <span className="ml-2 rounded-full bg-espresso/8 px-2 py-0.5 text-[10px] text-espresso/40">not included in profit</span>
+            </div>
+            <span className="font-mono text-espresso/50">₹{pnl.outstanding.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
           </div>
           <div className={`flex items-center justify-between border-t-2 border-espresso/15 px-5 py-4 ${isProfit ? 'bg-matcha-glaze/5' : 'bg-cherry-compote/5'}`}>
             <span className="font-display text-lg font-semibold text-espresso">Net Profit</span>

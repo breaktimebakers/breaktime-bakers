@@ -98,7 +98,7 @@ export function AddPersonOrderModal({ open, onClose, person }) {
             <select className={inputClass} value={form.storeId} onChange={(e) => setForm({ ...form, storeId: e.target.value })}>
               <option value="">Select store...</option>
               <optgroup label={areas.find((a) => a.id === todayAreaId)?.name}>
-                {todayStores.map((s) => <option key={s.id} value={s.id}>{s.dealerName}</option>)}
+                {todayStores.map((s) => <option key={s.id} value={s.id}>{s.shopName || s.dealerName}</option>)}
               </optgroup>
             </select>
           ) : (

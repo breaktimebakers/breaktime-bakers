@@ -113,7 +113,7 @@ export function AddOrderModal({ open, onClose, areaId }) {
             <option value="">Select store...</option>
             {visibleAreas.map((a) => (
               <optgroup key={a.id} label={a.name}>
-                {stores.filter((s) => s.areaId === a.id).map((s) => <option key={s.id} value={s.id}>{s.dealerName}</option>)}
+                {stores.filter((s) => s.areaId === a.id).map((s) => <option key={s.id} value={s.id}>{s.shopName || s.dealerName}</option>)}
               </optgroup>
             ))}
           </select>

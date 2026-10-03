@@ -9,23 +9,37 @@ import * as authController from "./auth.controller.js";
 
 const router = Router();
 
-// Broad throttle across all auth routes, keyed by IP.
-const authLimiter = createRateLimiter({
-  windowMs: 15 * 60 * 1000,
+const WINDOW_MS = 15 * 60 * 1000;
+
+const normalizeEmail = (req) => String(req.body?.email ?? "").trim().toLowerCase();
+
+// Login throttles count failed attempts only, so legitimately signing in
+// from several devices never locks anyone out. Two independent limits:
+// - per IP: one IP can't brute-force many accounts
+// - per email (any IP): one account can't be brute-forced by rotating IPs
+// The email is trimmed + lowercased so "Admin@x.com" can't dodge the limit.
+const loginIpLimiter = createRateLimiter({
+  windowMs: WINDOW_MS,
   max: 30,
-  keyGenerator: (req) => `auth:${req.ip}`,
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => `login-ip:${req.ip}`,
 });
 
-// Tighter throttle on login, keyed by IP + email so one attacker
-// can't brute-force a single account by rotating IPs alone, and
-// one IP can't brute-force many accounts either.
-const loginLimiter = createRateLimiter({
-  windowMs: 15 * 60 * 1000,
+const loginEmailLimiter = createRateLimiter({
+  windowMs: WINDOW_MS,
   max: 8,
-  keyGenerator: (req) => `login:${req.ip}:${req.body?.email ?? ""}`,
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => `login-email:${normalizeEmail(req)}`,
 });
 
-router.use(authLimiter);
+// Refresh is called automatically by the app (every ~15m per open tab, plus
+// retries after a 401), so it gets a roomy limit - just enough to stop abuse,
+// never enough to log a legitimate shared-IP office out.
+const refreshLimiter = createRateLimiter({
+  windowMs: WINDOW_MS,
+  max: 120,
+  keyGenerator: (req) => `refresh:${req.ip}`,
+});
 
 // Not a public sign-up route: this app is admin-only, and the only way
 // to create another admin login is to already be one.
@@ -38,12 +52,13 @@ router.post(
 );
 router.post(
   "/login",
-  loginLimiter,
+  loginIpLimiter,
+  loginEmailLimiter,
   validate(loginSchema),
   asyncHandler(authController.login),
 );
 router.post("/logout", asyncHandler(authController.logout));
-router.post("/refresh-token", asyncHandler(authController.rotateToken));
+router.post("/refresh-token", refreshLimiter, asyncHandler(authController.rotateToken));
 
 router.get("/me", requireAuth, asyncHandler(authController.getCurrentUser));
 
